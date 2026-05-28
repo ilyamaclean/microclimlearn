@@ -1,18 +1,25 @@
 Package: microclimlearn
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Tutorial Package for Learning Microclimate Modelling
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Authors@R: c(
+    person("Ilya", "Maclean", email = "i.m.d.maclean@exeter.ac.uk", role = c("aut", "cre")),
+    person("Lydia", "Soifer", role = "aut"),
+    person("David", "Klinges", role = "aut")
+  )
+Description: Functions and tutorials for learning, exploring, and
+    visualising microclimate processes and environmental biophysics. The
+    package is intended to support teaching and training in microclimate
+    modelling, surface energy balance, and environmental change ecology.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.2
-Suggests: 
+Suggests:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
-Depends: 
+Depends:
     R (>= 2.10)
+URL: https://github.com/ilyamaclean/microclimlearn
+BugReports: https://github.com/ilyamaclean/microclimlearn/issues
