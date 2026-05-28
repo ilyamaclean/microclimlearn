@@ -1,0 +1,1119 @@
+---
+title: "Equations"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Equations}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+<style>
+  body {
+    text-align: justify;
+  }
+  
+  .col2 {
+    columns: 2 200px;         /* number of columns and width in pixels */
+    -webkit-columns: 2 200px; /* chrome, safari */
+    -moz-columns: 2 200px;    /* firefox */
+  }
+  
+  .leg {
+    font-size: 12px;
+  }
+
+  img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .figure {
+    text-align: center;
+    margin: 20px 0;
+  }
+
+  .figure img {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  .figure figcaption {
+    font-size: 12px;
+    text-align: center;
+  }
+</style>
+* [Note 1: The Penman-Monteith equation](#penman-note)
+* [Radiation fluxes](#radiation-note)
+  + [Note 2.1: Direct radiation](#direct-radiation)
+  + [Note 2.2: The sun's position](#sun-position)
+  + [Note 2.3: Two-stream models](#twostream-note)
+  + [Note 2.4: Longwave radiation](#longwave-radiation)
+  + [Note 2.5: Direct radiation and organisms](#direct-organisms)
+* [Sensible heat fluxes](#sensible-heat-fluxes)
+  + [Note 3.1: Conductance and resistance](#conductance-note)
+  + [Note 3.2: Sensible heat exchange above canopy](#sensible-above-note)
+  + [Note 3.3: Sensible heat exchange below canopy](#sensible-below-note)
+  + [Note 3.4: Sensible heat exchange by organisms](#sensible-organism-note)
+* [Latent heat fluxes](#latent-heat-fluxes)
+  + [Note 4.1: Latent heat terms](#latent-terms-note)
+  + [Note 4.2: Latent heat exchange above canopy](#latent-above-note)
+  + [Note 4.3: Stomatal conductance](#stomatal-note)
+  + [Note 4.4: Latent heat exchange below canopy](#latent-below-note)
+  + [Note 4.5: Latent heat exchange by organisms](#latent-organism-note)
+* [Note 5: Soil heat storage](#soil-heat-storage)
+* [Note 6: Soil hydrology](#soil-hydrology) 
+* [Snow](#snow)
+  + [Note 7.1: Snow mass balance](#snow-mass-note)
+  + [Note 7.2: Snow energy balance](#snow-energy-note)
+* [References](#references)
+ 
+## Note 1: The Penman-Monteith equation {#penman-note}
+
+From Penman (1948) and Monteith (1965), to make the energy balance equation analytically solvable, we linearize the emitted radiation term ($\small R_{em}$) using a first-order Taylor expansion. Thus
+
+$$R_{em}=\varepsilon\sigma {T_s}^4\approx\varepsilon\sigma {T_a}^4+4\varepsilon\sigma{T_a}^3(T_s-T_a)$$
+
+where $\small \varepsilon$ is the emissivity of the surface, $\small \sigma = 5.6704\space Wm^{-2}K^{-4}$ the Stefan-Boltzmann constant and $\small T_s$ and $\small T_a$ the temperature of the surface and air respectively (K).
+
+For vegetation and many organisms, it can generally be assumed that the water potential of the surface is such that vapour concentration at the evaporating surface is equal to the saturated vapour concentration at surface temperature (Campbell & Norman 2012). The latent heat term can then also be linearised
+
+$$e_s(T_s)\approx e_s(T_a)+\Delta(T_s-T_a)$$
+
+where $\small e_s(T_s)$ and $\small e_s(T_a)$ are the saturated vapour pressure of the surface and air respectively and $\small \Delta$ is the slope of the saturated vapour pressure curve, namely the amount by which vapour pressure changes with temperature. From Tetens equation (Tetens 1930)
+
+$$e_s =\begin{cases}
+6.1078 \exp\left(\frac{17.27 T_c}{T_c + 237.3}\right), & T_c \ge 0 \\
+6.1078 \exp\left(\frac{21.875 T_c}{T_c + 265.5}\right), & T_c < 0
+\end{cases}$$
+
+where $\small T_c=T_s-273.15$ and $\small \Delta\approx \left[e_s(T_c+0.5)-e_s(T_c-0.5)\right]$
+
+Substituting the linearized expressions into the equation for energy balance and solving for surface temperature gives
+
+$$T_s=T_a+\frac{R_{abs}-\varepsilon\sigma{T_a}^4-\frac{\lambda\hat{\rho}}{p_a r_v}D+M-G}{4\varepsilon\sigma{T_a}^3+\hat{\rho}\left(\frac{c_p}{r_{Ha}}+\frac{\lambda s}{r_v}\right)}$$
+
+where $\small D=e_s(T_a)-e_a$ is the vapour pressure deficit of the air and $\small s=\Delta/p_a$ and $\small \lambda$ is the latent heat of vapourisation given by $\small \lambda=45068.7-42.8428T_c,\space T_c\ge0$ or $\small \lambda=51078.69-4.338T_c-0.06367{T_c}^2,\space \lt0$. $\small M$ and $\small G$ are as defined in the main text: the metabolic rate and rate of heat storage respectively.
+
+Alternatively, \(\lambda\) may be expressed on a mass basis (J kg\(^{-1}\)), where \(\lambda=\lambda_{mol}/M_w\), \(M_w = 0.018015\) kg mol\(^{-1}\). For a wet surface,
+
+$$\lambda =
+\begin{cases}
+\left(2500.8 - 2.36T_c + 0.0016T_c^2 - 0.00006T_c^3\right)\times10^3, & T_c \ge 0\\
+\left(2834.1 - 0.29T_c - 0.004T_c^2\right)\times10^3, & T_c < 0
+\end{cases}$$
+
+where \(T_c\) is temperature (°C). The latent heat flux is then
+
+$$L=\frac{\lambda(T_s) M_w}{RT_s}\frac{e_s(T_s)-e_a}{r_v}$$
+
+where \(R = 8.314\) J mol\(^{-1}\) K\(^{-1}\). Linearising as above gives
+
+$$L \approx \frac{\lambda M_w}{RT_a r_v}\left[D + \Delta (T_s-T_a)\right]$$
+
+where \(\lambda\) is evaluated at \(T_a\), \(D=e_s(T_a)-e_a\), and \(\Delta\) is the slope of the saturated vapour pressure curve and here vapour pressure is expressed in Pa. The corresponding solution for surface temperature is
+
+$$T_s=T_a+\frac{R_{abs}-\varepsilon\sigma T_a^4-\frac{\lambda M_w}{R T_a r_v}D+M-G}{4\varepsilon\sigma T_a^3+\frac{\hat{\rho}c_p}{r_{Ha}}+\frac{\lambda M_w}{R T_a r_v}\Delta}.$$
+
+## Radiation fluxes {#radiation-note}
+### Note 2.1: Direct radiation {#direct-radiation}
+
+Following Sellers (1985), the attenuation of direct beam radiation through a canopy can be written in terms of the projected area of foliage in the direction of the solar beam. The attenuation per unit one-sided plant area is
+
+$$-\frac{dR^b}{dP}=R^bK_b$$
+
+where $\small R^b$ is the direct-beam radiative flux density and $\small K_b$ is the beam extinction coefficient. Integrating gives
+
+$$R_P^b=R_0^b\exp(-K_bP)$$
+
+where $\small R_0^b$ is the direct-beam flux density incident at the top of the canopy and $\small P$ is cumulative one-sided plant area index measured downward from the canopy top. The extinction coefficient can be written as
+
+$$K_b=\frac{G(Z)}{\cos Z}$$
+
+where $\small Z$ is the solar zenith angle and $\small G(Z)$ is the Ross projection function (Ross 1981), and $\small 1/\cos Z$ relates to the optical path length through the canopy, which becomes longer as $\small Z\to\pi/2$. $\small G(Z)$ describes the mean projection of unit plant area onto a plane perpendicular to the direction of the solar beam. It therefore depends on the leaf angle distribution: canopies with predominantly horizontal leaves present a larger projected area to near-vertical radiation, whereas canopies with predominantly vertical leaves intercept relatively more low-angle radiation.
+
+Campbell (1986) provided a convenient approximation for $\small K_b$ for an ellipsoidal leaf angle distribution:
+
+$$K_b \approx \frac{\sqrt{x^2+\tan^2 Z}}{x+1.774(x+1.182)^{-0.733}},
+\qquad 0.1 \le x \le 10$$
+
+where $\small x$ characterizes the leaf angle distribution as the average ratio of vertical to horizontal projections. Equivalently, the corresponding Ross projection function is
+
+$$G(Z) \approx\cos Z\,\frac{\sqrt{x^2+\tan^2 Z}}{x+1.774(x+1.182)^{-0.733}}$$
+
+For a spherical leaf angle distribution, $\small x=1$, giving
+
+$$G(Z)=0.5$$
+
+and hence
+
+$$K_b=\frac{0.5}{\cos Z}$$
+
+This special case corresponds to randomly inclined leaves, for which the mean projected area is independent of solar zenith angle. In the limiting case of horizontal leaves, $\small G(Z)=\cos Z$ and $\small K_b=1$, whereas for vertical leaves $\small G(Z)=\sin Z$ and $\small K_b=\tan Z$.
+
+### Note 2.2: The sun's position {#sun-position}
+
+The solar zenith ($\small Z$) depends on latitude $\small \phi_y$ and time as follows
+
+$$\cos Z=\sin\delta\sin \phi_y+\cos\delta\cos\phi_y\cos h_s$$
+
+where $\small h_s$ is the hour angle in solar time ($\small t_s$) given by
+
+$$h_s=(\pi/12)(t_s-12)$$
+
+and $\small \delta$ is the current declination angle of the sun calculated from the astronomical Julian day ($\small j$) -- the continuous count of days since the beginning of the Julian period as
+
+$$\delta=\frac{\pi 23.5}{180} \cos\left(2\pi\frac{j-159.5}{365.25}\right)$$
+
+Solar time is calculated from longitude ($\small \phi_x$) and local time ($\small t_l$) as
+
+$$t_s=t_l+\frac{4(\phi_x-\phi_m)-\Delta_t}{60}$$
+
+where $\small \phi_m$ is the longitude of the local time zone meridian (i.e. 0 for Greenwich Mean Time) and $\small \Delta_t$ is the equation of time – a correction applied to account for obliquity due to tilt of the Earth's rotational axis and for the east-west component of the analemma. From Milne (1921)
+
+$$\Delta_t=-7.659\sin(M+9.683)\sin(2M-3.5932)$$
+
+where $\small M$ is the mean anomaly given by $\small 6.24004077+0.01720197(j-2451545)$.
+
+The solar azimuth ($\small \Lambda_s$) is calculated as
+
+$$\sin\Lambda_s=-\frac{\sin h_s\cos\delta}{\sin Z}$$
+
+### Note 2.3: Two-stream models {#twostream-note}
+
+From Yuan *et al.* (2017), the attenuation of diffuse radiation per unit one-sided plant area is described as
+
+$$\frac{dR^{d\downarrow}}{dP}=-(a+\gamma)R^{d\downarrow}+\gamma R^{d\uparrow}+s'R^{b\downarrow}$$
+
+$$-\frac{dR^{d\uparrow}}{dP}=-(a+\gamma)R^{d\uparrow}+\gamma R^{d\downarrow}+sR^{b\downarrow}$$
+
+where $\small R^{d\uparrow}$ is the flux density of upward diffuse radiation, $\small R^{d\downarrow}$ the flux density of downward diffuse radiation and $\small R^{b\downarrow}$ is downward direct radiation quantified above. Here $\small a$ is the absorption coefficient for incoming diffuse radiation per unit plant area, $\small \gamma$ the backward scattering coefficient, and $\small s$ and $\small s'$ are the backward and forward scattering coefficients for direct radiation respectively.
+
+Solving the differential equations for diffuse radiation is not entirely straightforward, but is achieved by setting boundary conditions at the bottom and the top of the canopy. The mathematical explanation is convoluted but given in full in Sellers *et al.* (1985), but in short
+
+$$R^{d\uparrow}=R_0^{d\downarrow}\left[p_1\exp(-hP)+p_2\exp(hP)\right]+R^{db\uparrow}$$
+
+$$R^{d\downarrow}=R_0^{d\downarrow}\left[p_3\exp(-hP)+p_4\exp(hP)\right]+R^{db\downarrow}$$
+
+$$R_{\uparrow db}^{P_{AI}}=R_{\downarrow b}^0\left[\frac{p_5}{\sigma_p}\exp(-KP_{AI})+p_6\exp(-hP_{AI})+p_7\exp(hP_{AI})\right]$$
+
+$$R^{db\downarrow}=R_0^{b\downarrow}\left[\frac{p_8}{-\sigma_p}\exp(-KP)+p_9\exp(-hP)+p_{10}\exp(hP)\right]$$
+
+where $\small R^{d\uparrow}$ and $\small R^{d\downarrow}$ are the upward and downward diffuse fluxes under cumulative plant area $\small P$, $\small R_0^{d\uparrow}$ and $\small R_0^{d\downarrow}$ are the upward and downward diffuse fluxes at the top of the canopy and $\small R^{db\uparrow}$ and $\small R^{db\downarrow}$ are the contributions of direct radiation to the upward and downward diffuse streams respectively. The remaining terms are given by
+
+::: col2
+$\small p_1=\frac{\gamma}{D_1S_1}(u_1-h)$<br>
+$\small p_2=-\frac{\gamma S_1}{D_1}(u_1+h)$<br>
+$\small p_3=\frac{1}{D_2S_1}(u_2+h)$<br>
+$\small p_4=-\frac{S_1}{D_2}(u_2-h)$<br>
+$\small D_1=\frac{1}{S_1}(a+\gamma+h)(u_1-h)-S_1(a+\gamma-h)(u_1+h)$<br>
+$\small D_2=\frac{1}{S_1}(u_2+h)-S_1(u_2-h)$<br>
+$\small S_1=\exp(-hP_{AI})$<br>
+$\small S_2=\exp(-KP_{AI})$<br>
+$\small u_1=a+\gamma\left(1-\frac{1}{\alpha_G}\right)$<br>
+$\small u_2=a+\gamma(1-\alpha_G)$<br>
+$\small h=\sqrt{a^2+2a\gamma}$<br>
+$\small \gamma=0.5\left(\omega+J\delta\right)$<br>
+$\small \omega=l_{\alpha}+l_{\tau}$<br>
+$\small a=l_{\alpha}-l_{\tau}$<br>
+$\small J=\cos^2\phi$<br>
+$\small \phi=9.65(3+x)^{-1.65}$<br>
+$\small p_5=-s(a+\gamma-K)-\gamma s'$<br>
+$\small p_6=\frac{1}{D_1}\left[\frac{v_1}{S_1}(u_1-h)-S_2v_2(a+\gamma-h)\right]$<br>
+$\small p_7=-\frac{1}{D_1}\left[v_1S_1(u_1+h)-S_2v_2(a+\gamma+h)\right]$<br>
+$\small p_8=s'(a+\gamma+K)-\gamma s$<br>
+$\small p_9=-\frac{1}{D_2}\left[\frac{p_8}{-\sigma_pS_1}(u_2+h)+v_3\right]$<br>
+$\small p_{10}=-\frac{1}{D_2}\left[\frac{p_8S_1}{-\sigma_p}(u_2-h)+v_3\right]$<br>
+$\small v_1=s-\frac{p_5(a+\gamma+K)}{\sigma_p}$<br>
+$\small v_2=s-\gamma-\frac{p_5}{\sigma_p}(u_1+K)$<br>
+$\small v_3=S_2\left(s'+\gamma\alpha_G-\frac{p_8}{\sigma_p}(u_2-K)\right)$<br>
+$\small \sigma_p=K^2+a^2-(a+\gamma)^2$<br>
+$\small s=0.5(\omega+J\delta/K)K$<br>
+$\small s'=\omega K-s$<br>
+:::
+
+where $\small l_{\alpha}$ and $\small l_{\tau}$ are leaf reflectance and transmittance respectively. The albedos for diffuse ($\small \alpha_d$) and direct ($\small \alpha_b$) radiation are then given by
+
+$$\alpha_d=p_1+p_2,\space \alpha_b=\frac{p_5}{\sigma_p}+p_6+p_7$$
+
+### Note 2.4: Longwave radiation {#longwave-radiation}
+
+For longwave radiation, leaves and other elements of the canopy typically have low reflectance, so there is limited scattering (Salisbury & D’Aria, 1992). Dividing the canopy into $\small n$ layers numbered sequentially from top to bottom and defining $\small P_i$ as the total one-sided plant area within layer $\small i$, the downward flux of radiation $\small R_j^{l\downarrow}$ at layer $\small j$ is given by
+
+$$R_j^{l\downarrow}=\tau_{j,0}R_{0}^{l\downarrow}+\sum_{i=0}^{j}\left(P_i \tau_{i,j}\varepsilon_i\sigma T_i^4\right)$$
+
+and the upward flux $\small R_j^{l\uparrow}$ is given by
+
+$$R_j^{l\uparrow}=\tau_{j,n}R_n^{l\uparrow}+\sum_{i=j}^{n}\left(P_i \tau_{i,j}\varepsilon_i\sigma T_i^4\right)$$
+
+where $\small R_0^{l\downarrow}$ is the downward longwave flux at the top of the canopy, $\small R_n^{l\uparrow}=\varepsilon_G\sigma T_G^4$ is the upward longwave flux from the ground surface and $\small \tau_{i,j}$ is the transmission of radiation between layers $\small i$ and $\small j$, given by $\small \exp\left(-P_{i,j}\right)$ where $\small P_{i,j}$ is the cumulative plant area between $\small i$ and $\small j$.
+
+### Note 2.5: Direct radiation and organisms {#direct-organisms}
+
+To help calculate direct radiation absorbed by an animal we define a coefficient $\small A_p$, the silhouette area of the object normal to the solar beam (i.e. the area of the silhouette if the object and the sun were directly in line with one another). The ratio of $\small A_p$ relative to the total surface area of the object $\small A$ is equivalent to the average flux density over the entire surface of the object relative to that normal to the surface. It is convenient to approximate the animal as a tri-axial ellipsoid with height ($\small h$), width ($\small w$) and length ($\small l$) differing. Defining the semi-axes of the spheroid as $\small a=0.5l$, $\small b=0.5w$ and $\small c=0.5h$, then from Vickers (1996)
+
+$$A_p=\pi\sqrt{q^2b^2c^2+m^2c^2a^2+n^2a^2b^2}$$
+
+where $\small q$, $\small m$ and $\small n$ are the directional cosines given by $\small q=\sin Z\cos\theta\cos\phi_a-\cos Z\sin\phi_a$, $\small m=\sin Z\sin\theta$ and $\small n=\sin Z\cos\theta\sin\phi_a+\cos Z\cos\phi_a$, where $\small \theta$ is the direction of the solar beam relative to the longitudinal axis, i.e.
+
+$$\theta=\Lambda_a-\Lambda_s$$
+
+where $\small \Lambda_a$ is the direction in which the animal is facing and $\small \phi_a$ is its tilt along the longitudinal axis (positive when the front is higher than the rear).
+
+While there is no general solution for calculating the surface area of a spheroid, an approximation accurate to within 1.061% is given by Thomsen (1994) as
+
+$$A\approx 4\pi\left(\frac{a^pb^p+a^pc^p+b^pc^p}{3}\right)^{1/p}$$
+
+where $\small p=1.6075$. In the simple case of a sphere where $\small a=b=c$, or where the animal orients itself randomly,
+
+$$s_c=\frac{A_p}{A}=\frac{\pi a^2}{4\pi a^2}=0.25$$
+
+In the case of leaves, we describe their orientation using a continuous probability density function representing the distribution of leaf angles within the canopy. The equivalent coefficient is then given by
+
+$$s_c=0.5K_b\cos Z$$
+
+## Sensible heat fluxes
+### Note 3.1: Conductance and resistance {#conductance-note}
+
+From Fourier’s law of heat transport, sensible heat flux ($\small H$) is given by
+
+$$H=-k\frac{dT}{dz}$$
+
+where $\small k$ is thermal conductivity ($\small W\cdot m^{-1}\cdot K^{-1}$) and $\small dT/dz$ is the thermal gradient -- the change in temperature (K) with distance (m). If we are interested in how fast temperature changes occur in a material, $\small H$ can also be expressed in terms of thermal diffusivity, $\small K_H$ ($\small m^2\cdot s^{-1}$) such that
+
+$$H=-\hat{\rho}c_pK_H\frac{dT}{dz}\implies k=\hat{\rho}c_pK_H$$
+
+$\small \hat{\rho}c_p$ is the volumetric specific heat of the material ($\small J\,m^{-3}\,K^{-1}$). The individual components of specific heat can either be expressed in molar form (e.g. Campbell & Norman, 2012): $\small \hat{\rho}$ ($\small mol\,m^{-3}$), $\small c_p$ ($\small J\,mol^{-1}\,K^{-1}$), or in terms of mass and volume (e.g. Monteith & Unsworth, 2013): $\small \hat{\rho}$ ($\small kg\,m^{-3}$), $\small c_p$ ($\small J\,kg^{-1}\,K^{-1}$). When expressed in molar terms, $\small c_p = 2\times10^{-5}T^2 - 0.010726T + 30.5566$ and $\small \hat{\rho} = 44.6(p_a/101.3)(273.15/T)$, where $\small T$ is temperature in Kelvin and $\small p_a$ is atmospheric pressure in $\small kPa$ (Campbell & Norman, 2012).
+
+In practical terms, when considering heat exchange with the air it is more useful to consider the temperature of a surface ($\small T_s$) relative to air temperature ($\small T_a$) over some distance $\small \Delta z=z_2-z_1$. Here $\small H$ can be expressed in terms of conductance $\small K$ ($\small m\cdot s^{-1}$) over that distance such that
+
+$$H=-K\hat{\rho}c_p\left(T_s-T_a\right)\implies K=\left[\int_{z_1}^{z_2}\frac{1}{K_H(z)}dz\right]^{-1}$$
+
+Alternatively, some textbooks (e.g. Campbell & Norman, 2012) measure conductance $\small g_{Ha}$ in $\small mol\cdot m^{-2}\cdot s^{-1}$, where $\small g_{Ha}=\hat{\rho}K$. A final source of potential confusion is that conductance is usually expressed in its inverse form as a resistance to heat loss. Here, resistance $\small r_{Ha}$ ($\small s\cdot m^{-1}$) is simply given by $\small r_{Ha}=1/K$ and
+
+$$H=\frac{\hat{\rho}c_p}{r_{Ha}}(T_s-T_a)\implies T_s=T_a+\frac{r_{Ha}}{\hat{\rho}c_p}H$$
+
+In summary:
+
+$$\small k=\hat{\rho}c_pK_H,\space \overline{k}=\frac{\hat{\rho}c_p\Delta z}{r_{Ha}}=\hat{\rho}c_p\Delta zK=c_p\Delta z g_{Ha}$$
+
+$$\small K_H=\frac{k}{\hat{\rho}c_p},\space \overline{K_H}=\frac{\Delta z}{r_{Ha}}=\frac{K}{\Delta z}=\frac{g_{Ha}}{\hat{\rho}\Delta z}$$
+
+$$\small r_{Ha}=\hat{\rho}c_p\int^{z_1}_{z_0}\frac{1}{k}dz=\int^{z_1}_{z_0}\frac{1}{K_H}dz=\frac{1}{K}=\frac{\hat{\rho}}{g_{Ha}}$$
+
+$$\small K=\frac{1}{\hat{\rho}c_p}\left[\int^{z_1}_{z_0}\frac{1}{k}dz\right]^{-1}=\left[\int^{z_1}_{z_0}\frac{1}{K_H}dz\right]^{-1}=\frac{1}{r_{Ha}}=\frac{g_{Ha}}{\hat{\rho}}$$
+
+$$\small g_{Ha}=\frac{1}{c_p}\left[\int^{z_1}_{z_0}\frac{1}{k}dz\right]^{-1}=\hat{\rho}\left[\int^{z_1}_{z_0}\frac{1}{K_H}dz\right]^{-1}=\hat{\rho}K=\frac{\hat{\rho}}{r_{Ha}}$$
+
+### Note 3.2: Sensible heat exchange above canopy {#sensible-above-note}
+
+Treating the vegetated surface as a single vertically homogeneous layer of phytomass, eddy thermal diffusivity is given, following Monin--Obukhov similarity theory (Monin & Obukhov, 1954), by
+
+$$K_H=\frac{\kappa u_*(z-d)}{\phi_H(z)}$$
+
+where $\small \kappa$ is the von Kármán constant (~0.4), $\small \phi_H(z)$ is a diabatic influencing factor for heat and $\small u_*$ is the friction velocity of wind ($\small m\cdot s^{-1}$) given by
+
+$$u_*=\frac{\kappa u_{z_R}}{\ln\frac{z_R-d}{z_M}+\psi_M(z_R)}$$
+
+where $\small u_{z_R}$ is the wind speed ($\small m\cdot s^{-1}$) at height $\small z_R$ (that at which the provided wind speed is measured), $\small d$ is the zero-plane displacement height ($\small m$) -- the height at which the wind profile above the canopy extrapolates to zero, $\small z_M$ is the roughness length ($\small m$) for momentum and $\small \psi_M(z_R)$ is a diabatic correction coefficient for momentum (see below). From Raupach (1994)
+
+$$d=h\frac{1-(1-\exp(-\sqrt{7.5P_{AI}}))}{\sqrt{7.5P_{AI}}}$$
+
+and
+
+$$z_M=(h-d)\exp\left(\frac{-\kappa}{\beta}-\psi_H(z_R)\right)$$
+
+where $\small h$ is the height of the canopy ($\small m$), $\small \beta$ is given by $\small \sqrt{0.003+0.1P_{AI}}$, where $\small P_{AI}$ is the total one-sided plant area (living + dead vegetation) per unit ground area and $\small \psi_H(z_R)$ is a diabatic correction factor for heat. Substituting the equation for thermal diffusivity into that for eddy transport of heat, and integrating the resulting equation from the canopy heat exchange surface to the height at which air temperature is measured, gives the equation for the bulk surface aerodynamic resistance:
+
+$$r_{Ha}=\frac{\ln\frac{z_R-d}{z_H}+\psi_H(z_R)}{\kappa u_*}$$
+
+where $\small z_H$ is generally approximated as $\small 0.2z_M$.
+
+From Harman & Finnigan (2008), the diabatic influencing factors and coefficients become important when the canopy surface is strongly heated or cooled and are given by
+
+$$\psi_M(z)=\psi_M\left(\frac{z_M}{L_O}\right)-\psi_M\left(\frac{z-d}{L_O}\right)$$
+
+$$\psi_H(z)=\psi_H\left(\frac{z_H}{L_O}\right)-\psi_H\left(\frac{z-d}{L_O}\right)$$
+
+where from Businger *et al.* (1971)
+
+$$\psi_M(\zeta)=\ln\left[\left(\frac{1+x}{2}\right)^2\left(\frac{1+x^2}{2}\right)\right]-2\arctan x+\frac{\pi}{2}$$
+
+with $\small x=(1-15\zeta)^{1/4}$ under unstable conditions ($\small H>0$) and $\small \psi_M(\zeta)=-4.7\zeta$ under stable conditions ($\small H<0$). The equivalent formulae for heat are given by
+
+$$\psi_H(\zeta)=\ln\left[\left(\frac{1+y}{2}\right)^2\right]$$
+
+with $\small y=1/\phi_H=\sqrt{1-9\zeta}$ under unstable conditions and $\small \psi_H(\zeta)=-4.7\zeta/0.74$ under stable conditions. Here $\small L_O$ is the Obukhov length given by
+
+$$L_O=-\frac{\hat{\rho}c_pu_*^3T}{\kappa gH}$$
+
+where $\small g$ is the gravitational constant (~9.81). From Yasuda (1988), $\small \sqrt{\phi_H}=1/(1-16\zeta)^{1/4}$ under unstable conditions and $\small \phi_H=1+6\zeta/(1+\zeta)$ under stable conditions.
+
+Above canopy, the air temperature $\small T_z$ at any given height $\small z$ can then be derived as
+
+$$T_z=T_s-\frac{H}{\kappa \hat{\rho}c_pu_*}\left(\ln\frac{z-d}{z_H}+\psi_H(z)\right)$$
+
+Alternatively,
+
+$$T_z=T_s-(T_s-T_a)\frac{r_{Ha}(z_R)-r_{Ha}(z)}{r_{Ha}(z_R)}$$
+
+### Note 3.3: Sensible heat exchange below canopy {#sensible-below-note}
+
+Heat exchange below canopy is generally described using localized near-field theory, which predicts the concentration of heat (or vapour) emanating from all canopy elements to a point of interest (Raupach 1989a,b). Here, the mean concentrations of heat or vapour are expressed as the sum of a diffusive far-field contribution ($\small C_f$), and a non-diffusive near-field contribution ($\small C_n$), such that air temperature $\small T_z$ at height $\small z$ is given by
+
+$$\hat{\rho}c_pT_z=C_f(z)+C_n(z)$$
+
+where
+
+$$C_f(z)=\hat{\rho}c_pT_h-C_n(h)+\int_{z}^{h}\frac{H(z)}{K_H(z)}dz$$
+
+and
+
+$$H(z)=F_G+\int_{0}^{z}S(z)dz$$
+
+where $\small S(z)$ is the source concentration given by
+
+$$S(z)=\frac{dH}{dz}=\frac{\hat{\rho}c_p}{r_i}\left(T_{s_i}-T_{z_i}\right)P_i$$
+
+Here $\small T_h$ is air temperature at the top of the canopy ($\small C_f(h)=\hat{\rho}c_pT_h$ scales the source concentration to temperature), $\small K_H$ is thermal diffusivity, $\small r_i$ is the resistance to heat loss by canopy elements with temperature $\small T_{s_i}$ and surrounding air temperature $\small T_{z_i}$, $\small P_i$ is the plant area in layer $\small i$, $\small F_G$ is the ground heat flux and $\small C_n(h)$ is the near-field contribution at the top of the canopy.
+
+The near-field contribution is given by
+
+$$C_n(z)=\int_{0}^{\infty}\frac{S(z_i)}{\sigma_\omega(z_i)}k_n\left[\frac{z-z_i}{\sigma_\omega(z_i)T_L}+\frac{z+z_i}{\sigma_\omega(z_i)T_L}\right]dz_i$$
+
+where $\small S(z_i)$ is the source concentration given by $\small f_d(z_i)H(z_i)$ where $\small f_d(z_i)$ is foliage density for layer $\small z_i$ and $\small k_n$ is a kernel function, approximated by
+
+$$k_n=-0.39894\ln(1-e^{-\zeta})-0.15623e^{-\zeta}$$
+
+where
+
+$$\zeta=\frac{|z-z_i|}{\sigma_\omega(z_i)T_L}$$
+
+Here $\small \sigma_\omega(z_i)$ and $\small T_L$ characterize the motion of heat emanating from the canopy, ultimately determined by the vertical velocity variance ($\small \sigma_\omega^2$) and the Lagrangian time scale $\small T_L$. Plausible vertical profiles were proposed by Raupach (1989b) as
+
+$$T_L=\frac{a_2h}{u_*}$$
+
+$$\sigma_\omega(z_i)=u_*\left[0.5(a_1+a_0)+0.5(a_1-a_0)\cos\left(\pi\left(1-\frac{z_i}{h}\right)\right)\right]$$
+
+with $\small a_1=1.25$ (the value of $\small \sigma_\omega(z_i)/u_*$ at the top of the canopy at height $\small h$) and $\small a_0=0.25$. The constant $\small a_2$ is effectively unknown, but following, e.g., Ogée *et al.* (2003), can be derived by making thermal diffusivity equivalent to its above-canopy formulation at height $\small z=h$. Since above canopy $\small K_H=\kappa u_*(z-d)/\phi_H$ and below canopy $\small K_H=\sigma_\omega(z_i)^2T_L$, it follows that
+
+$$a_2=\frac{\phi_H\kappa\left(1-d/h\right)}{a_1^2}$$
+
+With a known ground surface temperature ($\small T_G$),
+
+$$F_G=\frac{\hat{\rho}c_p(T_G-T_z)}{r_{Ha}}$$
+
+where $\small r_{Ha}$ is the resistance to heat loss from the ground to height $\small z$ given by
+
+$$r_{Ha}=\int_{0}^{z}\frac{1}{K_H}dz=\frac{2}{a_2\pi u_*}\left( \frac{48\cdot p_1}{5^{1.5}} + \frac{32\sin\theta}{p_2\cdot p_3} \right)$$
+
+where
+
+$$p_1=\tan^{-1} \left( \frac{\sqrt{5}\sin\theta}{\cos\theta + 1} \right),\space p_2=\cos\theta + 1,\space p_3=\frac{25\sin^2\theta}{(\cos\theta + 1)^2} + 5,\space \theta = \frac{\pi z}{h}$$
+
+In the special case where $\small z=h$, the equation simplifies considerably to
+
+$$r_{Ha}=\frac{13.4876}{a_2u_*\pi}$$
+
+### Note 3.4: Sensible heat exchange by organisms {#sensible-organism-note}
+
+The resistance to heat loss $\small r_{Ha}$ for an object suspended in any fluid is given by
+
+$$r_{Ha}=\frac{d}{K_HN_u}$$
+
+where $\small d$ is the characteristic dimension -- the distance over which the boundary layer develops, $\small K_H$ is thermal diffusivity and $\small N_u$ is the Nusselt number (Bird *et al.* 2007). For flat objects $\small d$ is essentially the length of the object in the direction of fluid flow.
+
+Thermal diffusivity is a function of air temperature in Kelvin and is given by
+
+$$K_H=\left(0.0002T^2+0.0299T-1.7128\right)10^{-6}$$
+
+The Nusselt number depends on both the shape of the object and the nature of flow. With significant airflow, the Nusselt number is expressed in terms of Reynolds ($\small R_e$) and Prandtl numbers ($\small P_r$), where $\small R_e=ud/v$ and $\small P_r=v/K_H$. Here $\small u$ is wind speed and $\small v$ is the kinematic viscosity of air.
+
+The relationships between the Nusselt, Reynolds and Prandtl numbers depend on the shape of the object and, for a flat plate, are given by (Incropera *et al.*, 2007)
+
+$$N_u=0.664{R_e}^{1/2}{P_r}^{1/3},\space R_e\le5\times10^5$$
+
+$$N_u=\left(0.037{R_e}^{4/5}-871.32\right){P_r}^{1/3},\space R_e>5\times10^5$$
+
+Alternatively, for a sphere with diameter $\small d$ (Bird *et al.*, 2007)
+
+$$N_u=2+0.6{R_e}^{1/2}{P_r}^{1/3},\space R_e\le1000$$
+
+$$N_u=2+\left(0.48{R_e}^{0.6}-11.31\right){P_r}^{1/3},\space 1000\lt R_e\le2\times10^5$$
+
+$$N_u=0.37{R_e}^{0.6}{P_r}^{1/3}+9.08,\space R_e\gt2\times10^5$$
+
+A more general approach, which derives from Churchill & Bernstein (1977), is to define $\small d$ as
+
+$$d=\frac{V}{A_p}$$
+
+where $\small V$ is the volume of the object ($\small m^3$) and $\small A_p$ its projected frontal area ($\small m^2$) perpendicular to the direction of flow. The formulae are quite similar to those used to compute the silhouette area of the animal normal to the solar beam such that, with a height ($\small h$), width ($\small w$) and length ($\small l$), and semi-axes defined as $\small a=0.5l$, $\small b=0.5w$ and $\small c=0.5h$, then
+
+$$A_p=\pi\sqrt{(q^2b^2c^2+m^2c^2a^2+n^2a^2b^2)}$$
+
+where $\small q=\cos\theta\cos\phi_a$, $\small m=\sin\theta$ and $\small n=\cos\theta\sin\phi_a$, where $\small\phi_a$ is the tilt angle of the organism relative to horizontal and $\small\theta=\Lambda_a-\Lambda_w$ is the direction in which the animal is facing ($\small\Lambda_a$) relative to the wind direction $\small \Lambda_w$.
+
+The volume is then simply given by
+
+$$V=\frac{4}{3}\pi abc$$
+
+For leaves with an azimuth direction, but non-random distributions of tilt angles, we use
+
+$$d=\sqrt{lw}G(y)$$
+
+where $\small G(y)$ is the projected area of leaves perpendicular to the wind and $\small y=1/x$, where, as for solar radiation, $\small x$ characterizes the distribution of leaf angles and is defined as the average ratio of the vertical to horizontal projections and hence $\small y$ is the average ratio perpendicular to the horizontal wind. With a bit of manipulation, from Campbell (1986)
+
+$$G(y)\approx\frac{1}{y+1.774(y+1.182)^{-0.733}}$$
+
+and in the special case where $\small x=y=1,\space G=0.5$ and $\small x\to0,\space y\to\infty,\space G\to0$ and $\small x\to\infty,\space y\to0,\space G\to1$
+
+Under free laminar airflow, i.e. when wind speeds are low, the Nusselt number is expressed in terms of Grashof and Prandtl numbers (Churchill & Chu 1975)
+
+$$N_u=0.54\left(G_rP_r\right)^{1/4}$$
+
+where $\small G_r$ is the Grashof number given by
+
+$$G_r=\frac{gd^3\Delta T}{T_av^2}$$
+
+Here $\small g=9.81$ is the gravitational constant and $\small \Delta T$ is the temperature difference of the object relative to the air. The equation provides a reasonable approximation for any shape. In practice, flow is often under mixed convection. The Nusselt number is derived as
+
+$$N_u=\left({N_{u_f}}^n+{N_{u_n}}^n\right)^{1/n}$$
+
+where $\small N_{u_f}$ and $\small N_{u_n}$ are the Nusselt numbers for forced and free (natural) convection respectively, and $\small n$ is an empirical blending exponent, typically taken as $\small n=3$ (Bird *et al.* 2007).
+
+## Latent heat fluxes
+
+### Note 4.1: Latent heat terms {#latent-terms-note}
+
+In general, latent heat ($\small L$) has units of $\small W\cdot m^{-2}$, but as with sensible heat, the units of the component parts used to calculate it can cause confusion. From Campbell & Norman (2012), when expressed in molar form
+
+$$L=\lambda E=\lambda g_v\frac{e_s-e_a}{p_a}$$
+
+Here $\small E$ is the evaporation rate of water expressed in units of $\small mol\cdot m^{-2}\cdot s^{-1}$, $\small \lambda$ is the latent heat of vapourisation with units of $\small J\cdot mol^{-1}$, and $\small e_s$ and $\small e_a$ are the vapour pressures of the surface and air respectively expressed in the same units as atmospheric pressure $\small p_a$, typically in $\small Pa$ or $\small kPa$. To convert to an evaporation rate $\small E_m$ in $\small kg\cdot m^{-2}\cdot s^{-1}$, this accounts for the molar mass of water (0.01801528 $\small kg/mol$) such that $\small E_m=0.01801528E$. Since the density of water is approximately 1000 $\small kg\cdot m^{-3}$, the evaporation rate ($\small E(t)$) in mm per unit time is
+
+$$\small E(t)=\Delta t\,0.01801528E$$
+
+where $\small \Delta t$ is the duration of the time interval in seconds. Often, instead of conductance, a resistance to vapour loss $\small r_v$ is specified in $\small s\,m^{-1}$ and if the term $\small \lambda$ is retained in its molar form then (Monteith & Unsworth, 2013)
+
+$$L=\frac{\lambda \hat{\rho}}{r_v p_a}(e_s-e_a)$$
+
+Alternatively, $\small \lambda$ can be expressed in units of $\small J\,kg^{-1}$ ($\small \lambda\,(J\cdot kg^{-1})=\lambda(J\cdot mol^{-1})/M_w$) and then
+
+$$L=\lambda E=\frac{\lambda M_w}{RT}\frac{(e_s-e_a)}{r_v}$$
+
+where $\small E$ is the evaporation rate (mm/s), $\small R=8.314\,J\,mol^{-1}\,K^{-1}$ is the universal gas constant, $\small M_w=0.018015\,kg\,mol^{-1}$ is the molar mass of water and $\small e_s$ and $\small e_a$ must be expressed in Pa (not kPa). The evaporation rate per unit time step $\small \Delta t$ in $\small mm$ or $\small kg\cdot m^{-2}$ is then given by
+
+$$E=\frac{M_w}{RT}\frac{e_s-e_a}{r_v}\Delta t$$
+
+### Note 4.2: Latent heat exchange above canopy {#latent-above-note}
+
+To derive the latent heat flux above canopy, it is first necessary to derive the bulk surface resistance to vapour loss from the canopy ($\small r_v$). From Monteith & Unsworth (2013), the bulk surface resistance to vapour loss is the sum of the bulk surface stomatal ($\small r_S$) and aerodynamic resistances ($\small r_{Ha}$), the latter computed as for sensible heat. Thus
+
+$$r_v=r_{Ha}+r_S$$
+
+To calculate bulk surface stomatal resistance, we turn first to the inverse of resistance: conductance ($\small g_S=\hat{\rho}/r_S$). To a reasonable approximation (Raupach & Finnigan 1988; Raupach 1994; Kelliher *et al.* 1995) the bulk surface stomatal conductance ($\small g_S$) can be regarded as the parallel sum of the stomatal conductances of individual leaves ($\small g_s$), so that
+
+$$g_S=\int_0^{L_{AI}}g_s(L_i)dL_i$$
+
+where $\small L_{AI}$ is the total leaf area of the canopy and $dL_i$ is an element of leaf area index. The stomatal conductance for individual leaf elements ($\small g_s$) is influenced by temperature, humidity, PAR and water availability and decreases when vegetation is water stressed and soil water availability limits transpiration. To obviate the need to compute bulk surface stomatal conductance using an element-wise procedure, the effects of all of these variables, with the exception of PAR, are averaged for the whole canopy. To first approximation, the bulk surface stomatal conductance is then given by
+
+$$g_S=g_s^{sun}L_{AI}^{sun}+g_s^{shade}L_{AI}^{shade}$$
+
+where $\small L_{AI}^{sun}$ is the one-sided leaf area of sunlit leaves, $\small L_{AI}^{shade}$ the leaf area that is not sunlit, $\small g_s^{sun}$ the leaf stomatal response to direct PAR at the top of the canopy ($\small I_{PAR}^{b0}$) and $\small g_s^{shade}$ the average stomatal response to diffuse PAR, approximated by taking the response to the mean flux density of diffuse PAR within the canopy ($\small \overline{P}^d$).
+
+The sunlit leaf area is given by
+
+$$L_{AI}^{sun}=\frac{1-\exp(-K_bL_{AI})}{K_b}$$
+
+where $\small L_{AI}$ is total one-sided leaf area and $\small K_b$ is the beam extinction coefficient for the canopy as described in the Direct radiation section above, and
+
+$$L_{AI}^{shade}=L_{AI}-L_{AI}^{sun}$$
+
+The mean flux density of diffuse radiation ($\small \overline{P}^d$) is then given by
+
+$$\overline{P}^d=P_0^{d\downarrow}\frac{1-\exp(-L_{AI})}{L_{AI}}$$
+
+where $\small P_0^{d\downarrow}$ is the flux density of downward diffuse radiation at the top of the canopy.
+
+Above the canopy, vapour pressure ($e(z)$) at height ($z$) is described using a Monin–Obukhov profile applied between the surface and a reference height:
+
+$$e(z)=e_s + (e_a - e_s)\frac{\ln\left(\frac{z-d}{z_q}\right) + \psi_H(z)}{
+\ln\left(\frac{z_{ref}-d}{z_q}\right) + \psi_H(z_{ref})}$$
+
+where $\small e_s$ is the actual vapour pressure at the surface (equal to saturation vapour pressure at temperature $\small T_s$), and $\small e_a$ is the vapour pressure at the reference height $\small z_{ref}$. The roughness length for water vapour ($\small z_q$) is typically assumed equal to that for heat ($\small z_H$).
+
+### Note 4.3: Stomatal conductance {#stomatal-note}
+
+Stomatal conductance ($\small g_s$) varies with environmental conditions: increasing with light and humidity, and declining with rising vapour pressure deficit or falling leaf water potential. In recent models, these responses are not imposed empirically but emerge from optimisation frameworks that balance carbon gain against hydraulic risk. The SOX formulation (Eller *et al.*, 2020) follows this approach, linking stomatal behaviour directly to leaf water potential through plant hydraulic constraints. Here $\small g_s$ is chosen to maximize the product of leaf photosynthesis and xylem hydraulic conductance and is given by
+
+$$A[c_i(g_s)]K[\psi(g_s)]$$
+
+where $\small A$ is leaf net CO$_2$ assimilation (mol CO$_2$ m$^{-2}$ s$^{-1}$) -- a function of leaf internal CO$_2$ partial pressure $\small c_i$ in Pa, which is itself a function of stomatal conductance -- and $\small K$ is the normalised (0--1) xylem hydraulic conductance given by
+
+$$K(\psi)=\frac{1}{1+\left(\psi/\psi_{50}\right)^a}$$
+
+where $\small \psi_{50}$ is leaf water potential $\small \psi$ when $\small K=0.5$ and $\small a$ controls the shape of the curve, with higher $\small a$ yielding a steeper response to $\small \psi$. The value of $\small g_s$ that maximises this equation is found at $\small \partial AK/\partial g_s=0$, meaning the resulting equation for optimal $\small g_s$ is given by
+
+$$g_s=0.5\frac{\partial A}{\partial c_i}\left(\sqrt{\frac{4\xi}{\partial A/\partial c_i}+1}-1\right)$$
+
+where $\small \xi$ represents the cost of stomatal opening in terms of loss of xylem conductivity under low $\small \psi$ and/or higher leaf-to-air vapour pressure $\small D$ in mol mol$^{-1}$:
+
+$$\xi=\frac{2}{\left(1/K\right)\left(\partial K/\partial\psi\right)r_p\,1.6D}$$
+
+where $\small r_p$ is plant hydraulic resistance given by
+
+$$r_p=\frac{r_{p,min}}{K(\psi)}$$
+
+where $\small r_{p,min}$ is the plant minimum hydraulic resistance, the derivation of which is shown below.
+
+The partial derivative $\small \partial A/\partial c_i$ is computed numerically by solving the Collatz *et al.* (1991, 1992) C$_3$ and C$_4$ photosynthesis models, determining the colimitation point $\small A(c_{i,col})$ where increasing CO$_2$ no longer increases $\small A$ as carbon assimilation is being limited by light or transport of photoassimilates such that
+
+$$\frac{\partial A}{\partial c_i}=\frac{A(c_a)-A(c_{i,col})}{c_a-c_{i,col}}$$
+
+Here $\small A=W-R_d$ where $\small R_d=f_dV_{cmax}$ is leaf dark respiration (mol CO$_2$ m$^{-2}$ s$^{-1}$) calculated as a fraction $\small f_d$ of the maximum carboxylation rate of Rubisco ($\small V_{cmax}$) and $\small W$ is the minimum of Rubisco-limited ($\small W_c$), light-limited ($\small W_l$) and transport-limited ($\small W_e$) carbon assimilation, i.e.
+
+$$W=\min(W_c,\space W_l,\space W_e)$$
+
+where for C$_3$ photosynthetic pathways
+
+$$W_c=V_{cmax}\left(\frac{c_i-\Gamma}{c_i+K_c\left(1+O_a/K_o\right)}\right),\space W_l=\alpha(1-\omega)I_{PAR}\frac{c_i-\Gamma}{c_i+2\Gamma},\space W_e=0.5V_{cmax}$$
+
+and for C$_4$ photosynthetic pathways
+
+$$W_c=V_{cmax},\space W_l=\alpha(1-\omega)I_{PAR},\space W_e=2 \times 10^{-4}V_{cmax}\frac{c_i}{P_a}$$
+
+The leaf internal partial CO$_2$ pressure is given by
+
+$$c_i=f_0\left(1-D/D_{crit}\right)(c_a-\Gamma)$$
+
+where $\small c_a$ is the ambient CO$_2$ concentration in the air around the leaf, and $\small f_0$ and $\small D_{crit}$ are empirical parameters. The photo-compensation point $\small \Gamma$ is given by
+
+$$\Gamma=\frac{O_a}{5200\left(0.57^{0.1(T_L-25)}\right)}$$
+
+where $\small T_L$ is leaf temperature ($\small ^{\circ}\mathrm{C}$) and $\small O_a=21222.35$ Pa is the oxygen partial pressure in the atmosphere. The coefficients
+
+$$K_c=30(2.1^{0.1(T_A-25)})$$
+
+and
+
+$$K_o=30000(1.2^{0.1(T_A-25)})$$
+
+are Rubisco carboxylation and oxygenation Michaelis--Menten constants (Pa), where $\small T_A$ is air temperature ($\small ^{\circ}\mathrm{C}$).
+
+The parameter $\small \alpha$ is the photosynthesis quantum efficiency (mol CO$_2$ mol$^{-1}$ I$_{PAR}$), $\small \omega$ is the leaf scattering coefficient for I$_{PAR}$, and $\small I_{PAR}$ is the incident photosynthetic active radiation (mol photons m$^{-2}$ s$^{-1}$), and $\small P_a$ is the surface atmospheric pressure (Pa).
+
+The colimiting assimilation rate $\small A_{col}=W_{col}-R_d$ is found from the smallest root of the quadratic equation such that
+
+$$W_{col}=\frac{\left(W_e+W_l\right)-\sqrt{(W_e+W_l)^2-4\beta W_eW_l}}{2\beta}$$
+
+and
+
+$$c_{i,col}=\frac{-V_{cmax}\Gamma-K_c\left(1+O_a/K_o\right)W_{col}}{W_{col}-V_{cmax}}$$
+
+where $\small \beta=0.93$ is a unitless co-limiting scaling factor. $\small V_{cmax}$ is assumed to have a temperature dependence:
+
+$$V_{cmax}=V_{cmax,25}\frac{2^{0.1(T_A-25)}}{\left[1+\exp\left(0.3(T_L-T_{up})\right)\right]\left[1+\exp\left(0.3(T_{lw}-T_L)\right)\right]}$$
+
+where $\small V_{cmax,25}$ is the Rubisco maximum carboxylation rate (mol m$^{-2}$ s$^{-1}$) at 25$\small ^{\circ}$C.
+
+$\small (\partial K/\partial\psi)(1/K)$ is computed as the linear gradient between $\small K(\psi_{pd})$ and $\small K((\psi_{pd}+\psi_{50})/2)$, using $\small \psi_{50}$ because it represents the steepest point of the vulnerability function $\small K(\psi)$. Thus
+
+$$\frac{\partial K}{\partial\psi}\frac{1}{K}=\frac{K(\psi_{pd})-K\left((\psi_{pd}+\psi_{50})/2\right)}{\psi_{pd}-\left(\psi_{pd}+\psi_{50}\right)/2}\frac{1}{K(\psi_{pd})}$$
+
+where $\small \psi_{pd}$ is the predawn canopy water potential (MPa) given by
+
+$$\psi_{pd}=\psi_r+\frac{hg\rho}{10^6}$$
+
+where $\small \psi_r$ is the mean soil water potential in the root zone, $\small h$ is canopy height (m), $\small g=9.8$ is the gravitational constant (m\,s$^{-2}$), $\small \rho$ is the water density (997 kg m$^{-3}$ at 25$^{\circ}$C) and $\small 10^6$ converts Pa (kg m$^{-1}$ s$^{-2}$) to MPa.
+
+The final requirement for calculating stomatal conductance is to compute the plant minimum hydraulic resistance. Following Christoffersen *et al.* (2016) and Savage *et al.* (2010)
+
+$$r_{p,min}=\frac{h}{K_{pet,max}h_v}\chi_{tap}$$
+
+where $\small h$ is maximum canopy height, $\small h_v$ is the ratio between active xylem area and leaf area (i.e. the Huber value, m$^2$ m$^{-2}$), $\small K_{pet,max}=0.2066116K_{x,max}$ is maximum petiole-level hydraulic conductivity, where $\small K_{x,max}$ is maximum branch xylem conductivity (mol m$^{-1}$ s$^{-1}$), and $\small \chi_{tap}$ is a unitless tapering factor given by
+
+$$\chi_{tap}=\frac{\max\left(\left(4.3281\ln(1+6.4975h)\right)^{0.53},1\right)}{3.1516}$$
+
+Full derivation and further explanation of these equations is provided in Eller *et al.* (2020).
+
+### Note 4.4: Latent heat exchange below canopy {#latent-below-note}
+
+Below canopy, we can also use Raupach's (1989a,b) localized near-field theory to predict vapour fluxes. The mean concentrations of vapour are again expressed as the sum of a diffusive far-field contribution ($\small C_f$), and a non-diffusive near-field contribution ($\small C_n$), but the vapour pressure $\small e_z$ at height $\small z$ is given by
+
+$$\frac{\hat{\rho}\lambda}{p_a r_v} e_z=C_f(z)+C_n(z)$$
+
+where $\small \lambda$ is the latent heat of vapourisation, $\small p_a$ is atmospheric pressure, and
+
+$$r_s=r_{s,min}\left(R_z^{sw}+(4.6/a_p)Q_{a50}\right)/R^{sw}_z$$
+
+where $\small R_z^{sw}$ is the flux density of shortwave radiation at height $\small z$. Here
+
+$$C_f(z)=\frac{\hat{\rho}\lambda}{p_a r_v} e_h-C_n(h)+\int_{z}^{h}\frac{L(z_i)}{K_H(z_i)}dz$$
+
+$$L(z_i)=\frac{\hat{\rho}\lambda}{p_a r_z}\left(e_{s_i}-e_z\right)+\frac{\hat{\rho}\lambda}{p_a r_{z,g}}\left(e_g-e_z\right)$$
+
+where $\small e_{s_i}$ is the vapour pressure of the leaf surface derived from leaf temperature using Tetens equation, $\small e_h$ is the vapour pressure of the air at the top of the canopy, and $\small e_g$ the effective vapour pressure of the ground surface.
+
+$$r_{z,g}=z\int_{0}^{z}\frac{1}{K_H}dz$$
+
+The near-field contribution is then given as for heat, but with the source concentration given by $\small f_d(z_i)L(z_i)$. It remains, then, to derive the effective vapour pressure of the ground surface, which is given by $\small e_g=e_s(g)h_r$ where $\small e_s(g)$ is the saturated vapour pressure of the ground surface derived using Tetens equation and $\small h_r$ is an effective relative humidity, from Campbell (1985), given by
+
+$$h_r=\exp\left(0.018015\psi_M/(8.3143T_G)\right)$$
+
+where $\small T_G$ is ground temperature and $\small \psi_M$ is the matric potential of the soil, from van Genuchten *et al.* (1980), derived as
+
+$$\psi_m=-\frac{1}{\alpha}\left[\left(\frac{\theta_s-\theta_r}{\theta-\theta_r}\right)^{1/m}-1\right]^{1/n}$$
+
+where $\small \theta$ is the volumetric soil moisture fraction at the surface, $\small \theta_s$ the saturated and $\small \theta_r$ the residual volumetric soil moisture fraction, and $\small m=1-1/n$ where $\small n$ and $\small \alpha$ are soil-dependent shape parameters. Values of $\small \theta_s$, $\small \theta_r$, $\small \alpha$ and $\small n$ for different soil types are shown in Table S3.
+
+To accommodate $\small h_r$ into the Penman--Monteith equation, in order to solve for ground surface temperature and derive the fluxes, the equation is modified to
+
+$$T_s=T_a+\frac{R_{abs}-\varepsilon\sigma{T_a}^4-\frac{\lambda\hat{\rho}}{p_a r_{Ha}}(h_re_s(g)-e_a)-G}{4\varepsilon\sigma{T_a}^3+\frac{\hat{\rho}}{r_{Ha}}\left(c_p+\lambda \Delta h_r\right)}$$
+
+where $\small r_{Ha}$ depends on the height of $\small T_a$, and for some reference height $\small z_R$ above canopy is given by
+
+$$r_{Ha}=\frac{4.293h/\left(h-d\right)+\ln\left((z_R-d)/(h-d)\right)}{\kappa u_*}$$
+
+### Note 4.5: Latent heat exchange by organisms {#latent-organism-note}
+
+For ectotherms, to calculate the latent heat flux, we need to provide a cutaneous resistance, $\small r_c$ such that the total resistance to vapour loss, $\small r_v=r_{Ha}+r_c$ where $\small r_{Ha}$ is the same as the boundary layer resistance for heat as described above. $\small r_c$ varies substantially by organism (Table S1; Spotila & Berman (1976) and Tracy (1982)), and for most reptiles and dry-skinned ectotherms, lies in the order of 5000--10000 s m$^{-1}$ or higher, effectively reducing water loss to near-zero under typical conditions. For amphibians with freely evaporating skins $\small r_c$ is in the order of 20--100, meaning that water loss is controlled predominantly by $\small r_{Ha}$.
+
+For endotherms, a broadly similar approach can be used, but one must consider the resistances associated with the broader range of mechanisms by which endotherms can lose water, namely via respiration, sweating, panting and skin or fur evaporation. A detailed overview is beyond the scope of this document but can be found in the [NicheMapR endotherm model documentation](https://mrke.github.io/NicheMapR/inst/doc/endotherm-model-equations.html). An alternative, and simpler, approach is to calculate the energy balance without the latent heat term, generally by setting the metabolic term to its basal rate. The resulting imbalance is a measure of the latent heat loss that would be required to sustain constant body temperature, and is therefore a measure of heat stress. The equivalent for measuring cold stress is to calculate the metabolic rate required to sustain body temperature, but here one must include a term for latent heat loss.
+
+**Table S1.** Typical cutaneous resistance values \( r_c \) for ectotherms used in estimating evaporative water loss. Values drawn from Spotila & Berman (1976), Tracy (1982), and Kearney & Porter (2004).
+
+| Ectotherm Type         | \( r_c \) (s m\(^{-1}\)) | Notes                                                             |
+|------------------------|--------------------------|-------------------------------------------------------------------|
+| Frog / Amphibian       | 20--100                  | Freely evaporating skin; minimal resistance                       |
+| Semi-aquatic reptile   | 1000--3000               | e.g., turtles, crocodiles; moderate skin permeability             |
+| Lizards (desert)       | 5000--15000              | Highly resistant to water loss; dry epidermis                     |
+| Snakes (terrestrial)   | 3000--10000              | Dry skin; cutaneous water loss tightly regulated                  |
+| Insects (terrestrial)  | 1000--20000              | Highly variable; waxy cuticle prevents desiccation                |
+| Aquatic insect larva   | 100--500                 | Low resistance; adapted for continuous gas and water exchange     |
+
+## Note 5: Soil heat storage {#soil-heat-storage}
+
+In the soil, heat storage is significant, and from Bittelli *et al.* (2015) an equation that describes the rate of change in soil temperature $\small T$ with time $\small t$ and depth $\small z$ is
+
+$$\rho_sc_s\frac{\partial T}{\partial t}=\frac{\partial}{\partial z}\left(k\frac{\partial T}{\partial z}\right)$$
+
+where $\small \rho_s$ and $\small c_s$ are the bulk density and specific heat capacity of the soil and $\small k$ is thermal conductivity. If the soil is assumed to be infinitely deep and with uniform thermal properties, and a surface temperature ($\small T(0,t)$) that varies sinusoidally such that
+
+$$T(0,t)=\overline T+A\sin\left[\omega\left(t-t_0\right)\right]$$
+
+then from Campbell & Norman (2012) and de Vries (1963) the temperature at any depth and time ($\small T(z,t)$) is given by
+
+$$T(z,t)=\overline T+A\exp\left(-z/D\right)\sin\left[\omega\left(t-t_0\right)-z/D\right]$$
+
+where $\small \overline T$ is the mean temperature of the cycle, $\small A$ the amplitude of the cycle and $\small t_0$ is the time at which the temperature cycle first attains $\small \overline T$. Here $\small \omega$ is the angular frequency given by $\small 2\pi/(24\times3600\,\mathrm{s})$ for diurnal cycles and $\small 2\pi/(365\times24\times3600\,\mathrm{s})$ for annual cycles and $\small D=\sqrt{2k/(\omega\rho_sc_s)}$ is the damping depth -- the amount by which temperature variation is attenuated with depth and by how much the temperature cycle is shifted in time. The rate of heat storage at the soil surface $\small G_{0,t}$ is then determined by differentiation as
+
+$$G_{0,t}=\frac{\sqrt2Ak\sin\left[\omega(t-t_0)+\pi/4\right]}{D}$$
+
+$\small G_{0,t}$ thus scales with $\small k$, $\small \rho_s$ and $\small c_s$, which can be inferred from soil physical properties. The volumetric specific heat $\small \rho_sc_s$ is the sum of all soil constituents, namely quartz, minerals, organic matter, water and air, with water replacing air as soils become wet. Thus
+
+$$\rho_sc_s=\rho_wc_w\theta+\rho_ac_a\phi_a+\rho_qc_q\phi_q+\rho_mc_m\phi_m+\rho_oc_o\phi_o$$
+
+where $\small \rho$ and $\small c_s$ represent the density ($\small kg\cdot m^{-3}$) and specific heat capacity ($\small J\cdot kg^{-1}\cdot K^{-1}$) of each constituent denoted by the subscripts $\small w$, $\small a$, $\small q$, $\small m$ and $\small o$ representing water, air, quartz, mineral other than quartz and organic matter respectively, $\small \phi$ represents the volume fraction of each constituent and $\small \theta$ is the volumetric soil water fraction. Values for density and specific heat of each constituent are shown in Table S2 and the typical volume fractions of each constituent for different soil types shown in Table S3.
+
+From de Vries (1963) and Campbell (1985) thermal conductivity is given by
+
+$$k=p_1+p_2\theta-(p_1-p_4)\exp\left(-(p_3\theta)^4\right)$$
+
+where $\small p_1 \ldots p_4$ are coefficients given by
+
+$\small p_1=\left(0.57+1.73\phi_q+0.93\phi_m\right)/\left(1-0.74\phi_q-0.49\phi_m\right)-2.8\phi_s\left(1-\phi_s\right)$<br>
+$\small p_2=2.8\phi_s,\space p_3=1+0.26m_c^{-1/2},\space p_4=0.03+0.7{\phi_s}^2$<br>
+
+where $\small \phi_s=\phi_q+\phi_m$ is the volume fraction of solids and $\small m_c$ is the mass fraction of minerals that are clay (Table S3).
+
+A more general numerical solution can also be derived that does not assume uniform soil properties. Here the soil is divided into $\small n$ layers each separated by a node $\small i$ with volumetric heat capacity $\small \rho_i c_i$ and temperature $\small T_i$ and with a thermal conductance $\small K_i=k_i/(z_{i+1}-z_i)$ determined from conductivity $\small k$ between nodes $\small i+1$ and $\small i$ at depths $\small z_{i+1}$ and $\small z_i$. From Campbell (1985) and Bittelli *et al.* (2015)
+
+$$K_i\left(\overline T_{i+1}-\overline T_i\right)-K_{i-1}\left(\overline T_i-\overline T_{i-1}\right)=\rho_i c_i\left(T_i^{j+1}-T_i^j\right)\left(z_{i+1}-z_{i-1}\right)/2\Delta t$$
+
+where $\small \Delta t$ is the time increment and the superscript $\small j$ indicates the time at which temperature is determined. The overbars above $\small T$ on the left-hand side indicate that the flux is computed from an appropriate mean temperature such that $\small \overline T=nT^{j+1}+(1-n)T^j$ where $\small 0<n<1$ is a forward or backward weighting factor usually taken as 0.6 to ensure a stable solution (Crank & Nicolson 1947). Writing the equations for each node in matrix form (here for four nodes) gives
+
+$$
+{\small
+\begin{bmatrix}
+B_1 & C_1 & 0 & 0\\
+A_2 & B_2 & C_2 & 0\\
+0 & A_3 & B_3 & C_3\\
+0 & 0 & A_4 & B_4
+\end{bmatrix}
+\begin{bmatrix}
+T'_1\\
+T'_2\\
+T'_3\\
+T'_4\\
+\end{bmatrix}=
+\begin{bmatrix}
+D_1\\
+D_2\\
+D_3\\
+D_4\\
+\end{bmatrix}
+}
+$$
+
+where
+
+$$B_i=n\left(K_i+K_{i-1}\right)+\rho_i c_i\left(z_{i+1}-z_{i-1}\right)/2\Delta t$$
+
+$$A_{i+1}=C_i=-nK_i$$
+
+$$D_i=(1-n)K_{i-1}T_{i-1}+\left[\rho_i c_i\frac{z_{i+1}-z_{i-1}}{2\Delta t}-(1-n)\left(K_i+K_{i-1}\right)\right]T_i+(1-n)K_iT_i$$
+
+Here $\small T'$ represents the new temperature at time $t^{j+1}$ and $\small T$ represents the old temperature at time $T^j$. The coefficient matrix is symmetric and tridiagonal. The set of equations is solved very efficiently by Gaussian elimination using the Thomas algorithm (Thomas 1949) as implemented in function `Soilheat`, provided boundary conditions are specified. The boundary condition at the bottom of the soil column ($\small T'_{n+1}$) is usually specified as remaining at some constant temperature, often taken as equivalent to mean annual air temperature and
+
+$$D_n=D'_n+nK_n+T'_{n+1}$$
+
+where $\small D'_n$ is the value obtained using the equation for $\small D_{i=n}$ above. The boundary condition at the soil surface at ($\small i=1$) is derived from air temperature at reference height ($\small T_0$), and is given by
+
+$$D_1=D'_1+nK_0T_0-R_{net}+L$$
+
+where $\small R_{net}=R_{abs}-R_{em}$ is net radiation, $\small L$ is the latent heat flux, $\small K_0$ the boundary layer conductance and $\small D'_1$ is the value obtained using the equation for $\small D_{i=1}$ above.
+
+The rate of heat storage at the soil surface $\small G_{0,t}$ is then given by
+
+$$G_{0,t}=K_0\left[(1-n)\left(T_0-T_1\right)+n\left(T'_0-T'_1\right)\right]$$
+
+**Table S2.** Physical properties of materials used in soil thermal modelling.
+
+| Material         | Density (kg/m³) | Specific heat (J/kg/K) | Thermal conductivity (W/m·K) |
+|------------------|------------------|--------------------------|-------------------------------|
+| Quartz           | 2660             | 800                      | 8.80                          |
+| Minerals         | 2650             | 900                      | 2.92                          |
+| Organic matter   | 1300             | 1920                     | 0.25                          |
+| Water            | 1000             | 4180                     | 0.57                          |
+| Ice              | 920              | 1001                     | 2.18                          |
+| Air              | 1.225            | 1005                     | 0.025                         |
+
+**Table S3.** Hydraulic and thermal properties of different soil types and the mass fraction of minerals that are clay. Values for quartz, minerals and organic material represent the volume fractions for dry soil and the clay mass fraction is the mass fraction of minerals that are clay.
+
+| Soil Type         | Quartz | Mineral | Organic | Clay Mass Fraction | θᵣ   | θₛ   | α | n    | Kₛ (kg m⁻² day⁻¹) |
+|-------------------|--------|---------|---------|--------------------|------|------|---------|------|--------------------|
+| Sand              | 0.30   | 0.3000  | 0.0010  | 0.0100             | 0.045| 0.43 | 14.5    | 2.68 | 501.1200           |
+| Loamy sand        | 0.24   | 0.3550  | 0.0030  | 0.0350             | 0.057| 0.41 | 12.4    | 2.28 | 146.8800           |
+| Sandy loam        | 0.18   | 0.4100  | 0.0070  | 0.0600             | 0.065| 0.41 | 7.5     | 1.89 | 62.2080            |
+| Loam              | 0.12   | 0.4400  | 0.0180  | 0.0844             | 0.078| 0.43 | 3.6     | 1.56 | 31.9680            |
+| Silt loam         | 0.00   | 0.4700  | 0.0830  | 0.1240             | 0.067| 0.45 | 2.7     | 1.41 | 16.4160            |
+| Sandy clay loam   | 0.14   | 0.4640  | 0.0080  | 0.3648             | 0.100| 0.39 | 4.9     | 1.48 | 10.3680            |
+| Clay loam         | 0.06   | 0.5090  | 0.0120  | 0.5422             | 0.095| 0.41 | 1.9     | 1.31 | 5.5296             |
+| Silty clay loam   | 0.04   | 0.5080  | 0.0110  | 0.3948             | 0.089| 0.43 | 1.7     | 1.37 | 3.6288             |
+| Sandy clay        | 0.15   | 0.4655  | 0.0035  | 0.5050             | 0.100| 0.38 | 2.7     | 1.23 | 2.8512             |
+| Silty clay        | 0.00   | 0.6240  | 0.0080  | 0.5500             | 0.070| 0.36 | 1.6     | 1.25 | 2.1600             |
+| Clay              | 0.00   | 0.6000  | 0.0060  | 1.0000             | 0.068| 0.38 | 1.1     | 1.09 | 1.4688             |
+
+## Note 6: Soil hydrology {#soil-hydrology}
+
+To calculate the volumetric soil water content $\small \theta$ one must consider the balance of evapotranspiration and rainfall. Water is drawn out of soil by plants, evaporates from bare soil surfaces, and enters the soil layer as precipitation. There are no general mathematical solutions to calculate the change in $\small \theta$ with depth and time, and one must therefore resort to numerical modelling in which the soil is divided into a number of layers and flow between layers is computed in discrete timesteps. The effective relative humidity of soil exhibits a highly non-linear relationship with $\small \theta$ and at the soil surface there is a significant gradient in the water content profile. The top layers therefore need to be very thin to capture these processes accurately.
+
+One-dimensional water flow in the soil (i.e. downward and upward) is described by Darcy's law such that
+
+$$J_w=-k\frac{d\psi_m}{dz}-gk$$
+
+where $\small k$ is hydraulic conductivity and $\small J_w$ is the water flux density ($\small kg\cdot m^{-2}\cdot s^{-1}$), $\small d\psi_m/dz$ is the change in matric potential with depth and $\small g=9.81$ is the gravitational constant. $\small k$ is computed from $\small k_s$ using the van Genuchten (1980) method as
+
+$$k=k_s\sqrt{S_e}\left[1-\left(1-{S_e}^{1/m}\right)^m\right]^2$$
+
+and carries the same units as $\small k_s$ where $\small S_e$ is the effective saturation defined as
+
+$$S_e=\frac{\theta(\psi)-\theta_r}{\theta_s-\theta_r}$$
+
+where $\small \theta(\psi)$ is the water retention curve derived from the van Genuchten equation as
+
+$$\theta(\psi)=\theta_r+\frac{\theta_s-\theta_r}{\left[1+\left(\alpha|\psi_m|\right)^n\right]^m}$$
+
+where terms are as defined for bare soil evaporation. From Campbell (1985) the set up for the numerical solution to the water flow problem is very similar to the heat flow problem. Thus
+
+$$\frac{\rho_w\overline c_w\left(\psi_i^{j+1}-\psi_i^j\right)\left(z_{i+0.5}-z_{i-0.5}\right)}{\Delta t}=\frac{\overline k_i\left(\overline\psi_{i+1}-\overline\psi_i\right)}{z_{i+1}-z_i}-\frac{\overline k_{i-1}\left(\overline\psi_i-\overline\psi_{i-1}\right)}{z_i-z_{i-1}}+U_i$$
+
+where $\small \rho_w$ is the density of water, $\small c_w$ is water capacitance, and $\small \Delta t$ is the timestep. The overbars indicate a mean over the time steps $\small j$ or element length between nodes $\small i$. Here $\small \psi$ is the water potential. The potentials are defined as for heat flow $\small \overline\psi_i=n(\psi_i^{j+1})+(1-n)(\psi_i^j)$ though the nonlinearity of the water flow problem makes $\small n=1$ the best choice almost always. Ideally, $\small c_w$ and $\small K_i$ are appropriate mean values of the capacity and conductivity over a time step. The correct values, however, are not easily obtained since each depends partially on the unknown potential at the end of the time step. The solution is either to run the model in very short time increments or to make two or more computations, the first based on values at time $\small j$, with subsequent estimates made using the average of the known potential at the beginning of the time step and the estimated potential at the end of the time step. The source term $\small U_i$ combines all of the inputs and losses of water from the node that are not explicit in the above equation and might include water extraction by roots, gravitational flux, and condensation or evaporation.
+
+Writing the equations for each node in matrix form (here for four nodes) gives
+
+$$
+{\small
+\begin{bmatrix}
+B_1 & C_1 & 0 & 0\\
+A_2 & B_2 & C_2 & 0\\
+0 & A_3 & B_3 & C_3\\
+0 & 0 & A_4 & B_4
+\end{bmatrix}
+\begin{bmatrix}
+\psi'_1\\
+\psi'_2\\
+\psi'_3\\
+\psi'_4\\
+\end{bmatrix}=
+\begin{bmatrix}
+D_1\\
+D_2\\
+D_3\\
+D_4\\
+\end{bmatrix}
+}
+$$
+
+where
+
+$$C_i=A_{i+1}=-nK_i$$
+
+$$B_i=n\left(K_i+K_{i-1}\right)+S_i$$
+
+$$D_i=(1-n)K_{i-1}\psi_{i-1}+\left[S_i-(1-n)(K_{i-1}+K_i)\right]\psi_i+(1-n)K_i\psi_{i+1}+U_i$$
+
+Here $\small \psi'$ represents the new potential at time $\small t^{j+1}$ and $\small \psi$ represents the old potential at time $\small t^j$, and $\small K$ is the conductance computed as $\small K_i=\overline k_i/(z_{i+1}-z_i)$ and the storage term $\small S_i=\rho_wc_i\left(z_{i+1}-z_{i-1}\right)/2\Delta t$.
+
+To solve the set of equations, the lower boundary condition is that water potential is held at some fixed value, often an entirely saturated soil layer, and the upper boundary condition is normally the water entering or exiting the soil layer. A numeric implementation with explicit calculation of $\small U_i$ is implemented by function `soilwatermodel`. Further details, including methods used to derive elements of $\small U_i$, are provided in Campbell (1985) and Bittelli *et al.* (2015). In implementing this model, a Newton--Raphson procedure is used to solve the set of numerical equations. This necessitates that a simpler set of relationships are used to relate the volumetric soil water fraction, the water potential and hydraulic conductivity. Using this Campbell method
+
+$$k=k_s\left(\frac{\psi_e}{\psi_m}\right)^{2+3/b}=k_s\left(\frac{\theta}{\theta_s}\right)^{2b+3},\space \psi_m=\psi_e\left(\frac{\theta}{\theta_s}\right)^{-b}$$
+
+where $\small \psi_e$ is the air entry potential and $\small b$ is a pore size distribution parameter, with values for different soil types shown below.
+
+**Table S4.** Alternative hydraulic properties of different soil types using the Campbell equations.
+
+| Soil Type         | -ψₑ (J/kg) | b    | Kₛ (kg s⁻¹ m⁻³) |
+|-------------------|-------------|------|------------------|
+| Sand              | 0.7         | 1.7  | 0.000580         |
+| Loamy sand        | 0.9         | 2.1  | 0.001700         |
+| Sandy loam        | 1.5         | 3.1  | 0.000720         |
+| Loam              | 1.1         | 4.5  | 0.000370         |
+| Silt loam         | 2.1         | 4.7  | 0.000190         |
+| Sandy clay loam   | 2.8         | 4.0  | 0.000120         |
+| Clay loam         | 2.6         | 5.2  | 0.000064         |
+| Silty clay loam   | 3.3         | 6.6  | 0.000042         |
+| Sandy clay        | 2.9         | 6.0  | 0.000033         |
+| Silty clay        | 3.4         | 7.9  | 0.004025         |
+| Clay              | 3.7         | 7.6  | 0.000017         |
+
+## Snow
+
+### Note 7.1: Snow mass balance {#snow-mass-note}
+
+Snow water equivalent (\(S\), kg m\(^{-2}\)) is represented as a set of \(n\) layers, where \(S_i\) is the snow water equivalent (kg m\(^{-2}\)) of layer \(i\), numbered from top to bottom. Total snow water equivalent is thus
+
+$$S=\sum_{i=1}^{n} S_i$$
+
+The change in total snow water equivalent over a timestep (\(\Delta S\), kg m\(^{-2}\)) is given by
+
+$$\Delta S = P_s - \sum_{i=1}^{n} M_i - E - M_r$$
+
+where \(P_s\) is snowfall, \(M_i\) is melt from layer \(i\), \(E\) is sublimation (positive upward, negative for deposition), and \(M_r\) is rain-induced melt (Anderson, 1976; Kearney, 2020).
+
+Precipitation is partitioned into snowfall (\(P_s\)) and rainfall (\(P_r\)) according to air temperature (\(T_a\)) as
+
+$$P_s=f_sP,\quad P_r=(1-f_s)P$$
+
+where \(P\) is total precipitation and \(f_s\) is the fraction falling as snow, given by
+
+$$f_s=\begin{cases}1, & T_a\le T_s\\0, & T_a\ge T_r\\
+\dfrac{T_r-T_a}{T_r-T_s}, & T_s<T_a<T_r\end{cases}$$
+
+where \(T_s=0\,^\circ\mathrm{C}\) and \(T_r=2\,^\circ\mathrm{C}\) (Jennings et al., 2018). Snowfall is added to the uppermost layer. Melt within a layer \(i\) is calculated from the thermal energy content of that layer as
+
+$$M_i=\min\left(S_i,\frac{c_{ice}T_i^{+}}{L_f}S_i\right)$$
+
+where \(M_i\) is melt from layer \(i\) (kg m\(^{-2}\)), \(T_i^{+}=\max(T_i,0)\), \(c_{ice}=2100\,\mathrm{J\,kg^{-1}\,K^{-1}}\) and \(L_f=3.34\times10^{5}\,\mathrm{J\,kg^{-1}}\). Rainfall also generates additional melt at the snow surface, given by
+
+$$M_r=k_rT_aP_r$$
+
+where \(M_r\) is rain-induced melt (kg m\(^{-2}\)) and \(k_r=0.0125\) (Kearney, 2020).
+
+Snow depth (\(D_s\), m) is related to snow water equivalent and snow density as
+
+$$D_s=\frac{S}{\rho_s}$$
+
+where \(S\) is snow water equivalent (kg m\(^{-2}\)). Snow density is calculated as a function of snow depth and snow age:
+
+$$\rho_s=\left[(\rho_{\max}-\rho_0)\left(1-\exp\left(-k_dD_s-k_at_s\right)\right)+\rho_0\right]\times1000$$
+
+where \(\rho_{\max}\) and \(\rho_0\) are the upper and initial snow densities (g cm\(^{-3}\)), \(k_d\) is the depth-dependent densification coefficient (m\(^{-1}\)), \(k_a\) is the age-dependent densification coefficient (day\(^{-1}\)), and \(t_s\) is snow age (days) (Sturm et al., 2010). Parameter values for the snow density function for different snow environments are shown below.
+
+**Table S5.** Snow density model parameters for different snow environments.
+
+| Snow environment | $\rho_{\max}$ (g cm$^{-3}$) | $\rho_0$ (g cm$^{-3}$) | $k_d$ (m$^{-1}$) | $k_a$ (day$^{-1}$) |
+|------------------|-----------------------------|------------------------|------------------|--------------------|
+| Alpine           | 0.5975                      | 0.2237                 | 0.0012           | 0.0038             |
+| Maritime         | 0.5979                      | 0.2578                 | 0.0010           | 0.0038             |
+| Prairie          | 0.5940                      | 0.2332                 | 0.0016           | 0.0031             |
+| Tundra           | 0.3630                      | 0.2425                 | 0.0029           | 0.0049             |
+| Taiga            | 0.2170                      | 0.2170                 | 0.0000           | 0.0000             |
+
+The parameterisation broadly follows the treatment of snow accumulation and evolution described by Hedstrom & Pomeroy (1998) and Kearney (2020).
+
+### Note 7.2: Snow energy balance {#snow-energy-note}
+
+As for a vegetated surface, we need to compute the energy balance of the snow surface in order to derive its temperature. The implementation broadly follows the snow model described by Kearney (2020), itself based largely on Anderson (2006).
+
+Shortwave radiation absorbed by the snow surface depends on snow albedo (\(\alpha_s\)), which is a function of snow age (\(t_s\), hours):
+
+$$\alpha_s = \frac{-9.8740 \ln\left(\frac{t_s}{24}\right) + 78.3434}{100}$$
+
+$$0.1 \le \alpha_s \le 0.97$$
+
+following regressions derived from Anderson (2006). Directional absorption of direct radiation is reduced relative to a planar surface to account for the small-scale roughness of snow, which weakens the dependence of absorption on the angle of incidence. For a planar surface, absorption scales with the cosine of the incidence angle:
+
+$$\mu = \cos\theta_z \cos\beta + \sin\theta_z \sin\beta \cos(\phi - \gamma)$$
+
+where \(\mu\) is the cosine of the incidence angle, \(\theta_z\) is the solar zenith angle, \(\phi\) is solar azimuth, \(\beta\) is slope, and \(\gamma\) is aspect.
+
+For snow, this angular dependence is reduced using a modified projection term \(G\), given by
+
+$$G =\begin{cases}
+\mu, & y=0 \\
+0.5, & y=1 \\
+\mu \dfrac{\sqrt{x^2 + \tan^2(\cos^{-1}\mu)}}{x + 1.774(x + 1.182)^{-0.733}}, & 0<y<1
+\end{cases}$$
+
+$$x=\frac{1}{y}$$
+
+where \(y\) controls the strength of the angular dependence, with \(y=0\) corresponding to the planar case and \(y=1\) to isotropic absorption. Generally \(y \approx 0.7\). The projection function approximation derives from Campbell (1986).
+
+Sensible heat exchange with the snow surface is calculated as for other surfaces using an aerodynamic resistance formulation, but the roughness length and zero-plane displacement height are adjusted for the presence of snow. Where snow depth (\(D_s\)) is less than vegetation height (\(h\)), the exposed canopy height is reduced to \(h-D_s\), and plant area index is reduced proportionally. The zero-plane displacement height (\(d\)) and roughness length for momentum (\(z_m\)) are then recalculated for the reduced canopy.
+
+If snow depth exceeds vegetation height, the surface is treated as bare snow, with
+
+$$d=0$$
+
+and a roughness length for heat and momentum of
+
+$$z_h = 0.2z_m = 0.2\left(0.002\exp(\psi_h)\right)$$
+
+The aerodynamic resistance to heat transfer (\(r_{Ha}\), s m\(^{-1}\)) is then calculated using the adjusted values of \(d\), \(z_m\) and \(z_h\).
+
+Latent heat exchange from the snow surface is calculated without a surface (stomatal) resistance, i.e. the snowpack is treated as freely evaporating/sublimating.
+
+Longwave emission from the snow surface assumes a fixed emissivity, with \(\varepsilon_s = 0.99\).
+
+Snow temperature calculation must accommodate the rate of heat storage by solving the heat diffusion equation across the combined snow–soil column:
+
+$$c(z)\frac{\partial T}{\partial t}=\frac{\partial}{\partial z}\left(k(z)\frac{\partial T}{\partial z}\right)$$
+
+where \(T\) is temperature (\(^\circ\)C), \(c(z)\) is volumetric heat capacity, and \(k(z)\) is thermal conductivity, both varying with depth across snow and soil layers.
+
+Snow thermal conductivity (\(k_s\), W m\(^{-1}\) K\(^{-1}\)) is calculated from snow density (\(\rho_s\), kg m\(^{-3}\)) as
+
+$$k_s = 0.0442\exp(5.181\rho_g)$$
+
+where \(\rho_g=\rho_s/1000\) is snow density expressed in g cm\(^{-3}\), following Anderson (2006).
+
+Snow volumetric heat capacity (\(C_s\), J m\(^{-3}\) K\(^{-1}\)) is calculated as a mixture of ice and air, with liquid water content assumed to be zero:
+
+$$C_s = V_iC_i + V_aC_a$$
+
+where \(V_i=\rho_s/\rho_i\) is the volumetric fraction of ice, \(V_a=1-V_i\) is the volumetric fraction of air, and \(\rho_i=917\) kg m\(^{-3}\) is the density of ice. The volumetric heat capacity of ice (\(C_i\)) is given by
+
+$$C_i = 1.93\times10^6 + 0.0067\times10^6 T_s$$
+
+for \(T_s<0\), and
+
+$$C_i = 2.1\times10^6$$
+
+for \(T_s\ge 0\), where \(T_s\) is snow temperature (\(^\circ\)C). The volumetric heat capacity of air (\(C_a\)) is calculated as the product of air density and the specific heat capacity of air.
+
+## References
+
+Allen R.G., Pereira L.S., Raes D. & Smith M. (1998) *Crop evapotranspiration: Guidelines for computing crop water requirements*. FAO Irrigation and Drainage Paper 56. Food and Agriculture Organization of the United Nations, Rome.
+
+Anderson E.A. (1976) *A point energy and mass balance model of a snow cover*. NOAA Technical Report NWS 19. National Oceanic and Atmospheric Administration, Silver Spring, Maryland.
+
+Bird R.B., Stewart W.E. & Lightfoot E.N. (2007) *Transport Phenomena* (2nd ed.). John Wiley & Sons.
+
+Bittelli M., Campbell G.S. & Tomei F. (2015) *Soil Physics with Python: Transport in the Soil-Plant-Atmosphere System*. Oxford University Press.
+
+Businger J.A., Wyngaard J.C., Izumi Y. & Bradley E.F. (1971) Flux-profile relationships in the atmospheric surface layer. *Journal of the Atmospheric Sciences* 28: 181–189.
+
+Campbell G.S. (1985) *Soil Physics with BASIC: Transport Models for Soil-Plant Systems*. Elsevier.
+
+Campbell G.S. (1986) Extinction coefficients for radiation in plant canopies calculated using an ellipsoidal inclination angle distribution. *Agricultural and Forest Meteorology* 36: 317–321.
+
+Campbell G.S. & Norman J.M. (2012) *An Introduction to Environmental Biophysics* (2nd ed.). Springer.
+
+Christoffersen B.O., Gloor M., Fauset S., Fyllas N.M., Galbraith D.R., Baker T.R., Kruijt B., Rowland L., Fisher R.A., Binks O.J., Sevanto S., Xu C., Jansen S. & Meir P. (2016) Linking hydraulic traits to tropical forest function in a size-structured and trait-driven model (TFS v.1-Hydro). *Geoscientific Model Development* 9: 4227–4255.
+
+Churchill S.W. & Bernstein M. (1977) A correlating equation for forced convection from gases and liquids to a circular cylinder in crossflow. *Journal of Heat Transfer* 99: 300–306.
+
+Churchill S.W. & Chu H.H.S. (1975) Correlating equations for laminar and turbulent free convection from a horizontal cylinder. *International Journal of Heat and Mass Transfer* 18: 1049–1053.
+
+Collatz G.J., Ball J.T., Grivet C. & Berry J.A. (1991) Physiological and environmental regulation of stomatal conductance, photosynthesis and transpiration: a model that includes a laminar boundary layer. *Agricultural and Forest Meteorology* 54: 107–136.
+
+Collatz G.J., Ribas-Carbo M. & Berry J.A. (1992) Coupled photosynthesis-stomatal conductance model for leaves of C4 plants. *Functional Plant Biology* 19: 519–538.
+
+Crank J. & Nicolson P. (1947) A practical method for numerical evaluation of solutions of partial differential equations of the heat-conduction type. *Mathematical Proceedings of the Cambridge Philosophical Society* 43: 50–67.
+
+de Vries D.A. (1963) Thermal properties of soils. In W.R. van Wijk (Ed.), *Physics of Plant Environment* (pp. 210–235). North-Holland Publishing Company.
+
+Eller C.B., Rowland L., Mencuccini M., Rosas T., Williams K., Harper A., Medlyn B.E., Wagner Y., Klein T., Teodoro G.S., Oliveira R.S., Matos I.S., Rosado B.H.P., Fuchs K., Wohlfahrt G., Montagnani L., Meir P., Sitch S. & Cox P.M. (2020) Stomatal optimization based on xylem hydraulics (SOX) improves land surface model simulation of vegetation responses to climate. *New Phytologist* 226: 1622–1637.
+
+Harman I.N. & Finnigan J.J. (2008) A simple unified theory for flow in the canopy and roughness sublayer. *Boundary-Layer Meteorology* 129: 323–351.
+
+Hedstrom N.R. & Pomeroy J.W. (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611–1625.
+
+Incropera F.P., DeWitt D.P., Bergman T.L. & Lavine A.S. (2007) *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
+
+Jennings K.S., Winchell T.S., Livneh B. & Molotch N.P. (2018) Spatial variation of the rain–snow temperature threshold across the Northern Hemisphere. *Nature Communications* 9: 1148.
+
+Kearney M.R. (2020) How will snow alter exposure of organisms to cold stress under climate warming? *Global Ecology and Biogeography* 29: 1246–1256.
+
+Kearney M.R. & Porter W.P. (2004) Mapping the fundamental niche: physiology, climate, and the distribution of a nocturnal lizard. *Ecology* 85: 3119–3131.
+
+Kearney M.R. & Porter W.P. (2017) NicheMapR – an R package for biophysical modelling: the microclimate model. *Ecography* 40: 664–674.
+
+Kelliher F.M., Leuning R., Raupach M.R. & Schulze E.-D. (1995) Maximum conductances for evaporation from global vegetation types. *Agricultural and Forest Meteorology* 73: 1–16.
+
+Milne R.M. (1921) Note on the Equation of Time. *The Mathematical Gazette* 10: 372–375.
+
+Monin A.S. & Obukhov A.M. (1954) Basic laws of turbulent mixing in the surface layer of the atmosphere. *Trudy Geofizicheskogo Instituta, Akademiya Nauk SSSR* 24: 163–187.
+
+Monteith J.L. (1965) Evaporation and environment. *Symposia of the Society for Experimental Biology* 19: 205–234.
+
+Monteith J.L. & Unsworth M.H. (2013) *Principles of Environmental Physics* (4th ed.). Academic Press.
+
+Ogée J., Brunet Y., Loustau D., Berbigier P. & Delzon S. (2003) MuSICA, a CO₂, water and energy multilayer, multileaf pine forest model: evaluation from hourly to yearly time scales and sensitivity analysis. *Global Change Biology* 9: 697–717.
+
+Penman H.L. (1948) Natural evaporation from open water, bare soil and grass. *Proceedings of the Royal Society A* 193: 120–145.
+
+Raupach M.R. (1989a) Applying Lagrangian fluid mechanics to infer scalar source distributions from concentration profiles in plant canopies. *Agricultural and Forest Meteorology* 47: 85–108.
+
+Raupach M.R. (1989b) A practical Lagrangian method for relating scalar concentrations to source distributions in vegetation canopies. *Quarterly Journal of the Royal Meteorological Society* 115: 609–632.
+
+Raupach M.R. (1994) Simplified expressions for vegetation roughness length and zero-plane displacement as functions of canopy height and area index. *Boundary-Layer Meteorology* 71: 211–216.
+
+Raupach M.R. & Finnigan J.J. (1988) ‘Single-layer models of evaporation from plant canopies are incorrect but useful, whereas multilayer models are correct but useless’: Discuss. *Australian Journal of Plant Physiology* 15: 705–716.
+
+Ross J. (1981) *The Radiation Regime and Architecture of Plant Stands*. Dr W. Junk Publishers.
+
+Salisbury J.W. & D’Aria D.M. (1992) Emissivity of terrestrial materials in the 8–14 μm atmospheric window. *Remote Sensing of Environment* 42: 83–106.
+
+Savage V.M., Bentley L.P., Enquist B.J., Sperry J.S., Smith D.D., Reich P.B., von Allmen E.I. & Hibberd J.M. (2010) Hydraulic trade-offs and space filling enable better predictions of vascular structure and function in plants. *Proceedings of the National Academy of Sciences USA* 107: 22722–22727.
+
+Sellers P.J. (1985) Canopy reflectance, photosynthesis and transpiration. *International Journal of Remote Sensing* 6: 1335–1372.
+
+Spotila J.R. & Berman E.N. (1976) Determination of skin resistance and the role of the skin in controlling water loss in amphibians and reptiles. *Comparative Physiology* 55: 407–411.
+
+Sturm M., Taras B., Liston G.E., Derksen C., Jonas T. & Lea J. (2010) Estimating snow water equivalent using snow depth data and climate classes. *Journal of Hydrometeorology* 11: 1380–1394.
+
+Tetens O. (1930) Über einige meteorologische Begriffe. *Zeitschrift für Geophysik* 6: 297–309.
+
+Thomas L.H. (1949) *Elliptic problems in linear differential equations over a network*. Watson Scientific Computing Laboratory Report, Columbia University, New York.
+
+Thomsen K. (1994) Approximate formula for the surface area of an ellipsoid. Unpublished note originating from internet discussion forum.
+
+Tracy C.R. (1982) Biophysical modeling in reptilian physiology and ecology. In *Biology of the Reptilia* 12: 275–321.
+
+van Genuchten M.T. (1980) A closed-form equation for predicting the hydraulic conductivity of unsaturated soils. *Soil Science Society of America Journal* 44: 892–898.
+
+Vickers G.T. (1996) The projected areas of ellipsoids and cylinders. *Powder Technology* 86: 195–200.
+
+Yasuda N. (1988) Turbulent diffusivity and diurnal variations in the atmospheric boundary layer. *Boundary-Layer Meteorology* 43: 209–221.
+
+Yuan H., Dai Y., Dickinson R.E., Pinty B., Shangguan W., Zhang S. & Wang L. (2017) Reexamination and further development of two-stream canopy radiative transfer models for global land modeling. *Journal of Advances in Modeling Earth Systems* 9: 113–129.
