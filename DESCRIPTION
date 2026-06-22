@@ -20,6 +20,6 @@ Suggests:
     rmarkdown
 VignetteBuilder: knitr
 Depends:
-    R (>= 2.10)
+    R (>= 3.5)
 URL: https://github.com/ilyamaclean/microclimlearn
 BugReports: https://github.com/ilyamaclean/microclimlearn/issues

@@ -164,6 +164,7 @@ createplant_inputs <- function(PFT) {
 #' @param z height above ground
 #' @param C3 optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway
 #' @returns stomatal conductance (mol / m^2 / s)
+#' @export
 stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inputs, z, C3 = TRUE) {
   # Extract inputs:
   h <- plant_inputs$h
@@ -191,6 +192,7 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
   ea <- satvap(tair) * (rh / 100)
   es <- satvap(tleaf)
   DD <- (es - ea) / pk # divide by pk to convert to mol / mol
+  #DD <- pmax(DD, 1e-5)
   DD[DD < 0.05] <- 0.05
   zeta <- 2 / (dKdpKi * rp * 1.6 * DD)
   mu <- 1 + (4 * zeta) / dadc
@@ -215,6 +217,7 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
 #' @param plant_inputs a vector of vegetation parameters as returned by [createplant_inputs()]
 #' @param C3 optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway
 #' @returns bul surface stomatal resistance (s/m)
+#' @export
 bulkstomatalresist_calc <- function(solp, Ca, Rsw, Rdif, tair, tcanopy, rh, pk, psi_r, plant_inputs, C3 = TRUE) {
   # Extract parameters form plant inputs
   z <- plant_inputs$h / 2
@@ -252,6 +255,19 @@ bulkstomatalresist_calc <- function(solp, Ca, Rsw, Rdif, tair, tcanopy, rh, pk, 
   rS <- ph / Gs
   return(rS)
 }
+#' Dew-point temperature
+#'
+#' Calculate dew-point temperature (°C) from air temperature (°C) and
+#' relative humidity (%). Uses Magnus equations with coefficients for
+#' water and ice, applying the ice formulation when dew point is below 0 °C.
+#'
+#' @param tc Air temperature (°C).
+#' @param rh Relative humidity (%).
+#'
+#' @return Dew-point temperature (°C).
+#'
+#' @seealso [satvap()]
+#' @export
 dewpoint <- function(tc, rh) {
   # actual vapour pressure (kPa)
   ea <- satvap(tc) * rh / 100

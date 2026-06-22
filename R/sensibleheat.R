@@ -83,6 +83,7 @@ dpsih <- function(ze) {
 #' Calculate diabatic influencing coefficient for heat
 #' @param ze atmospheric stability parameter
 #' @returns diabatic influencing coefficient for heat
+#' @export
 dphih <- function(ze) {
   phih <- rep(NA_real_, length(ze))
   zneg <- ze < 0
@@ -194,6 +195,7 @@ leafresistance <- function(tair, dT, uz, len, wid, x, rHmax = 300.0) {
 #' @param psih diabatic influencing factor for heat as returned by [dpsih()]
 #' @param zref height to which resistance is calculated (m)
 #' @returns resistance to heat loss (s/m)
+#' @export
 groundresistance <- function(hgt, pai, uf, LL, psih, zref) {
   if (zref < hgt) stop("zref must be greater than or equal to hgt\n")
   # Calculate a2
@@ -223,7 +225,6 @@ groundresistance <- function(hgt, pai, uf, LL, psih, zref) {
 #' @param uh wind speed at top of canopy as derived using [windprofile_above()] (m/s)
 #' @returns wind speed (m/s)
 #' @export
-
 windprofile_below <- function(hgt, paii, uh) {
   # Calculate whole canopy attenuation coefficient
   pai <- sum(paii)
