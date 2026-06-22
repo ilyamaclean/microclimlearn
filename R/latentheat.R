@@ -56,6 +56,7 @@ createplant_inputs <- function(PFT) {
     wid     = v[22] * mu[22],  # leaf width (m)
     pTAW    = v[25] * mu[25],  # water stress coefficient
     rootskew = v[26] * mu[26], # skew towards top of soil profile of roots
+    rpmin = v[27] * mu[27], # Minimum resistance
     em = 0.97
   )
   plant_inputs <- as.list(plant_inputs)
