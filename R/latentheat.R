@@ -200,7 +200,7 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
   gs <- 0.5 * dadc * (sqrt(mu) - 1)
   gs <- as.numeric(gs)
   # Apply gsmax cap; also catches Inf and any residual NaN
-  gsmax <- plant_inputs$Vcmax25 * 0.02
+  gsmax <- plant_inputs$Vcmax25 * 1e4
   gs    <- pmin(gs, gsmax, na.rm = TRUE)
   gs[Rswabs == 0] <- 0
   return(gs)
