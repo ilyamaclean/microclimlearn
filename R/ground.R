@@ -645,20 +645,17 @@ PsiFromtheta <- function(theta, psie, b, Smax, MPa = TRUE) {
 #' @param theta volumetric soil water fraction (m^3 / m^3)
 #' @param Smin Residual volumetric soil water fraction (m^3 / m^3)
 #' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
-#' @param psie air entry water potential (J/m^3)
 #' @param alpha Van Genuchten shape parameter
 #' @param n Van Genuchten pore size distribution parameter
 #' @returns soil water potential (kPa ~ J/Kg)
 #' @export
-PsiFromthetaVG <- function(theta, Smin, Smax, psie, alpha, n) {
+PsiFromthetaVG <- function(theta, Smin, Smax, alpha, n) {
   # Calculate water saturation at the air-entry potential
-  psie <- -abs(psie)
   m <- 1 - (1 / n)
-  Sc <- (1 + (alpha * abs(psie))^n)^(-m)
   # Calculate degree of saturation
   Se <- (theta - Smin) / (Smax - Smin)
-  Se <- pmin(1, pmax(0, Se))
-  psiw <- -( 1 / alpha) * ((1/(Se * Sc))^(1 / m) - 1)^(1/n)
+  Se <- pmin(1 - 1e-12, pmax(1e-12, Se))
+  psiw <- -(1 / alpha) * (Se^(-1 / m) - 1)^(1 / n)
   return(psiw)
 }
 #' @title Calculates soil vapour content from water potential

@@ -193,14 +193,15 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
   ea <- satvap(tair) * (rh / 100)
   es <- satvap(tleaf)
   DD <- (es - ea) / pk # divide by pk to convert to mol / mol
-  #DD <- pmax(DD, 1e-5)
-  DD[DD < 0.05] <- 0.05
   zeta <- 2 / (dKdpKi * rp * 1.6 * DD)
   mu <- 1 + (4 * zeta) / dadc
   mu[mu < 1] <- 1
   # Compute stomatal conductance (reproduce stomatal closure at high ca and low light)
   gs <- 0.5 * dadc * (sqrt(mu) - 1)
   gs <- as.numeric(gs)
+  # Apply gsmax cap; also catches Inf and any residual NaN
+  gsmax <- plant_inputs$Vcmax25 * 0.02
+  gs    <- pmin(gs, gsmax, na.rm = TRUE)
   gs[Rswabs == 0] <- 0
   return(gs)
 }

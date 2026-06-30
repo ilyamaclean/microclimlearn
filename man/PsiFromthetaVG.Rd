@@ -4,7 +4,7 @@
 \alias{PsiFromthetaVG}
 \title{Derives soil water potential from volumetric water content using the Van Genuchten method}
 \usage{
-PsiFromthetaVG(theta, Smin, Smax, psie, alpha, n)
+PsiFromthetaVG(theta, Smin, Smax, alpha, n)
 }
 \arguments{
 \item{theta}{volumetric soil water fraction (m^3 / m^3)}
@@ -12,8 +12,6 @@ PsiFromthetaVG(theta, Smin, Smax, psie, alpha, n)
 \item{Smin}{Residual volumetric soil water fraction (m^3 / m^3)}
 
 \item{Smax}{volumetric soil water fraction at saturation (m^3 / m^3)}
-
-\item{psie}{air entry water potential (J/m^3)}
 
 \item{alpha}{Van Genuchten shape parameter}
 
