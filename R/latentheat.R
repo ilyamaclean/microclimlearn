@@ -215,11 +215,11 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
 #' @param pk atmospheric pressure (kPa)
 #' @param psi_r mean water potential in root zone (MPa)
 #' @param plant_inputs a list of vegetation parameters as returned by [createplant_inputs()]
-#' @param Lfrac fraction of plant area that is living leaf
+#' @param Lfrac fraction of plant area that is living leaf (default 0.8)
 #' @param C3 optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway
 #' @returns bulk surface stomatal resistance (s/m)
 #' @export
-bulkstomatalresist_calc <- function(solp, Ca, Rsw, Rdif, tair, tcanopy, rh, pk, psi_r, plant_inputs, Lfrac, C3 = TRUE) {
+bulkstomatalresist_calc <- function(solp, Ca, Rsw, Rdif, tair, tcanopy, rh, pk, psi_r, plant_inputs, Lfrac = 0.8, C3 = TRUE) {
   # Extract parameters from plant inputs
   z <- plant_inputs$h / 2
   x <- plant_inputs$x

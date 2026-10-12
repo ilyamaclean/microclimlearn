@@ -128,7 +128,7 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97,
 #' @param MOST Logical. If `TRUE`, wind and temperature profiles above the canopy
 #' are taken to be logarithmic down to canopy top. If `FALSE`, a roughness
 #' sublayer is assumed above the canopy.
-#' @param Lfrac fraction of plant area that is living leaf
+#' @param Lfrac fraction of plant area that is living leaf (default 0.8)
 #' @details Meteorological inputs must represent above-canopy conditions,
 #' whereas forcing data are often measured 1–2 m above the ground, below the
 #' height of surrounding vegetation (e.g. forest canopy). The function
@@ -155,10 +155,13 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97,
 #' }
 #' @rdname solve_wholecanopy
 #' @export
-solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, theta, soilrh, Ca = 430, maxiter = 20, leafh = FALSE, MOST = TRUE, Lfrac) {
+solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, theta, soilrh, Ca = 430, maxiter = 20, leafh = FALSE, MOST = TRUE, Lfrac = 0.8) {
   if (zref < vegp$h) stop("zref must be above canopy\n")
   # Bare ground has no canopy to form a roughness sublayer
-  if (vegp$h == 0) MOST <- TRUE
+  if (!MOST && vegp$h == 0) {
+    warning("No roughness sublayer over bare ground (vegp$h = 0): using MOST = TRUE")
+    MOST <- TRUE
+  }
   # Calculate radiation absorbed by canopy
   Rabs <- calcRabs(weather, vegp, groundp,  lat, long, leafh)[hr]
   # Calculate solar position

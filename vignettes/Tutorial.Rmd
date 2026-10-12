@@ -1759,8 +1759,7 @@ while (error > 1e-3) {
                              zref = 2,
                              G[hr],
                              theta = 0.3,
-                             soilrh = 85,
-                             Lfrac = 0) # no living leaf
+                             soilrh = 85)
     Ts[hr] <- can$tcanopy # surface temperature (°C)
   }
 
@@ -1845,7 +1844,7 @@ This approach captures the main features of ground heat storage and the attenuat
 
 We now move to a more realistic model in which the soil is divided into vertical layers. Heat flows between adjacent layers according to their thermal conductivity and temperature differences, while the resulting temperature change in each layer depends on its heat capacity. At the surface, temperature is determined by the balance between absorbed radiation, emitted longwave radiation and sensible and latent heat exchange with the air.
 
-At each timestep, the temperatures of all soil layers are calculated simultaneously by solving the heat equation using a tridiagonal matrix. Because surface heat exchange itself depends on surface temperature, the calculation is iterated until the surface energy balance converges. Temperature is held fixed at the lower boundary, typically at a depth where daily fluctuations are negligible.
+At each timestep, the temperatures of all soil layers are calculated simultaneously by solving the heat equation using a tridiagonal matrix using function `SoilHeatModel`. Because surface heat exchange itself depends on surface temperature, the calculation is iterated until the surface energy balance converges. Temperature is held fixed at the lower boundary, typically at a depth where daily fluctuations are negligible.
 
 We first use `createsoilplist` to define the soil profile, specifying its type, depth and number of layers. The function assigns default values for bulk density and the proportions of quartz, other minerals, clay and organic matter, with bulk density increasing slightly with depth. Organic matter can also be concentrated near the surface using `surface_organicmu`. Here we use a 2 m clay loam profile with 15 layers and three times the average organic matter content in the surface layer. Other available soil types can be determined by inspecting the `createsoilplist` help file.
 
@@ -1869,7 +1868,7 @@ theta <- rep(0.3, 16) # volumetric soil water fraction
 soilheat <- InitSoilheatmod(soilp, Te, theta)
 ```
 
-This creates the initial soil state, with layers spaced more closely near the surface where temperature changes most rapidly. The final temperature specifies the fixed lower boundary, for which mean annual temperature is a reasonable approximation. Each subsequent call to `SoilHeatModel` advances the temperature profile by one timestep and calculates the ground heat flux (`Gflux`), representing the net heat transferred from the surface into the soil.
+This creates the initial soil state, with layers spaced more closely near the surface where temperature changes most rapidly. The final temperature specifies the fixed lower boundary, for which mean annual temperature is a reasonable approximation. Each subsequent call to `SoilHeatModel` advances the temperature profile by one timestep and calculates the rate of ground heat storage (`Gflux`).
 
 Below, we simulate 10 days in June for bare ground. With vegetation height and plant area index set to zero, `solve_wholecanopy` treats the surface as bare soil. At each hour it provides the radiation absorbed by the ground and the resistance to heat transfer between the ground and reference height, which depends on wind speed and on the stability of the air. These inputs are passed to `SoilHeatModel`, which calculates surface and subsurface temperatures and ground heat flux. Because the stability of the air depends on how much heat the surface gives to it, and so on ground heat flux, the two calculations are iterated until the flux converges. The resulting soil temperatures are then carried forward to the next hour (`soilheat$oldTe <- soilheat$Te`).
 
@@ -1932,8 +1931,7 @@ for (hr in 1:240) {
                               zref = 2,
                               G,
                               theta = 0.3,
-                              soilrh = 100, # moist soil: air at its surface is saturated
-                              Lfrac = 0) # no living leaf
+                              soilrh = 100) # moist soil: air at its surface is saturated
 
      # ------------------------- Run soil heat model --------------------- #
      soilheat <- SoilHeatModel(soilheat,
@@ -2004,23 +2002,22 @@ plotdailycycle(Gflux, rgb(0, 0, 1, 0.5))
 
 The plots show pronounced daily cycles in both surface temperature and ground heat flux, with variations between days reflecting changing weather conditions. The lower panels rescale each day's cycle to highlight their timing. Ground heat flux typically peaks in mid-morning, several hours before surface temperature, consistent with the simpler model above. Unlike that model, however, the timing and magnitude of heat exchange are now calculated directly from the evolving soil temperature profile rather than assuming a sinusoidal cycle.
 
-Bare ground is the simplest case. Beneath vegetation, the ground absorbs only the shortwave radiation that passes through the canopy, together with longwave radiation emitted by the canopy itself. It also exchanges heat and water vapour with air that the foliage has warmed, cooled or moistened, and in turn alters that air and so the temperature of the leaves. The ground, the canopy and the air within it must therefore be solved together. This is what `micropoint` is designed to do.
+Bare ground is the simplest case. Beneath vegetation, the ground absorbs only the shortwave radiation that passes through the canopy, together with longwave radiation emitted by the canopy itself. It also exchanges heat and water vapour with air that the foliage has warmed, cooled or moistened, and in turn alters that air and so the temperature of the leaves. The ground, the canopy and the air within it must therefore be solved together. This is what the `micropoint` package is designed to do.
 
 ### Soil water model
-Soil hydrological processes are typically represented by dividing the soil into a set of vertical layers, analogous to the heat model. Evaporation removes water from the surface, while transpiration extracts water throughout the profile according to root distribution. At the same time, water is redistributed within the soil, with fluxes occurring between layers. However, the gradient that drives these fluxes is not the gradient in volumetric water content $\small \theta$, but the gradient in soil water potential $\small \psi_w$, defined as the pressure of water relative to atmospheric pressure (and therefore negative in unsaturated soils).
 
-A relationship between $\small \theta$ and $\small \psi_w$ is therefore required. This relationship is highly nonlinear and soil-specific, and is typically described using an empirical function. Two widely used formulations are the Campbell and van Genuchten models. The Campbell model represents the relationship as a simple power law, defined by an air-entry potential ($\small \psi_e$) and a shape parameter $\small b$; air-entry potential is the potential at which air first begins to enter the largest soil pores as the soil drains. Below this point, water content declines approximately as a power function of $\small \psi_w$. The van Genuchten model uses a more flexible functional form, with additional parameters that allow it to represent the observed relationships across a wider range of conditions. Both approaches define a continuous mapping between one measure and the other, allowing models formulated in terms of $\small \psi_w$ to be solved while retaining $\small \theta$ for mass balance and interpretation.
+Like soil heat flow, soil water movement is modelled by dividing the soil into vertical layers. Evaporation removes water from the surface, transpiration extracts water according to root distribution, and water moves between layers. However, this movement is driven not by gradients in volumetric water content ($\small \theta$), but by gradients in total water potential, which includes both soil water pressure potential ($\small \psi_w$) and the effect of gravity. Pressure potential describes the pressure of water relative to atmospheric pressure and is negative in unsaturated soil.
 
-In the code below, we compare the Campbell and van Genuchten formulations for a clay loam soil. Each model is used to compute the corresponding water potential across a range of water contents, and the resulting retention curves are plotted. This illustrates how the two approaches differ in the shape of the curve linking moisture status to pressure, particularly across the drying range.
+To model water movement, we need a relationship between water content and pressure potential. This relationship is highly nonlinear and soil-specific. Two widely used formulations are the Campbell model, which uses a power law defined by an air-entry potential ($\small \psi_e$) and shape parameter ($\small b$), and the more flexible van Genuchten model. Air-entry potential is the potential at which air first enters the largest pores as saturated soil begins to drain.
+
+Below, we compare the two formulations for a clay loam, calculating water potential across a range of water contents. Water potential is expressed in J kg$^{-1}$ (numerically equivalent to kPa) and plotted on a logarithmic scale.
 
 ```{r eval=FALSE}
 # ------------ Comparison of Campbell and Van Genuchten --------------------- #
 Campbell_params <- Campbellparams("Clay loam")
 VG_params <- VGparams("Clay loam")
 
-theta <- seq(VG_params$Smin + 1e-2,
-             VG_params$Smax - 1e-2,
-             length.out = 100)
+theta <- seq(0.1, 0.35, length.out = 100) # volumetric water content
 
 psiw1 <- with(Campbell_params,
               PsiFromtheta(theta,
@@ -2042,16 +2039,16 @@ par(mar = c(5, 5, 2, 2),
 plot(theta, log10(-psiw1),
      type = "l",
      lwd = 2,
-     ylim = c(log10(1e9), log10(1.2)),
+     ylim = c(log10(1e7), log10(1.2)),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
-     ylab = expression(psi[w] ~ "(Pa)"),
+     ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
      cex.lab = 2,
      cex.axis = 2)
 lines(theta, log10(-psiw2),
       col = "red",
       lwd = 2)
-exps <- 0:9
+exps <- 0:7
 axis(2,
      at = log10(10^exps),
      cex.axis = 2,
@@ -2063,17 +2060,16 @@ legend("bottomright",
        bty = "n",
        cex = 1.5)
 ```
+
 ![](images/img24a.png)
 
-You can see that the two approaches match closely in the mid-range of theta, but differ when the soil is very wet or very dry. 
+The van Genuchten model gives more negative potentials throughout. The curves differ by about a factor of two at higher water contents but diverge increasingly as the soil dries. This difference matters less for water movement than might be expected, because hydraulic conductivity becomes extremely low in dry soil, limiting water redistribution.
 
-In the code below, we illustrate how the relationship differs between contrasting soil types by comparing clay and sand using the van Genuchten formulation. Water potential is computed across a common range of water contents for each soil, and the resulting curves are plotted. The comparison shows that, at the same water content, sand has a much higher (less negative) potential than clay, meaning water is much less strongly retained in sand than in clay, owing to its larger pore sizes.
+Soil texture also strongly influences water retention. Below, we compare clay and sand using the van Genuchten formulation over the same range of water contents.
 
 ```{r eval=FALSE}
 VG_params1 <- VGparams("Clay")
 VG_params2 <- VGparams("Sand")
-
-theta <- seq(0.1, 0.35, length.out = 100) # volumetric water content
 
 psiw1 <- with(VG_params1,
               PsiFromthetaVG(theta,
@@ -2094,16 +2090,16 @@ par(mar = c(5, 5, 2, 2))
 plot(theta, log10(-psiw1),
      type = "l",
      lwd = 2,
-     ylim = c(log10(1e12), log10(1.2)),
+     ylim = c(log10(1e9), log10(0.1)),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
-     ylab = expression(psi[w] ~ "(Pa)"),
+     ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
      cex.lab = 2,
      cex.axis = 2)
 lines(theta, log10(-psiw2),
       col = "red",
       lwd = 2)
-exps <- 0:12
+exps <- -1:9
 axis(2,
      at = log10(10^exps),
      cex.axis = 2,
@@ -2115,11 +2111,12 @@ legend("bottomright",
        bty = "n",
        cex = 1.5)
 ```
+
 ![](images/img24b.png)
 
-Hydraulic conductivity determines how readily water can pass through soil. Unlike saturated conductivity, which is a fixed property for a given soil, unsaturated hydraulic conductivity declines sharply as the soil dries. This occurs because water-filled pathways through the pore network become progressively reduced, so the soil becomes much less able to transmit water. Hydraulic conductivity is therefore a key control on the rate of water redistribution through the profile.
+At the same water content, sand has a much less negative water potential than clay, reflecting its larger pores and weaker retention of water. Clay therefore holds water more tightly, although this does not necessarily mean more water is available to plants.
 
-In the code below, hydraulic conductivity is calculated across a range of water contents using the Campbell and van Genuchten formulations for the same soil. The resulting curves show how conductivity declines as the soil dries, and allow comparison of the different functional forms implied by the two models. Note that as in the example above, a long-linear scale is used to represent hydrualic conductivity. 
+Water potential helps determine the direction of water movement, but its rate depends on **hydraulic conductivity**. As soil dries, fewer pores remain water-filled and connected, causing conductivity to decline sharply. Below, we compare the Campbell and van Genuchten formulations for clay loam, again using a logarithmic scale to show the large changes with water content.
 
 ```{r eval=FALSE}
 Campbell_params <- Campbellparams("Clay loam")
@@ -2135,8 +2132,6 @@ Ks2 <- with(VG_params,
             hydraulicConductivityFromThetaVG(theta,
                                              Smin, # residual water content
                                              Smax, # volumetric water content at saturation
-                                             psie, # air-entry water potential
-                                             alpha, # van Genuchten scaling parameter
                                              n, # van Genuchten shape parameter
                                              Ksat)) # saturated hydraulic conductivity
 
@@ -2148,7 +2143,7 @@ plot(theta, Ks1,
      lwd = 2,
      ylim = c(1e-20, 1e-4),
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
-     ylab = expression("Hydraulic conductivity (m s"^-1 * ")"),
+     ylab = expression("Conductivity (kg s m"^-3 * ")"),
      cex.axis = 2,
      cex.lab = 2)
 lines(theta, Ks2,
@@ -2161,32 +2156,30 @@ legend("bottomright",
        bty = "n",
        cex = 1.5)
 ```
+
 ![](images/img24c.png)
 
-With these relationships defined, we can formulate the soil water model. As with the heat model, the soil is represented as a set of vertical layers, and fluxes between layers are calculated based on differences between them. However, unlike heat transfer, the governing equations for water are strongly nonlinear, primarily because hydraulic conductivity changes by many orders of magnitude with moisture status. This means the system cannot be solved directly. Instead, at each time step the model uses a Newton–Raphson method, which improves an initial guess by estimating how much each variable must change for the equations to be satisfied. This requires knowing how the fluxes respond to small changes in the state variables. For this reason, the Campbell model is used here, as its simple form makes these sensitivities straightforward to evaluate, allowing the solver to be implemented efficiently.
+Both formulations predict a decline of several orders of magnitude as the soil dries, with van Genuchten giving lower conductivities throughout this range. Together, the water retention and hydraulic conductivity relationships determine how readily water is redistributed through the soil profile.
 
-As with any vertical flow model, the behaviour at the base of the soil profile must be specified. This lower boundary condition determines whether water can leave the system at depth or is effectively constrained from doing so. In this model, the boundary condition is controlled by the `FreeDrain` argument in the soil parameter list (created using `createsoilplist`). If `FreeDrain = TRUE`, water is allowed to drain freely out of the bottom of the profile under gravity, representing a deep, well-drained soil. If `FreeDrain = FALSE`, the lower boundary is treated as saturated, equivalent to the presence of a water table at depth, which limits drainage from the deepest layer.
+With these relationships defined, we can now model water movement through the soil. As with the heat model, the soil is divided into vertical layers, with fluxes calculated between them. However, soil water flow is strongly nonlinear because hydraulic conductivity changes by many orders of magnitude with water content. `SoilWaterModel` therefore uses a Newton–Raphson method, iteratively adjusting the solution until the equations governing water movement and storage are satisfied. This requires calculating how fluxes respond to changes in water potential. The Campbell formulation is used because its simple power-law relationships make these calculations efficient.
 
-The soil water model is run at each time step using the function `SoilWaterModel`. The function solves the balance between four processes. Water can enter the soil from rainfall, be lost from the surface by evaporation, be extracted from different depths by roots, and move between adjacent soil layers. The first three act as sources or sinks, while the last redistributes water internally through the profile.
+The lower boundary condition is set by `FreeDrain` in `createsoilplist`. If `TRUE`, water drains freely from the bottom of the profile under gravity, representing a deep, well-drained soil. If `FALSE`, the lower boundary is held at saturation, representing a water table at the base of the profile.
 
-In the code below we begin by setting up the inputs and initial conditions for the model. Weather and ground parameters are taken from the built-in datasets, and simple vegetation characteristics are defined. The simulation is then restricted to the first 10 days of June. A soil profile is created with a specified number of layers and depth, and initial profiles of temperature and water content are assigned. These are used to initialise the soil heat and soil water model states and we set `FreeDrain = TRUE`. A small indexing step identifies which layer corresponds to approximately 10 cm depth so that values at this depth can be extracted later.
+At each timestep, `SoilWaterModel` accounts for rainfall, surface evaporation and water movement between layers, as well as root water uptake where plants are present. Below, we simulate bare ground over the first 10 days of June, coupling the soil water, heat and canopy models. As before, we initialise the soil profile using `createsoilplist` and `InitSoilheatmod`, with water content increasing from 0.28 at the surface to 0.36 at depth. `InitSoilwatermod` then initialises the soil water model, with free drainage at the lower boundary.
 
-The model is then advanced in time using an hourly loop. Within each hour, a second loop iterates until the surface energy balance has stabilised. This inner loop ensures that the canopy, soil heat, and soil water components are consistent with one another before moving to the next time step. Within each iteration, the canopy model is solved first. This provides canopy temperature, radiation absorption, and the resistances that control exchanges with the atmosphere. These outputs are then used to calculate the resistance between the soil surface and the reference height, which determines how efficiently heat and water vapour are transferred away from the surface. The soil heat model is then updated using these conditions. This produces a new temperature profile and an updated ground heat flux. The difference between successive estimates of ground heat flux is used to assess convergence, and the loop continues until this difference becomes small. Once the energy balance is consistent, the code computes the water fluxes that drive the soil water model. Transpiration is calculated from the canopy state using vapour pressure gradients and resistances, and is set to zero when stomatal resistance is very high. Evaporation is calculated separately from the top soil layer, using its current water content and temperature. Together with precipitation from the weather data, these define the gains and losses of water for that time step.
-
-These fluxes are then passed to the soil water model, along with the current soil state. The soil temperature profile is also provided so that temperature-dependent processes are evaluated consistently. The soil water model is then run, updating water potential and water content in each layer by balancing evaporation, transpiration, precipitation, and vertical redistribution. After the soil water model has updated the profile, the new water contents are passed back to the heat model. This ensures that the thermal calculations reflect the current water status of the soil, maintaining the coupling between heat and water.
-
-Once the inner loop has converged, selected outputs are stored for that hour. In this example, temperature and water content are recorded at the surface and at approximately 10 cm depth. The current state is then saved as the previous state, so that the next time step starts from the updated conditions. After all time steps have been completed, the stored values are plotted. The results show how temperature and water content vary through time at the surface and at depth, with surface conditions responding more rapidly to atmospheric forcing and deeper layers showing slower, damped responses.
+Each hour, `soilrelhum` calculates relative humidity at the soil surface from its temperature and water content. `solve_wholecanopy` then provides absorbed radiation and the resistance to heat and water vapour transfer between the surface and reference height. `SoilHeatModel` uses these to update soil temperatures and ground heat flux, while `SoilWaterModel` calculates evaporation and redistribution of water between soil layers from the updated temperatures, rainfall and atmospheric conditions. Transpiration (`Et`) is set to zero because the ground is bare. The updated water contents are passed back to the heat model, since soil thermal properties depend on moisture. These calculations are repeated until ground heat flux converges, after which the temperatures and water contents are stored and the updated soil state is carried forward to the next hour.
 
 ```{r eval=FALSE}
 # ---------------- Load example forcing and parameter datasets ------------ #
-# Reload the weather dataset: the name climdata is reused for model driving variables
-climdata <- microclimlearn::climdata
 weather <- climdata # meteorological forcing data
 groundp <- micropoint::groundparams # ground surface parameters
 
-vegp <- createplant_inputs("C3") # vegetation parameters for C3 grass
-vegp$h <- 0.1 # canopy height (m)
-vegp$pai <- 0.15 # plant area index
+vegp <- createplant_inputs("C3")
+vegp$h <- 0 # vegetation height (m): zero for bare ground
+vegp$pai <- 0 # plant area index: zero for bare ground
+
+lat <- 49.96807 # latitude (decimal degrees)
+long <- -5.215668 # longitude (decimal degrees)
 
 boundaryT <- mean(weather$temp) # lower soil boundary temperature (°C)
 
@@ -2195,6 +2188,7 @@ tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
 sel <- which(tme$mon + 1 == 6 &
              tme$mday < 11)
 weather <- weather[sel,]
+tme <- tme[sel]
 
 # ---------------------- Create soil parameter set ----------------------- #
 soilp <- createsoilplist(soiltype = "Clay loam",
@@ -2205,55 +2199,54 @@ soilp <- createsoilplist(soiltype = "Clay loam",
                          surface_organicmu = 1, # surface organic matter depth
                          FreeDrain = TRUE) # free drainage lower boundary
 
-n <- length(soilp$b) # number of soil layers
+n <- length(soilp$b) # number of depths: one more than the number of layers
 
 # ---------------------- Initialise soil profiles ------------------------ #
 Te <- seq(weather$temp[1],
           boundaryT,
           length.out = n) # initial temperature profile (°C)
-theta <- seq(0.2,
-             soilp$Smax[n],
+theta <- seq(0.28,
+             0.36,
              length.out = n) # initial soil water profile
 soilheat <- InitSoilheatmod(soilp,
                             Te,
                             theta) # initialise soil heat model
 soilwater <- InitSoilwatermod(soilp,
                               soilheat,
-                              rootskew = vegp$rootskew) # initialise soil water model
+                              root50 = vegp$root50, # rooting depths (m): not
+                              root95 = vegp$root95) # used without transpiration
 
-# Identify layer closest to 10 cm depth
-nd <- which(soilheat$z[1:10] < 0.1)
-nd <- nd[length(nd)] + 1
+# Identify depth closest to 10 cm
+nd <- which.min(abs(soilheat$z - 0.1))
 
 # ------------------------- Initialise outputs --------------------------- #
-Tsurface <- T10cm <- theta_surface <- theta_10cm <- Gflux <- er <- rep(NA, 240)
+Tsurface <- T10cm <- theta_surface <- theta_10cm <- rep(NA, 240)
 G <- 0 # initial ground heat flux estimate
 error <- 1e99 # convergence criterion
 
 # --------------------------- Main simulation loop ----------------------- #
 for (hr in 1:240) {
   itr <- 1
-  # Iteratively solve canopy, soil heat, and soil water balance
+  # Iteratively solve soil heat and soil water balance
   while (error > 1e-2 && itr < 20) {
-    # ---------------------- Solve canopy energy balance ---------------- #
+    # ------------- Relative humidity of air at the soil surface -------- #
+    soilrh <- soilrelhum(soilwater$theta[1], # surface water content
+                         soilheat$Te[1], # surface temperature (°C)
+                         soilp$psie[1], # air-entry water potential
+                         soilp$b[1], # Campbell shape parameter
+                         soilp$Smax[1]) # saturation water content
+
+    # ------- Absorbed radiation and resistance to heat transfer -------- #
     can <- solve_wholecanopy(weather,
                              vegp,
                              groundp,
                              hr,
-                             49.96807,
-                             -5.215668,
+                             lat,
+                             long,
                              zref = 2,
                              G,
-                             0.3,
-                             0.8)
-
-    # -------- Aerodynamic resistance between soil and atmosphere ------- #
-    rHg <- groundresistance(vegp$h,
-                            vegp$pai,
-                            can$uf,
-                            can$LL,
-                            can$psih,
-                            zref = 2)
+                             theta = soilwater$theta[1],
+                             soilrh = soilrh)
 
     # ----------------------- Solve soil heat transport ----------------- #
     soilheat <- SoilHeatModel(soilheat,
@@ -2262,58 +2255,17 @@ for (hr in 1:240) {
                               Tref = weather$temp[hr], # air temperature (°C)
                               relhum = weather$relhum[hr], # relative humidity (%)
                               atmPressure = weather$pres[hr], # pressure (kPa)
-                              rHg)
+                              rHa = can$rHg) # resistance from ground to zref (s m^-1)
 
     error <- abs(G - soilheat$Gflux) # convergence error
     G <- soilheat$Gflux
-    
-    # ----------------------- Compute canopy transpiration -------------- #
-    Tk <- can$tcanopy + 273.15 # canopy temperature (K)
-    if (can$rSl > 1e9) {
-      # Stomata effectively closed
-      Transp <- 0
-    } else {
-      # Total vapour resistance
-      rV <- can$rHa + can$rSl
-
-      # Saturation vapour pressure inside canopy
-      es <- satvap(can$tcanopy) * 1000
-
-      # Atmospheric vapour pressure
-      ea <- satvap(weather$temp[hr]) *
-            (weather$relhum[hr] / 100) * 1000
-
-      # Convert vapour flux to mm h^-1
-      Transp <- (0.018015 / (8.314 * Tk * rV)) *
-                (es - ea) * 3600
-
-      # Prevent negative transpiration
-      Transp[Transp < 0] <- 0
-    }
-
-    # ----------------------- Compute bare soil evaporation ------------ #
-    theta_av <- (soilwater$theta[1] +
-                 soilwater$oldtheta[1]) / 2 # average surface water content
-    Tc_av <- (soilheat$Te[1] +
-              soilheat$oldTe[1]) / 2 # average surface temperature
-
-    Evapmmhr <- evaporation_flux(theta_av,
-                                 Tc_av,
-                                 weather$temp[hr],
-                                 weather$relhum[hr],
-                                 rHg,
-                                 soilp$psie[1], # air-entry water potential
-                                 soilp$b[1], # Campbell shape parameter
-                                 soilp$Smax[1], # saturation water content
-                                 3600) # timestep (s)
 
     # ----------------------- Assemble forcing data --------------------- #
-    climdata <- list(Tair = weather$temp[hr], # air temperature (°C)
-                     relhum = weather$relhum[hr], # relative humidity (%)
-                     rHa = rHg, # aerodynamic resistance (s m^-1)
-                     precip = weather$precip[hr], # precipitation (mm h^-1)
-                     Et = Transp, # transpiration (mm h^-1)
-                     Evapmmhr = Evapmmhr) # evaporation (mm h^-1)
+    forcing <- list(Tair = weather$temp[hr], # air temperature (°C)
+                    relhum = weather$relhum[hr], # relative humidity (%)
+                    rHa = can$rHg, # resistance from ground to zref (s m^-1)
+                    precip = weather$precip[hr], # precipitation (mm h^-1)
+                    Et = 0) # transpiration (mm h^-1): none from bare ground
 
     # ----------------------- Solve soil water movement ----------------- #
     soilwater$Tc <- soilheat$Te
@@ -2321,9 +2273,7 @@ for (hr in 1:240) {
 
     soilwater <- SoilWaterModel(soilwater,
                                 soilp,
-                                climdata,
-                                pTAW = vegp$pTAW, # fraction extractable water
-                                maxNrIterations = 20)
+                                forcing)
 
     # Update thermal properties using new soil moisture
     soilheat$wc <- soilwater$theta
@@ -2331,39 +2281,31 @@ for (hr in 1:240) {
   }
 
   # ---------------------------- Store outputs -------------------------- #
-  Gflux[hr] <- G
   Tsurface[hr] <- soilheat$Te[1]
   T10cm[hr] <- soilheat$Te[nd]
 
   theta_surface[hr] <- soilwater$theta[1]
   theta_10cm[hr] <- soilwater$theta[nd]
 
+  # State at the end of the hour becomes that at the start of the next
   soilheat$oldTe <- soilheat$Te
   soilwater$oldvapor <- soilwater$vapor
   soilwater$oldtheta <- soilwater$theta
 
-  er[hr] <- error
-  error <- 1e99
+  error <- 1e99 # reset convergence criterion
 }
 
 # --------------------------- Plot time series --------------------------- #
 par(mfrow = c(2, 1))
-tmec <- as.POSIXct(tme[sel], tz = "UTC")
+tmec <- as.POSIXct(tme, tz = "UTC")
 # Soil temperature time series
 plot(Tsurface ~ tmec, type = "l",
      lwd = 2,
      col = "red",
-     ylim = c(8, 50),
+     ylim = c(5, 30),
      xlab = "Date",
      ylab = expression("Temperature (" * degree * "C)"))
-
-par(new = TRUE)
-plot(T10cm ~ tmec, type = "l",
-     lwd = 2,
-     col = "blue",
-     ylim = c(8, 50),
-     xlab = "",
-     ylab = "")
+lines(T10cm ~ tmec, lwd = 2, col = "blue")
 legend("topright",
        legend = c("Surface", "10 cm"),
        col = c("red", "blue"),
@@ -2376,22 +2318,19 @@ plot(theta_surface ~ tmec, type = "l",
      ylim = c(0, 0.5),
      xlab = "Date",
      ylab = expression(theta ~ "(m"^3 * " m"^-3 * ")"))
-par(new = TRUE)
-plot(theta_10cm ~ tmec, type = "l",
-     lwd = 2,
-     col = "blue",
-     ylim = c(0, 0.5),
-     xlab = "",
-     ylab = "")
-legend("bottomright",
+lines(theta_10cm ~ tmec, lwd = 2, col = "blue")
+legend("topright",
        legend = c("Surface", "10 cm"),
        col = c("red", "blue"),
        lwd = 2,
        bty = "n")
 ```
+
 ![](images/img25.png)
 
-The resulting time series show contrasting behaviour between the surface and deeper soil layers. Surface temperature responds rapidly to atmospheric forcing, with large diurnal fluctuations, while temperature at 10 cm depth is more buffered and varies more slowly. Periods when the surface soil is wet show noticeably reduced temperature variability, reflecting the strong buffering effect of higher water content on thermal properties. A similar pattern is evident for water content. The surface layer shows sharp declines associated with evaporation, followed by recovery during wetter periods, whereas the deeper layer remains comparatively stable. Once the surface becomes wet, it also tends to remain wet for some time, because hydraulic conductivity is much higher under these conditions, allowing water to be more readily supplied from below.
+Surface temperature varies strongly through the day, while temperature at 10 cm changes less and peaks later. Surface water content also falls during the day as water evaporates, then recovers overnight as water moves upwards from wetter soil below. Rainfall on 4–5 June brings the surface close to saturation. At 10 cm, moisture changes more gradually, rising after rainfall before declining as water drains deeper into the profile.
+
+In this bare-soil example, water is lost through evaporation and drainage. Where vegetation is present, `SoilWaterModel` also distributes root water uptake between layers according to root density. Because transpiration depends on stomatal conductance, which itself responds to soil moisture, the canopy and soil water models must be solved together. This coupling is handled by `micropoint`.
 
 ## Snow
 

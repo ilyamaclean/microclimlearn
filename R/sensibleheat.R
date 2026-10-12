@@ -183,6 +183,11 @@ effectivewind <- function(uref, H, tc, pk, zi = 1000) {
 #' @returns friction velocity (m/s)
 #' @export
 windfric <- function(uref, zref, h, pai, LL = Inf, MOST = TRUE) {
+  # Bare ground has no canopy to form a roughness sublayer
+  if (!MOST && h == 0) {
+    warning("No roughness sublayer over bare ground (h = 0): using MOST = TRUE")
+    MOST <- TRUE
+  }
   d <- zeroplanedis(h, pai)
   zm <- roughlength(h, pai, d, MOST)
   # Diabatic correction for momentum between the surface and the reference height
@@ -205,6 +210,11 @@ windfric <- function(uref, zref, h, pai, LL = Inf, MOST = TRUE) {
 #' @returns wind speed (m/s)
 #' @export
 windprofile_above <- function(z, uf, h, pai, LL = Inf, MOST = TRUE) {
+  # Bare ground has no canopy to form a roughness sublayer
+  if (!MOST && h == 0) {
+    warning("No roughness sublayer over bare ground (h = 0): using MOST = TRUE")
+    MOST <- TRUE
+  }
   d <- zeroplanedis(h, pai)
   zm <- roughlength(h, pai, d, MOST)
   # Diabatic correction for momentum between the surface and each height
@@ -241,6 +251,11 @@ windprofile_above <- function(z, uf, h, pai, LL = Inf, MOST = TRUE) {
 #' @returns bulk surface aerodynamic resistance (s/m)
 #' @export
 canopyresistance <- function(z, uf, h, pai, LL = Inf, MOST = TRUE) {
+  # Bare ground has no canopy to form a roughness sublayer
+  if (!MOST && h == 0) {
+    warning("No roughness sublayer over bare ground (h = 0): using MOST = TRUE")
+    MOST <- TRUE
+  }
   d <- zeroplanedis(h, pai)
   zh <- 0.2 * roughlength(h, pai, d) # roughness length for heat
   # Resistance is the integral of one over thermal diffusivity between two heights.
