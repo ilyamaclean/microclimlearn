@@ -44,8 +44,7 @@ SnowDensParams <- function(snowenv = "Maritime") {
 #' @export
 SnowDensFun <- function(densfun, snowdepth, snowage) {
   # Snow is densest where most snow lies above it and where it has had longest
-  # to settle. Density rises from that of new snow towards an upper limit with
-  # depth (in cm) and age (in days)
+  # to settle: density rises with depth (cm) and age (days) towards an upper limit
   snowdensity <- ((densfun[1] - densfun[2]) *
                     (1 - exp(-densfun[3] * snowdepth * 100 -
                                densfun[4] * snowage / 24)) +
@@ -99,15 +98,15 @@ InitSnowModel <- function(snowdepth, snowage, snowtemp, snowenv = "Maritime") {
     cdz <- cumsum(dz)
     sdp <- SnowDensParams(snowenv)
     rho <- SnowDensFun(sdp, cdz, snowage)
-    # Water held by each layer as snow (kg m-2, the same as mm of water)
+    # Water held by each layer as snow (kg m-2, equivalent to mm of water)
     SWE <- rho * dz
-    # layer temperature
+    # Every layer starts at the same temperature unless one is given for each
     if (length(snowtemp) == 1) {
       snowtemp <- rep(snowtemp, length(SWE))
     } else if (length(snowtemp) != length(SWE)) {
       stop("snowtemp must be length 1 or equal to the number of snow layers")
     }
-    # layer age
+    # All of the snow is taken to have fallen at the same time
     snowage <- rep(snowage, length(SWE))
   } else {
     SWE <- numeric(0)
@@ -120,14 +119,14 @@ InitSnowModel <- function(snowdepth, snowage, snowtemp, snowenv = "Maritime") {
     SWE = SWE,             # mm water equivalent in each layer
     depth = dz,            # thickness of each layer (m)
     rho = rho,             # density of each layer (kg m-3)
-    oldtemp = snowtemp,    # temperature of each layer in previous timestep (deg C)
-    temp = snowtemp,       # temperature of each layer (deg C)
+    oldtemp = snowtemp,    # temperature of each layer at the start of the time step (deg C)
+    temp = snowtemp,       # temperature of each layer at the end of the time step (deg C)
     age = snowage,         # age of each layer (hours)
-    melt = 0,              # mm over timestep
-    snowfall = 0,          # mm over timestep
-    rainfall = 0,          # mm over timestep
-    throughfall = 0,       # liquid water reaching ground (mm)
-    surfaceWater = 0       # temporary liquid held in snowpack (mm)
+    melt = 0,              # snow melted over the time step (mm)
+    snowfall = 0,          # snow added over the time step (mm)
+    rainfall = 0,          # rain added over the time step (mm)
+    throughfall = 0,       # liquid water leaving the base of the pack (mm)
+    surfaceWater = 0       # liquid water held within the pack (mm)
   )
 }
 #' @title Snow albedo as a function of age
@@ -177,9 +176,8 @@ SnowAlbedo <- function(snowage) {
 SnowResistance <- function(snowdepth, hgt, pai, uref, zref, LL = Inf, MOST = TRUE, z0 = 0.002) {
   if (snowdepth >= zref) stop("zref must be greater than snow depth")
   if (zref < hgt) stop("zref must be above the vegetation")
-  # Snow buries the lower part of the vegetation. Only what stands above the
-  # snow slows the wind, and the snow surface is the level from which heights
-  # are measured
+  # Only the vegetation standing above the snow slows the wind, and heights are
+  # measured from the snow surface
   hexp <- max(hgt - snowdepth, 0)
   paiexp <- 0
   if (hgt > 0) paiexp <- pai * hexp / hgt
@@ -195,9 +193,21 @@ SnowResistance <- function(snowdepth, hgt, pai, uref, zref, LL = Inf, MOST = TRU
 }
 
 #' @title One-step multilayer snow mass balance
-#' @description Updates a multilayer snowpack over one timestep using climate forcing.
-#' @param snowmod snow model state as returned by [InitSnowModel()]
-#' @param climdata list of climate inputs
+#' @description Updates the water held by a multilayer snowpack over one time
+#' step: snow that falls, snow that melts, snow lost or gained as vapour, and
+#' liquid water held in the pack or draining from its base.
+#' @param snowmod snow model state as returned by [InitSnowModel()], with layer
+#' temperatures as updated by [SnowSoilHeatModel()]
+#' @param climdata list of driving variables for the time step. Must contain:
+#' \describe{
+#'   \item{Tair}{air temperature (degrees C)}
+#'   \item{relhum}{air relative humidity (Percentage)}
+#'   \item{pk}{air pressure (kPa)}
+#'   \item{rHa}{resistance to heat transfer between the snow surface and the
+#'   reference height as returned by [SnowResistance()] (s m^-1). An infinite
+#'   value gives no sublimation or deposition.}
+#'   \item{precip}{precipitation over the time step (mm)}
+#' }
 #' @param dT timestep (s)
 #' @param snow_temp_thresh air temperature at or below which all precipitation
 #' is treated as snow (degrees C)
@@ -206,9 +216,28 @@ SnowResistance <- function(snowdepth, hgt, pai, uref, zref, LL = Inf, MOST = TRU
 #' @param liquid_water_frac maximum liquid water retained in the snowpack as a
 #' fraction of remaining solid snow water equivalent
 #' @param snowenv snow environment passed to [SnowDensParams()] and [SnowDensFun()]
-#' @return Updated snow model state, including layer SWE, depth, density,
-#' temperature, age, melt, snowfall, rainfall, throughfall, surface water,
-#' sublimation, deposition and layer melt.
+#' @details The heat model has no melting, so it can leave snow warmer than 0
+#' degrees C. Here the heat a layer holds above 0 degrees C melts snow, and the
+#' layer is returned to 0 degrees C. Heat left over once the whole pack has
+#' melted is returned as `heattoground`. Liquid water passing down through snow
+#' colder than 0 degrees C freezes, which warms the snow. `oldtemp` is left as
+#' it is; to move on to the next time step, set `oldtemp` to `temp`.
+#' @return Updated snow model state. As well as the state of each layer (`SWE`,
+#' `depth`, `rho`, `temp`, `oldtemp`, `age`) it holds, for the time step:
+#' \describe{
+#'   \item{melt}{snow melted by heat held above 0 degrees C (mm)}
+#'   \item{layermelt}{the same for each layer present at the start of the step (mm)}
+#'   \item{rainmelt}{snow melted by the heat of rain (mm)}
+#'   \item{refrozen}{liquid water frozen within the pack (mm)}
+#'   \item{snowfall}{snow added (mm)}
+#'   \item{rainfall}{rain added (mm)}
+#'   \item{sublimation}{snow lost as vapour (mm)}
+#'   \item{deposition}{vapour deposited as snow (mm)}
+#'   \item{surfaceWater}{liquid water held within the pack at the end of the step (mm)}
+#'   \item{throughfall}{liquid water leaving the base of the pack (mm)}
+#'   \item{heattoground}{heat left over after all the snow has melted, which
+#'   passes to the ground beneath (W m^-2)}
+#' }
 #' @export
 SnowMassBalance <- function(snowmod, climdata,
                             dT = 3600,
@@ -216,45 +245,23 @@ SnowMassBalance <- function(snowmod, climdata,
                             rain_temp_thresh = 2,
                             liquid_water_frac = 0.05,
                             snowenv = "Maritime") {
-  # --- constants ---
-  Lf   <- 3.34e5     # latent heat of fusion (J kg-1)
-  cice <- 2100       # heat capacity of ice (J kg-1 K-1)
-  Rd   <- 287.05     # gas constant for dry air
-  eps  <- 0.622      # molecular weight ratio
-  # --- forcing ---
+  Lf <- 3.34e5 # latent heat of fusion (J kg-1)
   precip <- climdata$precip
-  Tair   <- climdata$Tair
-  RH     <- climdata$relhum
-  rHa    <- climdata$rHa
-  pressure <- climdata$pk * 1000
-  # --- fresh snow density ---
-  sdp <- SnowDensParams(snowenv)
-  rho_new_snow <- SnowDensFun(sdp, 0, 0)
-  # --- state variables ---
-  SWE     <- snowmod$SWE
-  depth   <- snowmod$depth
-  rho     <- snowmod$rho
+  Tair <- climdata$Tair
+  rHa <- climdata$rHa
+  SWE <- snowmod$SWE
+  depth <- snowmod$depth
+  rho <- snowmod$rho
   oldtemp <- snowmod$oldtemp
-  temp    <- snowmod$temp
-  age     <- snowmod$age
-  liquid0 <- snowmod$surfaceWater
-  # use midpoint temperature for physics
-  temp_av <- 0.5 * (temp + oldtemp)
-  # ensure empty vectors if no snow
-  if (length(SWE) == 0) {
-    SWE <- depth <- rho <- oldtemp <- temp <- temp_av <- age <- numeric(0)
-  }
-  # --- helpers ---
-  SpecHumSat <- function(Tc, P) {
-    es <- satvap(Tc)
-    eps * es / (P - (1 - eps) * es)
-  }
-  # remove mass progressively from top layers
+  temp <- snowmod$temp
+  age <- snowmod$age
+  sdp <- SnowDensParams(snowenv)
+  rho_new_snow <- SnowDensFun(sdp, 0, 0) # density of newly fallen snow (kg m-3)
+
+  # Takes a given amount of water (mm) from the snowpack, starting with the
+  # surface layer and working down
   remove_from_top <- function(SWEvec, amount) {
     removed <- 0
-    if (amount <= 0 || length(SWEvec) == 0) {
-      return(list(SWE = SWEvec, removed = removed))
-    }
     for (i in seq_along(SWEvec)) {
       if (removed >= amount) break
       take <- min(SWEvec[i], amount - removed)
@@ -263,140 +270,128 @@ SnowMassBalance <- function(snowmod, climdata,
     }
     list(SWE = SWEvec, removed = removed)
   }
-  # remove empty layers and compress state vectors
-  compress_snowpack <- function(SWE, depth, rho, oldtemp, temp, age) {
-    keep <- SWE > 1e-10
-    list(
-      SWE = SWE[keep],
-      depth = depth[keep],
-      rho = rho[keep],
-      oldtemp = oldtemp[keep],
-      temp = temp[keep],
-      age = age[keep]
-    )
-  }
-  # --- precipitation partitioning ---
-  if (Tair <= snow_temp_thresh) {
-    fsnow <- 1
-  } else if (Tair >= rain_temp_thresh) {
-    fsnow <- 0
-  } else {
-    fsnow <- (rain_temp_thresh - Tair) /
-      (rain_temp_thresh - snow_temp_thresh)
-  }
-  snowfall <- precip * fsnow
-  rainfall <- precip * (1 - fsnow)
-  # --- add fresh snow as new surface layer ---
-  if (snowfall > 0) {
-    Tnew <- min(Tair, 0)
-    SWE   <- c(snowfall, SWE)
-    depth <- c(snowfall / rho_new_snow, depth)
-    rho   <- c(rho_new_snow, rho)
-    oldtemp <- c(Tnew, oldtemp)
-    temp    <- c(Tnew, temp)
-    temp_av <- c(Tnew, temp_av)
-    age     <- c(0, age)
-  }
-  # --- rain-induced melt (wash-off) ---
-  rainmelt <- 0
-  if (rainfall > 0 && Tair > 0 && sum(SWE) > 0) {
-    rainmelt <- 0.0125 * Tair * rainfall
-    out <- remove_from_top(SWE, rainmelt)
-    SWE <- out$SWE
-    rainmelt <- out$removed
-  }
-  # --- sublimation / deposition ---
-  sublimation <- 0
-  deposition  <- 0
-  if (sum(SWE) > 0 && is.finite(rHa) && rHa > 0) {
-    RH_use <- if (RH > 1) RH / 100 else RH
-    RH_use <- max(0, min(RH_use, 1))
-    Tsurf <- min(temp_av[1], 0)
-    qair  <- RH_use * SpecHumSat(Tair, pressure)
-    qsurf <- SpecHumSat(Tsurf, pressure)
-    rho_mass <- pressure / (Rd * (Tair + 273.15))
-    sub_flux <- rho_mass * (qsurf - qair) / rHa
-    sub_mass <- sub_flux * dT
-    if (sub_mass > 0) {
-      # sublimation removes mass
-      out <- remove_from_top(SWE, sub_mass)
-      SWE <- out$SWE
-      sublimation <- out$removed
-    } else if (sub_mass < 0) {
-      # deposition adds mass to surface
-      deposition <- -sub_mass
-      Tnew <- min(Tair, 0)
-      if (length(SWE) == 0) {
-        SWE   <- deposition
-        rho   <- rho_new_snow
-        depth <- deposition / rho_new_snow
-        oldtemp <- Tnew
-        temp    <- Tnew
-        temp_av <- Tnew
-        age     <- 0
-      } else {
-        SWE[1] <- SWE[1] + deposition
-      }
-    }
-  }
-  # --- internal melt (layers above 0°C) ---
-  layermelt <- rep(0, length(SWE))
-  if (length(SWE) > 0) {
-    for (i in seq_along(SWE)) {
-      if (SWE[i] > 0 && temp_av[i] > 0) {
-        melt_i <- SWE[i] * cice * temp_av[i] / Lf
-        melt_i <- min(melt_i, SWE[i])
-        layermelt[i] <- melt_i
-        SWE[i] <- SWE[i] - melt_i
-        oldtemp[i] <- 0
-        temp[i] <- 0
-        temp_av[i] <- 0
-      }
+
+  # Melt. The heat a layer holds above 0 deg C melts it. Heat left over once a
+  # layer has melted away passes to the layer beneath
+  layermelt <- numeric(length(SWE))
+  spare <- 0 # heat passed down from the layer above (J m-2)
+  for (i in seq_along(SWE)) {
+    # Heat needed to warm the layer by one degree (J m-2 K-1), and the heat it
+    # holds relative to snow at 0 deg C
+    C <- SnowHeatCapacity(rho[i], temp[i], climdata$pk) * SWE[i] / rho[i]
+    heat <- C * temp[i] + spare
+    spare <- 0
+    if (heat > 0) {
+      layermelt[i] <- min(heat / Lf, SWE[i])
+      spare <- heat - layermelt[i] * Lf
+      SWE[i] <- SWE[i] - layermelt[i]
+      temp[i] <- 0
+    } else {
+      temp[i] <- heat / C
     }
   }
   melt <- sum(layermelt)
-  # --- liquid water storage and drainage ---
-  liquid_in <- liquid0 + rainfall + rainmelt + melt
-  max_liquid_storage <- liquid_water_frac * sum(SWE)
-  retained_liquid <- min(liquid_in, max_liquid_storage)
-  throughfall <- liquid_in - retained_liquid
-  # --- ageing ---
-  if (length(age) > 0) {
-    age <- age + dT / 3600
+  # Heat that remains when all the snow has melted goes to the ground beneath
+  heattoground <- spare / dT
+
+  # Precipitation falls as snow in cold air and as rain in warm air, and as a
+  # mixture of the two between
+  fsnow <- (rain_temp_thresh - Tair) / (rain_temp_thresh - snow_temp_thresh)
+  fsnow <- min(max(fsnow, 0), 1)
+  snowfall <- precip * fsnow
+  rainfall <- precip * (1 - fsnow)
+
+  # New snow forms a layer at the surface, no warmer than 0 deg C
+  if (snowfall > 0) {
+    Tnew <- min(Tair, 0)
+    SWE <- c(snowfall, SWE)
+    depth <- c(snowfall / rho_new_snow, depth)
+    rho <- c(rho_new_snow, rho)
+    oldtemp <- c(Tnew, oldtemp)
+    temp <- c(Tnew, temp)
+    age <- c(0, age)
   }
-  # --- remove empty layers ---
-  packed <- compress_snowpack(SWE, depth, rho, oldtemp, temp, age)
-  SWE     <- packed$SWE
-  depth   <- packed$depth
-  rho     <- packed$rho
-  oldtemp <- packed$oldtemp
-  temp    <- packed$temp
-  age     <- packed$age
-  # --- update density profile ---
-  if (length(SWE) > 0) {
-    sdp <- SnowDensParams(snowenv)
-    depth <- SWE / rho
-    cdz <- cumsum(depth)
-    rho <- SnowDensFun(sdp, cdz, age)
-    depth <- SWE / rho
-  } else {
-    rho <- depth <- oldtemp <- temp <- age <- numeric(0)
-    retained_liquid <- 0
+
+  # Rain gives up heat as it cools to 0 deg C, which melts snow. The factor is
+  # the specific heat of water over the latent heat of fusion
+  rainmelt <- 0
+  if (rainfall > 0 && Tair > 0) {
+    out <- remove_from_top(SWE, 0.0125 * Tair * rainfall)
+    SWE <- out$SWE
+    rainmelt <- out$removed
   }
-  # --- update state ---
+
+  # Sublimation and deposition. Vapour passes between the snow surface, where
+  # the air is saturated, and the air above, down the gradient in vapour pressure
+  sublimation <- 0
+  deposition <- 0
+  if (sum(SWE) > 0 && is.finite(rHa) && rHa > 0) {
+    Tsurf <- min(0.5 * (temp[1] + oldtemp[1]), 0)
+    es <- satvap(Tsurf)
+    ea <- satvap(Tair) * climdata$relhum / 100
+    # Mass of vapour leaving the surface over the time step (kg m-2, or mm)
+    vapour <- 0.018015 / (8.314 * (Tair + 273.15) * rHa) * (es - ea) * 1000 * dT
+    if (vapour > 0) {
+      out <- remove_from_top(SWE, vapour)
+      SWE <- out$SWE
+      sublimation <- out$removed
+    } else {
+      deposition <- -vapour
+      SWE[1] <- SWE[1] + deposition
+    }
+  }
+
+  # Refreezing. Rain and melt water trickle down and freeze in snow colder than
+  # 0 deg C. The heat released warms the snow, and the ice formed makes it denser
+  liquid <- snowmod$surfaceWater + rainfall + rainmelt + melt
+  refrozen <- 0
+  for (i in seq_along(SWE)) {
+    if (liquid <= 0) break
+    if (SWE[i] > 0 && temp[i] < 0) {
+      C <- SnowHeatCapacity(rho[i], temp[i], climdata$pk) * SWE[i] / rho[i]
+      freeze <- min(liquid, -C * temp[i] / Lf)
+      temp[i] <- min(temp[i] + freeze * Lf / C, 0)
+      thickness <- SWE[i] / rho[i]
+      SWE[i] <- SWE[i] + freeze
+      rho[i] <- min(SWE[i] / thickness, 917)
+      liquid <- liquid - freeze
+      refrozen <- refrozen + freeze
+    }
+  }
+
+  # Liquid water that remains is held within the pack up to a fraction of the
+  # snow there; the rest drains from its base
+  retained_liquid <- min(liquid, liquid_water_frac * sum(SWE))
+  throughfall <- liquid - retained_liquid
+
+  # Snow ages, and layers that have melted or sublimated away are dropped
+  age <- age + dT / 3600
+  keep <- SWE > 1e-10
+  SWE <- SWE[keep]
+  rho <- rho[keep]
+  oldtemp <- oldtemp[keep]
+  temp <- temp[keep]
+  age <- age[keep]
+
+  # Snow settles as it ages and as more snow builds up above it: its density is
+  # the greater of what it has and what its depth and age give
+  rho <- pmax(rho, SnowDensFun(sdp, cumsum(SWE / rho), age))
+  depth <- SWE / rho
+
   snowmod$SWE <- SWE
   snowmod$depth <- depth
   snowmod$rho <- rho
   snowmod$oldtemp <- oldtemp
   snowmod$temp <- temp
   snowmod$age <- age
-  # diagnostics
   snowmod$melt <- melt
   snowmod$snowfall <- snowfall
   snowmod$rainfall <- rainfall
   snowmod$throughfall <- throughfall
   snowmod$surfaceWater <- retained_liquid
   snowmod$rainmelt <- rainmelt
+  snowmod$refrozen <- refrozen
+  snowmod$heattoground <- heattoground
   snowmod$sublimation <- sublimation
   snowmod$deposition <- deposition
   snowmod$layermelt <- layermelt
@@ -404,119 +399,58 @@ SnowMassBalance <- function(snowmod, climdata,
 }
 
 #' @title Regularises snow layer thickness
-#' @description Merges overly thin layers and splits overly thick layers to maintain
-#' a numerically sensible snow discretisation for the heat model.
+#' @description Merges layers that have become too thin, as happens when snow
+#' melts or falls lightly, and splits layers that have become too thick, so that
+#' the heat model has layers of sensible thickness to work with. Layers thinner
+#' than 5 mm are merged with a neighbour and layers thicker than 5 cm are split.
 #' @param snowmod snow model state as returned by [InitSnowModel()] or updated by model steps
-#' @param snowenv snow environment passed to [SnowDensParams()]
+#' @details The water, depth and heat held by the snowpack are unchanged. A
+#' merged layer has the density given by the water and depth of the two layers
+#' it is made from, and their mean temperature weighted by the water they hold.
+#' A snowpack thinner than 5 mm in all is left as a single layer.
 #' @return updated \code{snowmod} with adjusted layer structure
 #' @export
-RegulariseSnowLayers <- function(snowmod, snowenv = "Maritime") {
-  # Set min and max thickness
-  min_thickness = 0.005
-  max_thickness = 0.05
-  split_factor = 2
-  # Extract form snow model
-  SWE <- snowmod$SWE
-  depth <- snowmod$depth
-  rho <- snowmod$rho
-  temp <- snowmod$temp
-  oldtemp <- snowmod$oldtemp
-  age <- snowmod$age
-  if (length(SWE) == 0) return(snowmod)
-  # remove empty layers first
-  keep <- SWE > 1e-10 & depth > 1e-10
-  SWE <- SWE[keep]
-  depth <- depth[keep]
-  rho <- rho[keep]
-  temp <- temp[keep]
-  oldtemp <- oldtemp[keep]
-  age <- age[keep]
-  if (length(SWE) == 0) {
-    snowmod$SWE <- numeric(0)
-    snowmod$depth <- numeric(0)
-    snowmod$rho <- numeric(0)
-    snowmod$temp <- numeric(0)
-    snowmod$oldtemp <- numeric(0)
-    snowmod$age <- numeric(0)
-    return(snowmod)
-  }
-  # --- merge overly thin adjacent layers ---
+RegulariseSnowLayers <- function(snowmod) {
+  min_thickness <- 0.005
+  max_thickness <- 0.05
+  # One row for each layer, from the snow surface down, leaving out any that are empty
+  L <- data.frame(SWE = snowmod$SWE, depth = snowmod$depth, rho = snowmod$rho,
+                  temp = snowmod$temp, oldtemp = snowmod$oldtemp, age = snowmod$age)
+  L <- L[L$SWE > 1e-10 & L$depth > 1e-10, ]
+
+  # Merge each layer that is too thin with the thinner of its neighbours. The
+  # merged layer holds the water and depth of both, and the heat of both
   i <- 1
-  while (i <= length(SWE)) {
-    if (depth[i] < min_thickness && length(SWE) > 1) {
-      # merge with neighbour giving smaller combined thickness
-      if (i == 1) {
-        j <- 2
-      } else if (i == length(SWE)) {
-        j <- i - 1
-      } else {
-        j <- if ((depth[i - 1] + depth[i]) <= (depth[i] + depth[i + 1])) i - 1 else i + 1
-      }
+  while (nrow(L) > 1 && i <= nrow(L)) {
+    if (L$depth[i] < min_thickness) {
+      j <- if (i == 1) 2 else if (i == nrow(L)) i - 1 else if (L$depth[i - 1] <= L$depth[i + 1]) i - 1 else i + 1
       ii <- sort(c(i, j))
-      SWE_new <- sum(SWE[ii])
-      depth_new <- sum(depth[ii])
-      rho_new <- SWE_new / depth_new
-      temp_new <- weighted.mean(temp[ii], SWE[ii])
-      oldtemp_new <- weighted.mean(oldtemp[ii], SWE[ii])
-      # geometric mean for age, weighted by SWE
-      age_pos <- pmax(age[ii], 1e-6)
-      age_new <- exp(sum(SWE[ii] * log(age_pos)) / sum(SWE[ii]))
-      k <- ii[1]
-      SWE[k] <- SWE_new
-      depth[k] <- depth_new
-      rho[k] <- rho_new
-      temp[k] <- temp_new
-      oldtemp[k] <- oldtemp_new
-      age[k] <- age_new
-      drop <- ii[2]
-      SWE <- SWE[-drop]
-      depth <- depth[-drop]
-      rho <- rho[-drop]
-      temp <- temp[-drop]
-      oldtemp <- oldtemp[-drop]
-      age <- age[-drop]
-      i <- max(1, k - 1)
+      w <- L$SWE[ii]
+      L[ii[1], ] <- data.frame(SWE = sum(w), depth = sum(L$depth[ii]), rho = sum(w) / sum(L$depth[ii]),
+                               temp = weighted.mean(L$temp[ii], w),
+                               oldtemp = weighted.mean(L$oldtemp[ii], w),
+                               # mean of the logarithm of age, on which albedo depends
+                               age = exp(weighted.mean(log(pmax(L$age[ii], 1e-6)), w)))
+      L <- L[-ii[2], ]
+      i <- max(1, ii[1] - 1) # the merged layer may still be too thin
     } else {
       i <- i + 1
     }
   }
-  # --- split overly thick layers ---
-  i <- 1
-  while (i <= length(SWE)) {
-    if (depth[i] > max_thickness) {
-      nsplit <- max(2, ceiling(depth[i] / max_thickness))
-      nsplit <- max(nsplit, split_factor)
-      SWE_split <- rep(SWE[i] / nsplit, nsplit)
-      depth_split <- rep(depth[i] / nsplit, nsplit)
-      rho_split <- rep(SWE[i] / depth[i], nsplit)
-      temp_split <- rep(temp[i], nsplit)
-      oldtemp_split <- rep(oldtemp[i], nsplit)
-      age_split <- rep(age[i], nsplit)
-      SWE <- append(SWE[-i], SWE_split, after = i - 1)
-      depth <- append(depth[-i], depth_split, after = i - 1)
-      rho <- append(rho[-i], rho_split, after = i - 1)
-      temp <- append(temp[-i], temp_split, after = i - 1)
-      oldtemp <- append(oldtemp[-i], oldtemp_split, after = i - 1)
-      age <- append(age[-i], age_split, after = i - 1)
-      i <- i + nsplit
-    } else {
-      i <- i + 1
-    }
-  }
-  # --- recompute density profile consistently from depth and age ---
-  if (length(SWE) > 0) {
-    sdp <- SnowDensParams(snowenv)
-    depth <- SWE / rho
-    cdz <- cumsum(depth)
-    rho <- SnowDensFun(sdp, cdz, age)
-    depth <- SWE / rho
-  }
-  snowmod$SWE <- SWE
-  snowmod$depth <- depth
-  snowmod$rho <- rho
-  snowmod$temp <- temp
-  snowmod$oldtemp <- oldtemp
-  snowmod$age <- age
+
+  # Split each layer that is too thick into equal parts
+  nsplit <- ceiling(L$depth / max_thickness - 1e-9)
+  L <- L[rep(seq_len(nrow(L)), nsplit), ]
+  nsplit <- rep(nsplit, nsplit)
+  L$SWE <- L$SWE / nsplit
+  L$depth <- L$depth / nsplit
+
+  snowmod$SWE <- L$SWE
+  snowmod$depth <- L$depth
+  snowmod$rho <- L$rho
+  snowmod$temp <- L$temp
+  snowmod$oldtemp <- L$oldtemp
+  snowmod$age <- L$age
   snowmod
 }
 
@@ -524,41 +458,43 @@ RegulariseSnowLayers <- function(snowmod, snowenv = "Maritime") {
 #' @title Snow thermal conductivity
 #' @description Calculates snow thermal conductivity from bulk snow density
 #' using an exponential relationship following Djachkova (after Anderson, 2006).
+#' It is no greater than the thermal conductivity of solid ice.
 #' @param rho Snow density (kg m-3).
 #' @return Snow thermal conductivity (W m-1 K-1).
 #' @export
 SnowThermalConductivity <- function(rho) {
-  rhog <- rho / 1000
-  k <- 0.0442 * exp(5.181 * rhog) # convert kg m-3 -> g cm-3
+  rhog <- rho / 1000 # density in g cm-3
+  # Denser snow has more ice in contact through which heat can pass, so
+  # conductivity rises steeply with density, up to that of solid ice
+  k <- pmin(0.0442 * exp(5.181 * rhog), 2.2)
   return(k)
 }
 
 #' @title Snow volumetric heat capacity
-#' @description Calculates volumetric heat capacity of snow as a mixture of ice,
-#' air, and optionally liquid water.
+#' @description Calculates the volumetric heat capacity of snow as a mixture of
+#' ice and air.
 #' @param rho Snow density (kg m-3).
 #' @param Tc Snow temperature (deg C).
 #' @param pk Air pressure (kPa).
 #' @return Snow volumetric heat capacity (J m-3 K-1).
 #' @export
 SnowHeatCapacity <- function(rho, Tc, pk = 101.3) {
-  Vw = 0 # set water content of snow to zero
-  rhoi <- 917          # density of ice (kg m-3)
-  # volumetric fractions
-  Vi <- rho / rhoi
-  Va <- pmax(1 - Vi - Vw, 0)
-  # volumetric heat capacities (J m-3 K-1)
-  Ci <- 1.93e6 + 0.0067e6 * Tc   # ice (temp dependent below 0)
-  Ci[Tc >= 0] <- 2.1e6
-  Ca <- cpair(Tc) * rhoair(Tc, pk)   # air
-  Cw <- 4.18e6                        # water
-  # mixture
-  Cd <- Vi * Ci + Va * Ca + Vw * Cw
+  # Fractions of the volume of the snow that are ice and air
+  Vi <- rho / 917 # 917 kg m-3 is the density of ice
+  Va <- pmax(1 - Vi, 0)
+  # Heat needed to warm a cubic metre of each by one degree (J m-3 K-1). That
+  # of ice falls as it gets colder
+  Ci <- 1.93e6 + 0.0067e6 * pmin(Tc, 0)
+  Ca <- cpair(Tc) * rhoair(Tc, pk)
+  # That of the snow is the sum of these, each weighted by its volume
+  Cd <- Vi * Ci + Va * Ca
   return(Cd)
 }
 
 #' @title Calculates snow surface energy balance
-#' @description Calculates the snow surface energy balance (W m-2)
+#' @description Calculates the energy available at the snow surface (W m-2):
+#' radiation absorbed, less that emitted and the sensible and latent heat given
+#' to the air. It is the heat flux into the snow.
 #' @param Rabs absorbed radiation at the surface (W m-2)
 #' @param Tref reference air temperature (degrees C)
 #' @param Tsurface snow surface temperature (degrees C)
@@ -566,88 +502,88 @@ SnowHeatCapacity <- function(rho, Tc, pk = 101.3) {
 #' @param relhum air relative humidity (Percentage)
 #' @param rHa aerodynamic resistance to heat from snow surface to reference height
 #' (s m-1), e.g. as returned by [SnowResistance()]
-#' @return snow surface energy balance (W m-2)
+#' @details A snow surface is no warmer than 0 degrees C. If a higher
+#' `Tsurface` is given, the heat and radiation leaving the surface are those of
+#' a surface at 0 degrees C.
+#' @return heat flux into the snow (W m-2)
 #' @export
 snowsurfaceEB <- function(Rabs, Tref, Tsurface, pk, relhum, rHa) {
-  # net radiation
+  # A snow surface that gains more heat melts and stays at 0 deg C
+  Tsurface <- pmin(Tsurface, 0)
+  # Radiation absorbed, less that emitted by the snow surface
   sb <- 5.67e-8
   Rnet <- Rabs - 0.99 * sb * (Tsurface + 273.15)^4
-  # sensible heat
+  # Sensible heat given to the air
   cp <- cpair(Tref)
   ph <- rhoair(Tref, pk)
   H <- (ph * cp / rHa) * (Tsurface - Tref)
-  # latent heat
+  # Latent heat of the vapour given to the air. The air at the snow surface is saturated
   es <- satvap(Tsurface)
   ea <- satvap(Tref) * (relhum / 100)
   la <- latvap(Tsurface)
   L <- (la * ph / (rHa * pk)) * (es - ea)
   Rnet - H - L
 }
-# Joins the snow layers and the soil nodes into one column for the snow-soil heat solver
-.appendSnowSoil <- function(snowmod, soilheatmod, soilp, atmPressure) {
+# Joins the snow layers and the soil nodes into one column for the snow-soil
+# heat solver, from the snow surface down to the lower boundary of the soil.
+# Returns the temperatures at the start of the time step, the heat each node
+# stores per degree (C, J m-2 K-1) and the conductance between each node and
+# the one beneath it (Gint, W m-2 K-1), at the temperatures given in Tcol
+.appendSnowSoil <- function(snowmod, soilheatmod, soilp, atmPressure,
+                            Tcol = c(snowmod$temp, soilheatmod$Te)) {
   ns <- length(snowmod$depth)
-  nz_soil <- length(soilheatmod$dz)
-  # prognostic temperatures from previous time step
-  T_old <- c(snowmod$oldtemp, soilheatmod$oldTe)
-  # layer thicknesses / control volumes
-  dz <- c(snowmod$depth, soilheatmod$dz)
-  # thermal conductivity
-  k_snow <- if (ns > 0) {
-    SnowThermalConductivity(snowmod$rho)
-  } else {
-    numeric(0)
+  n <- soilheatmod$n
+  Tsnow <- Tcol[seq_len(ns)]
+  Tsoil <- Tcol[ns + seq_len(n + 1)]
+
+  # Soil. Each node stores heat for the soil around it, and heat is conducted
+  # from each node to the one beneath it across the gap between them. Close to
+  # the surface conductivity changes quickly with depth, so the logarithmic
+  # mean of the top two nodes is used
+  lambda <- thermalConductivity(soilp$Vq, soilp$Vm, soilp$Vo, soilheatmod$wc, soilp$Mc, Tsoil, atmPressure)
+  C <- heatCapacity(soilp$Vq, soilp$Vm, soilp$Vo, soilheatmod$wc, Tsoil, atmPressure) * soilheatmod$vol
+  Gint <- lambda[seq_len(n)] / soilheatmod$dz[seq_len(n)]
+  if (lambda[1] != lambda[2]) {
+    Gint[1] <- ((lambda[1] - lambda[2]) / log(lambda[1] / lambda[2])) / soilheatmod$dz[1]
   }
-  k_soil <- thermalConductivity(
-    soilp$Vq, soilp$Vm, soilp$Vo,
-    soilheatmod$wc, soilp$Mc,
-    soilheatmod$Te, atmPressure
-  )
-  k <- c(k_snow, k_soil)
-  # volumetric heat capacity × volume
-  C_snow <- if (ns > 0) {
-    SnowHeatCapacity(snowmod$rho, snowmod$temp, atmPressure) * snowmod$depth
-  } else {
-    numeric(0)
-  }
-  C_soil <- heatCapacity(
-    soilp$Vq, soilp$Vm, soilp$Vo,
-    soilheatmod$wc, soilheatmod$Te, atmPressure
-  ) * soilheatmod$vol
-  C <- c(C_snow, C_soil)
-  # interface conductance between adjacent node centres
-  Gint <- 1 / (0.5 * dz[-length(dz)] / k[-length(k)] +
-                 0.5 * dz[-1] / k[-1])
-  list(
-    ns = ns,
-    nz = length(dz),
-    T_old = T_old,
-    dz = dz,
-    C = C,
-    k = k,
-    Gint = Gint
-  )
-}
-.splitSnowSoil <- function(T_new, snowmod, soilheatmod, Gflux_total) {
-  ns <- length(snowmod$depth)
+
+  # Snow. Each layer stores heat through its whole thickness and has its
+  # temperature at its middle. Heat passing from the middle of one layer to the
+  # middle of the next crosses half of each. From the middle of the lowest layer
+  # to the soil surface it crosses half of that layer
   if (ns > 0) {
-    snowmod$temp <- T_new[seq_len(ns)]
-  } else {
-    snowmod$temp <- numeric(0)
+    d <- snowmod$depth
+    k <- SnowThermalConductivity(snowmod$rho)
+    halfR <- 0.5 * d / k # resistance of half of each layer (m2 K W-1)
+    Gsnow <- 1 / (halfR + c(halfR[-1], 0))
+    C <- c(SnowHeatCapacity(snowmod$rho, Tsnow, atmPressure) * d, C)
+    Gint <- c(Gsnow, Gint)
   }
+  list(ns = ns, nz = ns + n + 1,
+       T_old = c(snowmod$oldtemp, soilheatmod$oldTe),
+       C = C, Gint = Gint)
+}
+# Returns the temperatures of the joined column to the snow layers and the soil
+# nodes, with the heat flux into the top of the column (Gsurface) and that into
+# the soil at its surface (Gsoil), both in W m-2
+.splitSnowSoil <- function(T_new, snowmod, soilheatmod, Gsurface, Gsoil) {
+  ns <- length(snowmod$depth)
+  snowmod$temp <- T_new[seq_len(ns)]
   soilheatmod$Te <- T_new[ns + seq_along(soilheatmod$Te)]
-  soilheatmod$Gflux <- Gflux_total
-  soilheatmod$iters <- NA_integer_
-  snowmod$Gflux <- Gflux_total
+  snowmod$Gflux <- Gsurface
+  soilheatmod$Gflux <- Gsoil
   list(snowmod = snowmod, soilheatmod = soilheatmod)
 }
 
 #' @title Updates snow and soil temperatures using the coupled snow-soil heat model
-#' @description Solves heat conduction through the combined snow and soil profile over one
-#' time step, updating layer temperatures by combining surface energy balance from
-#' [snowsurfaceEB()] or [soilsurfaceEB()], thermal conductivity from
-#' [SnowThermalConductivity()] and [thermalConductivity()], volumetric heat capacity from
-#' [SnowHeatCapacity()] and [heatCapacity()], and tridiagonal solution with
-#' [ThomasBoundaryCondition()].
+#' @description Solves heat conduction through the snow and the soil beneath it
+#' as one column over one time step. The energy balance of the surface, from
+#' [snowsurfaceEB()] where there is snow and [soilsurfaceEB()] where there is
+#' none, is the upper boundary, and the deepest soil node is held at a fixed
+#' temperature. Heat is conducted according to [SnowThermalConductivity()] and
+#' [thermalConductivity()] and stored according to [SnowHeatCapacity()] and
+#' [heatCapacity()], with temperatures at the end of the time step found using
+#' [ThomasBoundaryCondition()]. With no snow it is [SoilHeatModel()].
 #' @param snowmod list of variables provided as input and updated by the snow
 #' model as returned by [InitSnowModel()] on first step or by previous model run
 #' @param soilheatmod list of variables provided as input and updated by soil
@@ -658,250 +594,188 @@ snowsurfaceEB <- function(Rabs, Tref, Tsurface, pk, relhum, rHa) {
 #' @param relhum air relative humidity (Percentage)
 #' @param atmPressure air pressure (kPa)
 #' @param rHa aerodynamic resistance to heat from the surface to reference height
-#' as returned by [SnowResistance()] or [groundresistance()] (s m-1)
+#' as returned by [SnowResistance()] (s m-1)
 #' @param dT time step (s)
-#' @param Fact weighting factor for the implicit solution scheme
-#' @param maxNrIterations maximum number of nonlinear iterations
-#' @param tolerance convergence criterion for maximum change in layer temperature
+#' @param maxNrIterations maximum number of iterations
+#' @param tolerance convergence criterion for maximum change in temperature
 #' between successive iterations (degrees C)
-#' @param relax under-relaxation factor applied to temperature updates
+#' @details The model steps forward from the temperatures in `snowmod$oldtemp`
+#' and `soilheatmod$oldTe`, which are those at the start of the time step, and
+#' returns those at its end in `snowmod$temp` and `soilheatmod$Te`. The old
+#' temperatures are left as they are; to move on to the next time step, set them
+#' to the new ones.
+#'
+#' Snow that reaches 0 degrees C is held there while heat is conducted through
+#' the column, and the heat it gains beyond that is set aside for melting. That
+#' heat is returned as a temperature above 0 degrees C: the temperature the
+#' layer would have reached had it not melted. Pass the result to
+#' [SnowMassBalance()], which melts snow with the heat held above 0 degrees C
+#' and returns the snow to 0 degrees C.
 #' @return a list comprising
 #' \describe{
-#'   \item{snowmod}{updated snow model state}
-#'   \item{soilheatmod}{updated soil heat model state}
+#'   \item{snowmod}{updated snow model state. `temp` holds the temperature of
+#'   each layer at the end of the time step and `Gflux` the heat flux into the
+#'   snow at its surface (W m-2)}
+#'   \item{soilheatmod}{updated soil heat model state. `Te` holds the
+#'   temperature of each node at the end of the time step, `Gflux` the heat
+#'   flux into the soil at its surface (W m-2) and `iters` the number of
+#'   iterations used}
 #' }
 #' @export
 SnowSoilHeatModel <- function(snowmod, soilheatmod, soilp,
-                              Rabs, Tref, relhum, atmPressure, rHa, dT = 3600, Fact = 0.5,
-                              maxNrIterations = 100, tolerance = 1e-2, relax = 0.3) {
-
-  # --- combine snow and soil profiles ---
+                              Rabs, Tref, relhum, atmPressure, rHa, dT = 3600,
+                              maxNrIterations = 100, tolerance = 1e-3) {
   prof <- .appendSnowSoil(snowmod, soilheatmod, soilp, atmPressure)
   ns <- prof$ns
   nz <- prof$nz
-  gg <- 1 - Fact
   T_old <- prof$T_old
-  T_new <- T_old
-  dz <- prof$dz
-  # fixed lower boundary
-  boundaryT <- T_old[nz]
+  # Temperatures at the end of the time step are found by iteration, starting
+  # from the latest estimate. The deepest node keeps its temperature
+  T_new <- c(snowmod$temp, soilheatmod$Te)
+  T_new[nz] <- T_old[nz]
+  idx <- seq_len(nz - 1) # the nodes solved
+
+  # Energy available at the surface, which is snow where there is any
+  surfaceEB <- function(Tsurface) {
+    if (ns > 0) {
+      snowsurfaceEB(Rabs, Tref, Tsurface, atmPressure, relhum, rHa)
+    } else {
+      soilsurfaceEB(soilp, Rabs, Tref, Tsurface, atmPressure, relhum, rHa, soilheatmod$wc[1])
+    }
+  }
+
+  melting <- rep(FALSE, nz - 1) # snow layers held at 0 deg C
+  spare <- numeric(nz - 1)      # heat each of them gains beyond that (W m-2)
   nrIterations <- 0
   maxdT <- Inf
-  prev_maxdT <- Inf
-  # surface flux damping bookkeeping
-  max_qsurface <- 0
-  qsurf1 <- NA_real_
-  qsurf2 <- NA_real_
-  # adaptive relaxation parameters
-  relax_now <- relax
-  relax_min <- 0.05
-  relax_max <- 0.7
-  while (maxdT > tolerance && nrIterations < maxNrIterations) {
-    # --- surface energy balance ---
-    Tav <- 0.5 * (T_old[1] + T_new[1])
+  settled <- FALSE
+  while ((maxdT > tolerance || !settled) && nrIterations < maxNrIterations) {
+    # Heat stored per degree by each node and conductance between each node and
+    # the one beneath it, at the current temperatures. After twenty iterations
+    # they are held fixed, which lets the solve settle when a soil node sits at
+    # the freezing point, where the heat capacity of soil jumps
+    if (nrIterations < 20) prof <- .appendSnowSoil(snowmod, soilheatmod, soilp, atmPressure, T_new)
+    C <- prof$C[idx]
+    below <- prof$Gint
+    above <- c(0, below[-(nz - 1)])
 
-    qsurface <- if (ns > 0) {
-      snowsurfaceEB(Rabs, Tref, Tav, atmPressure, relhum, rHa)
-    } else {
-      soilsurfaceEB(soilp, Rabs, Tref, Tav, atmPressure, relhum, rHa,
-                    soilheatmod$wc[1])
-    }
-    # damp nonlinear surface flux in early iterations
-    if (nrIterations < 10) {
-      if (nrIterations < 2 && abs(qsurface) > abs(max_qsurface)) {
-        max_qsurface <- abs(qsurface)
-      }
-      if (nrIterations > 1 && abs(qsurface) > abs(max_qsurface)) {
-        qsurface <- sign(qsurface) * abs(max_qsurface)
-      }
-      if (nrIterations == 8) qsurf1 <- qsurface
-      if (nrIterations == 9) qsurf2 <- qsurface
-    } else if (nrIterations == 10 && is.finite(qsurf1) && is.finite(qsurf2)) {
-      qsurface <- 0.5 * (qsurf1 + qsurf2)
-    }
-    # --- update thermal properties ---
-    if (ns > 0) {
-      snow_T <- T_new[seq_len(ns)]
-      k_snow <- SnowThermalConductivity(snowmod$rho)
-      C_snow <- SnowHeatCapacity(snowmod$rho, snow_T, atmPressure) * snowmod$depth
-    } else {
-      k_snow <- numeric(0)
-      C_snow <- numeric(0)
-    }
-    soil_T <- T_new[ns + seq_along(soilheatmod$Te)]
-    k_soil <- thermalConductivity(
-      soilp$Vq, soilp$Vm, soilp$Vo,
-      soilheatmod$wc, soilp$Mc, soil_T, atmPressure
-    )
-    C_soil <- heatCapacity(
-      soilp$Vq, soilp$Vm, soilp$Vo,
-      soilheatmod$wc, soil_T, atmPressure
-    ) * soilheatmod$vol
+    # Heat flux into the column at its surface, and how it changes as the
+    # surface warms: a warmer surface emits more radiation and gives more heat
+    # to the air. For snow the change is taken towards colder temperatures,
+    # since a snow surface at 0 deg C can cool but cannot warm
+    qsurface <- surfaceEB(T_new[1])
+    h <- if (ns > 0) -0.01 else 0.01
+    dqsurface <- (surfaceEB(T_new[1] + h) - qsurface) / h
 
-    k <- c(k_snow, k_soil)
-    C <- c(C_snow, C_soil)
-    # --- interface conductance (resistance form) ---
-    Gint <- 1 / (0.5 * dz[-length(dz)] / k[-length(k)] +
-                   0.5 * dz[-1] / k[-1])
-    # --- assemble tridiagonal system ---
-    aa <- bb <- cc <- dd <- numeric(nz)
-    # top node
-    bb[1] <- C[1] / dT + Fact * Gint[1]
-    cc[1] <- -Fact * Gint[1]
-    dd[1] <- C[1] / dT * T_old[1] + qsurface +
-      gg * Gint[1] * (T_old[2] - T_old[1])
-    # internal nodes
-    if (nz > 2) {
-      idx <- 2:(nz - 1)
-      aa[idx] <- -Fact * Gint[idx - 1]
-      bb[idx] <- C[idx] / dT + Fact * (Gint[idx - 1] + Gint[idx])
-      cc[idx] <- -Fact * Gint[idx]
-      dd[idx] <- C[idx] / dT * T_old[idx] +
-        gg * (Gint[idx - 1] * (T_old[idx - 1] - T_old[idx]) +
-                Gint[idx] * (T_old[idx + 1] - T_old[idx]))
-    }
-    # bottom boundary (Dirichlet)
-    aa[nz] <- 0
-    bb[nz] <- 1
-    cc[nz] <- 0
-    dd[nz] <- boundaryT
-    # --- solve system ---
-    T_prev <- T_new
-    T_raw <- ThomasBoundaryCondition(aa, bb, cc, dd, T_new, 1, nz - 1)$x
-    # --- adaptive under-relaxation with backtracking ---
-    repeat {
-      # trial update
-      T_trial <- (1 - relax_now) * T_prev + relax_now * T_raw
-      # enforce monotonicity constraint
-      if (nz > 2) {
-        idx <- 2:(nz - 1)
-        lo <- pmin(T_trial[idx - 1], T_trial[idx + 1])
-        hi <- pmax(T_trial[idx - 1], T_trial[idx + 1])
-        T_trial[idx] <- pmax(pmin(T_trial[idx], hi), lo)
-      }
-      trial_maxdT <- max(abs(T_trial - T_prev))
-      # accept step if improvement, otherwise reduce relaxation
-      if (trial_maxdT <= prev_maxdT || relax_now <= relax_min) break
-      relax_now <- max(relax_min, 0.5 * relax_now)
-    }
-    T_new <- T_trial
-    maxdT <- trial_maxdT
-    # if converging well, cautiously increase relaxation
-    if (maxdT < prev_maxdT) {
-      relax_now <- min(relax_max, relax_now * 1.1)
-    }
-    prev_maxdT <- maxdT
+    # Energy balance of each node over the time step: the heat it stores equals
+    # the heat conducted to it from the nodes above and below, at the
+    # temperatures of the end of the time step
+    aa <- -above
+    cc <- -below
+    bb <- C / dT + above + below
+    dd <- C / dT * T_old[idx]
+    # The surface node also gains the heat flux into the column
+    bb[1] <- bb[1] - dqsurface
+    dd[1] <- dd[1] + qsurface - dqsurface * T_new[1]
+    # The node above the lower boundary exchanges heat with a fixed temperature
+    cc[nz - 1] <- 0
+    dd[nz - 1] <- dd[nz - 1] + below[nz - 1] * T_new[nz]
+    # Melting snow stays at 0 deg C
+    aa[melting] <- 0
+    cc[melting] <- 0
+    bb[melting] <- 1
+    dd[melting] <- 0
+
+    Tsolved <- ThomasBoundaryCondition(aa, bb, cc, dd, numeric(nz - 1))$x
+    maxdT <- max(abs(Tsolved - T_new[idx]))
+    T_new[idx] <- Tsolved
+
+    # Heat that each melting layer gains beyond what holds it at 0 deg C: that
+    # conducted to it and, at the surface, the energy available there, less the
+    # heat that brought it to 0 deg C
+    spare <- above * (c(0, T_new[idx])[idx] - T_new[idx]) + below * (T_new[-1] - T_new[idx]) -
+      C / dT * (T_new[idx] - T_old[idx])
+    spare[1] <- spare[1] + surfaceEB(T_new[1])
+    # Snow starts to melt when it would otherwise pass 0 deg C, and stops when
+    # it loses more heat than it gains
+    wasmelting <- melting
+    melting[seq_len(ns)] <- (melting[seq_len(ns)] & spare[seq_len(ns)] >= 0) |
+      (!melting[seq_len(ns)] & T_new[seq_len(ns)] > 0)
+    settled <- identical(melting, wasmelting)
     nrIterations <- nrIterations + 1
   }
-  # --- total heat storage (snow + soil, excluding fixed boundary) ---
-  Gflux_total <- sum(C[1:(nz - 1)] *
-                       (T_new[1:(nz - 1)] - T_old[1:(nz - 1)]) / dT)
-  # --- split back into snow and soil ---
-  out <- .splitSnowSoil(T_new, snowmod, soilheatmod, Gflux_total)
+
+  # Heat flux into the column at its surface, and that passing into the soil:
+  # from the lowest snow layer where there is snow
+  Gsurface <- surfaceEB(T_new[1])
+  Gsoil <- Gsurface
+  if (ns > 0) Gsoil <- prof$Gint[ns] * (T_new[ns] - T_new[ns + 1])
+  # The heat set aside for melting is returned as the temperature it would
+  # have brought each melting layer to
+  T_new[idx][melting] <- (spare * dT / C)[melting]
+  out <- .splitSnowSoil(T_new, snowmod, soilheatmod, Gsurface, Gsoil)
   out$soilheatmod$iters <- nrIterations
   return(out)
 }
-
-#' @title Calculates slope correction for direct radiation using Ross G
-#' @description Returns the fraction of direct beam radiation incident on an inclined
-#' surface, analogous to [solarindex()], but with reduced angular dependence
-#' controlled by \code{y}
-#' @param solp a list of solar zenith and azimuths as returned by [sunposition()]
-#' @param y parameter controlling angular response, where \code{y = 0} gives a
-#' planar surface and \code{y = 1} gives isotropic response
-#' @param slope surface slope (degrees)
-#' @param aspect surface aspect (degrees)
-#' @return fraction of direct beam radiation incident on the inclined surface
-#' @export
-rossindex <- function(solp, y = 0.7, slope = 0, aspect = 0) {
-  zen <- solp$zen * pi / 180
-  azi <- solp$azi * pi / 180
-  slope <- slope * pi / 180
-  aspect <- aspect * pi / 180
-  # cosine of incidence angle on the slope
-  mu <- cos(zen) * cos(slope) +
-    sin(zen) * sin(slope) * cos(azi - aspect)
-  mu[mu < 0] <- 0
-  mu[solp$zen > 90] <- 0
-  if (length(y) == 1) y <- rep(y, length(mu))
-  if (length(y) != length(mu)) {
-    stop("y must have length 1 or the same length as solp$zen")
-  }
-  y <- pmax(0, pmin(1, y))
-  G <- numeric(length(mu))
-  # y = 0 -> x = Inf -> Lambert cosine law
-  i0 <- (y == 0)
-  G[i0] <- mu[i0]
-  # y = 1 -> x = 1 -> isotropic absorption
-  i1 <- (y == 1)
-  G[i1] <- 0.5
-  # general case
-  ig <- !(i0 | i1)
-  if (any(ig)) {
-    x <- 1 / y[ig]
-    ii <- acos(pmin(1, pmax(0, mu[ig])))
-    k <- sqrt(x^2 + tan(ii)^2) /
-      (x + 1.774 * (x + 1.182)^(-0.733))
-    G[ig] <- k * cos(ii)
-  }
-  G[solp$zen > 90] <- 0
-  G
-}
-
-#' Calculate canopy interception of snowfall
-#'
-#' Estimates the amount of snowfall intercepted by vegetation canopy over a single
-#' time step, following the formulation in the supplied C++ implementation.
-#'
-#' The function computes a mean within-canopy wind speed from canopy structure and
-#' friction velocity, uses this to estimate the fall angle of snow, and then
-#' calculates effective canopy cover and canopy snow storage capacity. Interception
-#' is limited by both incoming snowfall and the remaining canopy storage capacity.
-#'
+#' @title Canopy snow interception
+#' @description Calculates the snow caught by a vegetation canopy during a time
+#' step and the snow that falls from the canopy to the ground, following
+#' Hedstrom and Pomeroy (1998). The canopy catches a smaller share of the
+#' snowfall the more snow it already holds, up to the most it can hold, and the
+#' snow it holds falls off gradually.
 #' @param hgt Canopy height (m).
 #' @param pai Plant area index (dimensionless).
 #' @param uf Friction velocity (m s^-1).
 #' @param prec Snowfall during the time step (mm snow water equivalent).
 #' @param tc Air temperature (degrees C).
-#' @param Li Snow load on the canopy from the previous time step
+#' @param Li Snow load on the canopy at the start of the time step
 #'   (mm snow water equivalent).
-#' @param Sh Snow load per unit branch area coefficient (kg m^-3).
-#'   Default is `6.2`.
-#'
-#' @return Numeric value giving canopy-intercepted snowfall for the time step
-#'   (mm snow water equivalent).
-#'
+#' @param Sh Snow load that a unit area of branch can hold (kg m^-2). Hedstrom
+#'   and Pomeroy give 6.6 for pine and 5.9 for spruce.
+#' @param dT time step (s)
+#' @return a list of the following, each in mm snow water equivalent:
+#' \describe{
+#'  \item{intercepted}{snowfall caught by the canopy during the time step}
+#'  \item{unloaded}{snow falling from the canopy to the ground during the time step}
+#'  \item{load}{snow load on the canopy at the end of the time step}
+#' }
 #' @details
-#' Very small values of `hgt` and `pai` are bounded below at 0.001 to avoid
-#' numerical problems. Fresh snow density is estimated as an exponential function
-#' of air temperature, and the maximum canopy snow load is scaled by plant area
-#' index. The returned interception is capped so that it cannot exceed the
-#' snowfall input `prec`.
-#'
+#' Wind carries falling snow sideways, so that it meets more of the canopy than
+#' snow falling straight down. The mean wind speed within the canopy is taken
+#' from [windprofile_below()] for foliage spread evenly with height, and snow is
+#' taken to fall at 0.8 m/s. The most snow the canopy can hold rises with plant
+#' area and is greater for the light snow that falls in cold air. Snow held by
+#' the canopy falls off at a rate that leaves 0.678 of it after a week.
+#' Sublimation and melt of the snow held are not included. Very small values of
+#' `hgt` and `pai` are bounded below at 0.001.
+#' @references Hedstrom NR, Pomeroy JW (1998) Measurements and modelling of snow
+#' interception in the boreal forest. Hydrological Processes 12: 1611-1625.
 #' @export
-CanopySnowInterception <- function(hgt, pai, uf, prec, tc, Li, Sh = 6.2) {
-  # Avoid zero values
+CanopySnowInterception <- function(hgt, pai, uf, prec, tc, Li, Sh = 6.2, dT = 3600) {
   hgt <- pmax(hgt, 0.001)
   pai <- pmax(pai, 0.001)
-  # Calculate mean canopy wind
-  Be <- sqrt(0.003 + (0.2 * pai) / 2.0)
-  uh <- uf / Be
-  a <- pai / hgt
-  Lc <- (0.25 * a)^(-1.0)
-  Lm <- 2.0 * Be^3.0 * Lc
-  k1 <- Be / Lm
-  uzm <- (uh / (hgt * k1)) * (1 - exp(-k1 * hgt))
-  uzm <- pmax(uzm, uf)
-  # Calculate snow interception
-  rhos <- 67.92 + 51.25 * exp(tc / 2.59)      # fresh snow density (kg/m^3)
-  S <- Sh * (0.26 + 46 / rhos)                # maximum snow load per unit branch area (kg/m^3)
-  Lstr <- S * pai                             # maximum canopy snow load (mm SWE)
-  Z <- atan(uzm / 0.8)                        # zenith angle of snow fall direction (0.8 m/s = terminal velocity of snow flake)
-  kc <- 1.0 / (2.0 * cos(Z))                  # extinction coefficient (from Campbell assuming spherical distribution)
-  Cp <- 1.0 - exp(-kc * pai)                  # effective canopy cover perpendicular to direction of snow flake
-  k2 <- Cp / Lstr                             # dimensionless proportionality factor
-  I1 <- (Lstr - Li) * (1.0 - exp(-k2 * prec)) # intercepted snow load at the start of unloading (mm SWE)
-  cis <- I1 * 0.678                           # canopy snow interception (mm SWE)
-  cis <- pmin(cis, prec)
-  return(cis)
+  # Mean wind speed within the canopy: wind at canopy top, slowed by the foliage
+  # on the way down
+  Be <- pmin(sqrt(0.003 + 0.15 * pai), 0.3) # ratio of friction velocity to wind at canopy top
+  uzm <- mapply(function(h, p, u) mean(windprofile_below(h, rep(p / 20, 20), u)), hgt, pai, uf / Be)
+
+  # Most snow the canopy can hold (mm). Branches hold more of the light snow
+  # that falls in cold air than of dense, wet snow
+  rhos <- 67.92 + 51.25 * exp(tc / 2.59) # density of the falling snow (kg m-3)
+  S <- Sh * (0.27 + 46 / rhos)           # snow held per unit area of branch (kg m-2)
+  Lstr <- S * pai
+
+  # Share of the falling snow that meets the canopy. Wind makes snow fall at an
+  # angle, lengthening its path through the foliage
+  Z <- atan(uzm / 0.8)                 # angle of fall from the vertical, for snow falling at 0.8 m/s
+  Cp <- 1 - exp(-0.5 * pai / cos(Z))   # foliage facing all directions equally
+
+  # Snow caught. The canopy catches less of each further millimetre of snowfall
+  # as it fills
+  intercepted <- pmax(Lstr - Li, 0) * (1 - exp(-Cp * prec / Lstr))
+
+  # Snow held by the canopy falls off at a steady fractional rate
+  U <- -log(0.678) / (7 * 86400) # per second
+  unloaded <- (Li + intercepted) * (1 - exp(-U * dT))
+  list(intercepted = intercepted, unloaded = unloaded, load = Li + intercepted - unloaded)
 }
