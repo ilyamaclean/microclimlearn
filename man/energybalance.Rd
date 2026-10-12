@@ -19,7 +19,7 @@ energybalance(Ta, Ts, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97)
 
 \item{rHa}{resistance to heat loss (s/m)}
 
-\item{rS}{stomatal resistance (s/m)}
+\item{rS}{bulk surface stomatal resistance (s/m)}
 
 \item{G}{rate of heat storage (W/m^2)}
 

@@ -161,7 +161,7 @@ SnowResistance <- function(snowdepth, hgt, pai, uref, psim, psih, zref) {
     pai <- pai * (hgt - snowdepth) / hgt
     hgt <- hgt - snowdepth
     d <- zeroplanedis(hgt, pai)
-    zm <- roughlength(hgt, pai, d, psih)
+    zm <- roughlength(hgt, pai, d)
     zh <- 0.2 * zm # roughness length for heat
     uf <- (0.41 * uref)  / (log((zref - d) / zm) + psim)
     rHa <- (log((zref - d) / zh) + psih) / (0.41 * uf)
@@ -295,8 +295,8 @@ SnowMassBalance <- function(snowmod, climdata,
     Tsurf <- min(temp_av[1], 0)
     qair  <- RH_use * SpecHumSat(Tair, pressure)
     qsurf <- SpecHumSat(Tsurf, pressure)
-    rhoair <- pressure / (Rd * (Tair + 273.15))
-    sub_flux <- rhoair * (qsurf - qair) / rHa
+    rho_mass <- pressure / (Rd * (Tair + 273.15))
+    sub_flux <- rho_mass * (qsurf - qair) / rHa
     sub_mass <- sub_flux * dT
     if (sub_mass > 0) {
       # sublimation removes mass
@@ -531,7 +531,7 @@ SnowHeatCapacity <- function(rho, Tc, pk = 101.3) {
   # volumetric heat capacities (J m-3 K-1)
   Ci <- 1.93e6 + 0.0067e6 * Tc   # ice (temp dependent below 0)
   Ci[Tc >= 0] <- 2.1e6
-  Ca <- cpair(Tc) * rhohair(Tc, pk)   # air
+  Ca <- cpair(Tc) * rhoair(Tc, pk)   # air
   Cw <- 4.18e6                        # water
   # mixture
   Cd <- Vi * Ci + Va * Ca + Vw * Cw
@@ -555,7 +555,7 @@ snowsurfaceEB <- function(Rabs, Tref, Tsurface, pk, relhum, rHa) {
   Rnet <- Rabs - 0.99 * sb * (Tsurface + 273.15)^4
   # sensible heat
   cp <- cpair(Tref)
-  ph <- rhohair(Tref, pk)
+  ph <- rhoair(Tref, pk)
   H <- (ph * cp / rHa) * (Tsurface - Tref)
   # latent heat
   es <- satvap(Tsurface)
@@ -564,7 +564,7 @@ snowsurfaceEB <- function(Rabs, Tref, Tsurface, pk, relhum, rHa) {
   L <- (la * ph / (rHa * pk)) * (es - ea)
   Rnet - H - L
 }
-#' Internal functions used by snow-soil heat solver
+# Joins the snow layers and the soil nodes into one column for the snow-soil heat solver
 .appendSnowSoil <- function(snowmod, soilheatmod, soilp, atmPressure) {
   ns <- length(snowmod$depth)
   nz_soil <- length(soilheatmod$dz)

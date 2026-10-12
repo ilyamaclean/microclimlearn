@@ -11,7 +11,7 @@ SolveEnergyBalance(
   Rabs,
   rHa,
   rS,
-  G,
+  G = 0,
   em = 0.97,
   method = c("uniroot", "Penman"),
   iters = 1

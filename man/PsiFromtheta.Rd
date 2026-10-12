@@ -9,13 +9,13 @@ PsiFromtheta(theta, psie, b, Smax, MPa = TRUE)
 \arguments{
 \item{theta}{volumetric soil water fraction (m^3 / m^3)}
 
+\item{psie}{air entry water potential (J/kg)}
+
 \item{b}{Campbell soil water retention parameter}
 
 \item{Smax}{volumetric soil water fraction at saturation (m^3 / m^3)}
 
 \item{MPa}{optional logical indicating whether to return outputs in Mpa (TRUE) or kPa (FALSE)}
-
-\item{psi_e}{air entry water potential (J/m^3)}
 }
 \value{
 soil water potential (MPa or kPa ~ J/Kg)

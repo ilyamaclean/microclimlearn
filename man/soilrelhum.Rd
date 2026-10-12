@@ -11,7 +11,7 @@ soilrelhum(theta, tsoil, psie, b, Smax)
 
 \item{tsoil}{soil temperature (degrees C)}
 
-\item{psie}{air-entry water potential}
+\item{psie}{air-entry water potential (J / kg)}
 
 \item{b}{Campbell soil water retention parameter}
 
@@ -21,5 +21,6 @@ soilrelhum(theta, tsoil, psie, b, Smax)
 relative humidity (Percentage)
 }
 \description{
-Calculates soil surface relative humidity
+Calculates the relative humidity of the air in the pores of the
+soil, which falls as the soil dries and holds its water more tightly.
 }

@@ -24,7 +24,7 @@ albedo(
 
 \item{ltra}{leaf transmittance. Note that `ltra + lref` must be < 1.}
 
-\item{x}{ratio of vertical to horizontal projections of leaf foliage}
+\item{x}{ratio of horizontal to vertical projections of leaf foliage}
 
 \item{gref}{ground reflectance}
 
@@ -45,12 +45,8 @@ area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)}
 a list of the following
 \describe{
  \item{albd}{combined ground and canopy albedo for diffuse radiation}
- \item{albc}{canopy only albedo for direct radiation}
- \item{albg}{ground only albedo - same as gref}
  \item{albb}{combined ground and canopy albedo for direct radiation}
- \item{wgtg}{relative weighting of ground contribution to total albedo for direct radiation}
- \item{wgti}{relative weighting of ground contribution to total albedo for diffuse radiation}
- \item{K}{canopy extinction coefficient for vegetation above a horizontal surface}
+ \item{trd}{fraction of diffuse radiation from the sky that passes through the canopy to the ground}
 }
 }
 \description{

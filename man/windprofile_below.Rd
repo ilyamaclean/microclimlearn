@@ -2,9 +2,9 @@
 % Please edit documentation in R/sensibleheat.R
 \name{windprofile_below}
 \alias{windprofile_below}
-\title{Calculate wind profile above canopy}
+\title{Calculate wind profile below canopy}
 \usage{
-windprofile_below(hgt, paii, uh)
+windprofile_below(hgt, paii, uh, z0 = 0.004)
 }
 \arguments{
 \item{hgt}{height of canopy(m)}
@@ -13,10 +13,12 @@ windprofile_below(hgt, paii, uh)
 sequentially from canopy bottom to top.}
 
 \item{uh}{wind speed at top of canopy as derived using [windprofile_above()] (m/s)}
+
+\item{z0}{roughness length of the ground surface (m)}
 }
 \value{
-wind speed (m/s)
+wind speed at the middle of each canopy layer (m/s)
 }
 \description{
-Calculate wind profile above canopy
+Calculate wind profile below canopy
 }

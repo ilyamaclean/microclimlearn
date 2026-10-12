@@ -4,31 +4,33 @@
 \alias{InitSoilwatermod}
 \title{Initializes input for the soil water model}
 \usage{
-InitSoilwatermod(soilp, soilheatmod, rootskew)
+InitSoilwatermod(soilp, soilheatmod, root50, root95)
 }
 \arguments{
 \item{soilp}{list of soil parameters as returned by [createsoilplist()]}
 
 \item{soilheatmod}{soil heat model state as returned by [InitSoilheatmod()]}
 
-\item{rootskew}{parameter controlling vertical distribution of roots}
+\item{root50}{depth above which half of all roots lie (m)}
+
+\item{root95}{depth above which 95 percent of all roots lie (m)}
 }
 \value{
 a list comprising
 \describe{
   \item{n}{number of soil layers}
-  \item{z}{depth of soil nodes (m)}
-  \item{dz}{soil layer thicknesses (m)}
-  \item{zCenter}{depth of layer centres (m)}
-  \item{Tc}{soil temperature profile (degrees C)}
-  \item{theta}{volumetric soil water content (m3 m-3)}
-  \item{vol}{soil layer volumes per unit ground area (m)}
+  \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+  \item{dz}{distance between each node and the node beneath it (m)}
+  \item{Tc}{temperature of the soil at each node (degrees C)}
+  \item{oldTc}{temperature of the soil at each node at the start of the time step (degrees C)}
+  \item{theta}{volumetric water content of the soil at each node (m3 m-3)}
+  \item{vol}{thickness of the soil for which each node stores water (m)}
   \item{psiw}{soil water potential (J kg-1)}
-  \item{k}{hydraulic conductivity (m s-1)}
-  \item{vapor}{soil vapour content}
-  \item{oldvapor}{soil vapour content at previous time step}
+  \item{k}{hydraulic conductivity (kg s m-3)}
+  \item{vapor}{water vapour held in the air-filled pores (kg m-3)}
+  \item{oldvapor}{water vapour held in the air-filled pores at the previous time step (kg m-3)}
   \item{oldtheta}{soil water content at previous time step (m3 m-3)}
-  \item{rootfrac}{fraction of roots in each soil layer}
+  \item{rootfrac}{fraction of roots in the soil held by each node}
   \item{success}{logical indicating convergence success - set to TRUE on initalization}
   \item{iterations}{number of solver iterations - set to zero initially}
 }

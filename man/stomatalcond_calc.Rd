@@ -20,7 +20,7 @@ stomatalcond_calc(
 \arguments{
 \item{Ca}{atmospheric carbon dioxide concentration (ppm)}
 
-\item{Rswabs}{flux density of PAR absorbed by leaf (W/m^2)}
+\item{Rswabs}{flux density of radiation absorbed by leaf (W/m^2), of which 48 percent is taken to be PAR}
 
 \item{tair}{temperature of air (deg C)}
 
@@ -30,9 +30,9 @@ stomatalcond_calc(
 
 \item{pk}{atmospheric pressure (kPa)}
 
-\item{psi_r}{# mean water potential in root zone (MPa)}
+\item{psi_r}{mean water potential in root zone (MPa)}
 
-\item{plant_inputs}{a vector of vegetation parameters as returned by [createplant_inputs()]}
+\item{plant_inputs}{a list of vegetation parameters as returned by [createplant_inputs()]}
 
 \item{z}{height above ground}
 

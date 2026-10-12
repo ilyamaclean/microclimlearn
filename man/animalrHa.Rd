@@ -14,8 +14,8 @@ animalrHa(tair, dT, uz, d, rHmax = 300)
 
 \item{uz}{wind speed at the animal scale (m s^-1)}
 
-\item{d}{characteristic dimension of the animal (m), typically defined as
-volume divided by projected area}
+\item{d}{characteristic dimension of the animal (m): volume divided by the
+area it presents to the wind, as returned by [chardim()]}
 
 \item{rHmax}{maximum allowed boundary layer resistance (s m^-1). Default is
 300.}
@@ -31,8 +31,14 @@ convection using standard dimensionless relationships.
 }
 \details{
 Thermal diffusivity and kinematic viscosity are calculated as
-functions of air temperature. The Nusselt number for forced convection is
-estimated using empirical relationships across Reynolds number regimes,
-while free convection is estimated from Grashof and Prandtl numbers. The two
+functions of air temperature. The animal is treated as a spheroid, the size
+of which is the length of its body along the wind (1.5 times `d`). The Nusselt
+number for forced convection is that of Whitaker (1972) for a sphere, while
+free convection is estimated from Grashof and Prandtl numbers. The two
 contributions are combined using a cubic mean to represent mixed convection.
+}
+\references{
+Whitaker S (1972) Forced convection heat transfer correlations for
+flow in pipes, past flat plates, single cylinders, single spheres, and for flow
+in packed beds and tube bundles. AIChE Journal 18: 361-371.
 }

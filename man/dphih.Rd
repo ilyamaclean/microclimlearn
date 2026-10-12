@@ -7,11 +7,13 @@
 dphih(ze)
 }
 \arguments{
-\item{ze}{atmospheric stability parameter}
+\item{ze}{atmospheric stability parameter (height divided by Obukhov length)}
 }
 \value{
 diabatic influencing coefficient for heat
 }
 \description{
-Calculate diabatic influencing coefficient for heat
+The dimensionless temperature gradient that corresponds to [dpsih()]:
+above 1 in stable air, where mixing is suppressed, and below 1 in unstable
+air.
 }

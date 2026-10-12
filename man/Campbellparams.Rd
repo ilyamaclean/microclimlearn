@@ -13,7 +13,6 @@ Campbellparams(soiltype)
 A list of soil parameters:
 \describe{
   \item{psie}{Air-entry water potential (m)}
-  \item{n}{Pore size distribution parameter (unitless)}
   \item{b}{Campbell soil water retention parameter (unitless)}
   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
@@ -24,6 +23,14 @@ A list of soil parameters:
 Create list of Campbell soil hydraulic parameters
 }
 \details{
+The Campbell model's hydraulic conductivity exponent (2*b + 3) is derived
+from \code{b} wherever it's needed (see \code{\link{hydraulicConductivityFromTheta}})
+rather than stored here -- an earlier version of this function returned an
+\code{n} element sourced from \code{newsoilparamstable$n}, but that column
+is a van Genuchten pore-size parameter, not a Campbell one, so it has been
+removed to avoid it being mistaken for (or substituted in place of) the
+Campbell exponent.
+
 :
 Available soil types (argument \code{soiltype}) are:
 \itemize{

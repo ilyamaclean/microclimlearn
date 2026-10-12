@@ -2,7 +2,7 @@
 % Please edit documentation in R/latentheat.R
 \name{latvap}
 \alias{latvap}
-\title{Calculate latent heat of vapourisation (J / mol)}
+\title{Calculate latent heat of vapourisation}
 \usage{
 latvap(Ts)
 }
@@ -13,5 +13,5 @@ latvap(Ts)
 latent heat of vapourisation (J / mol)
 }
 \description{
-Calculate latent heat of vapourisation (J / mol)
+Calculate latent heat of vapourisation
 }

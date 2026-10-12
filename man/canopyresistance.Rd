@@ -4,21 +4,26 @@
 \alias{canopyresistance}
 \title{Calculate resistance to sensible heat loss of entire canopy}
 \usage{
-canopyresistance(z, d, zm, uf, psih)
+canopyresistance(z, uf, h, pai, LL = Inf, MOST = TRUE)
 }
 \arguments{
 \item{z}{height to which resistance is needed (m)}
 
-\item{d}{zero-plane displacement height as returned by [zeroplanedis()] (m)}
-
-\item{zm}{roughness length for momentum as returned by [roughlength()] (m)}
-
 \item{uf}{wind friction velocity as returned by [windfric()] (m/s)}
 
-\item{psih}{diabatic correction for heat as returned by [dpsih()]}
+\item{h}{vegetation height (m)}
+
+\item{pai}{plant area index}
+
+\item{LL}{Obukhov length as returned by [Obukhov()] (m). The default, `Inf`,
+is neutral air.}
+
+\item{MOST}{Logical. If `TRUE`, profiles above the canopy are taken to be
+logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
+above the canopy.}
 }
 \value{
-bulk surface aerodynamic resistance (m/s)
+bulk surface aerodynamic resistance (s/m)
 }
 \description{
 Calculate resistance to sensible heat loss of entire canopy

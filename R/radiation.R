@@ -67,76 +67,78 @@ solarindex <- function(slope, aspect, solp) {
 #' @title Calculates canopy extinction coefficient
 #' @description Calculates the canopy extinction coefficient for inclined and flat canopies
 #' @param solp a list of solar zenith and azimuths as returned by [sunposition()]
-#' @param x ratio of vertical to horizontal projections of leaf foliage
-#' @param si the fraction of direct ebam radiation incident on an inclined surface
+#' @param x ratio of horizontal to vertical projections of leaf foliage (1 = spherical, 0 =
+#' vertical, `Inf` = horizontal))
+#' @param si the fraction of direct beam radiation incident on an inclined surface
 #' as returned by [solarindex()]
-#' @return a list of the following
-#' \describe{
-#'  \item{k}{canopy extinction coefficient for vegetation above a flat surface}
-#'  \item{k0}{canopy extinction coefficient when solar zenith = 0}
-#'  \item{kd}{canopy extinction coefficient for vegetation above an inclined surface}
-#' }
+#' @return the canopy extinction coefficient for direct beam radiation, for vegetation above
+#' an inclined surface. Supplying the cosine of the solar zenith angle as `si` gives the
+#' coefficient for vegetation above a flat surface.
 #' @rdname cank
 #' @export
 cank <- function(solp, x, si) {
-  zen <- solp$zen
-  azi <- solp$azi
-  zen[zen > 90] <- 90
+  # A sun below the horizon is treated as sitting on it
+  zenr <- pmin(solp$zen, 90) * pi / 180
+  # Ross G: the area a unit area of foliage presents to the solar beam, which
+  # depends on how the leaves are inclined
   if (x == 1) {
-    k <- 1 / (2 * cos(zen * pi/180))
+    # Spherical: leaves face all directions equally, so the sun's angle is immaterial
+    G <- rep(0.5, length(zenr))
   } else if (x == 0) {
-    k <- tan(zen * pi/180)
+    # Vertical leaves present most area to a low sun and none to one overhead
+    G <- (2 / pi) * sin(zenr)
   } else if (is.infinite(x)) {
-    k<-rep(1, length(zen))
+    # Horizontal leaves present most area to an overhead sun
+    G <- cos(zenr)
   } else {
-    k <- sqrt((x^2 + (tan(zen * pi/180)^2)))/(x + 1.774 * (x + 1.182)^(-0.733))
+    # Ellipsoidal distribution of leaf angles, between those extremes
+    G <- sqrt(x^2 * cos(zenr)^2 + sin(zenr)^2) / (x + 1.774 * (x + 1.182)^(-0.733))
   }
-  # k over inclined slopes
-  kd <- k * cos(zen * pi/180) / si
+  # Optical path: the distance the beam travels through a canopy layer lying
+  # parallel to the ground, relative to the layer's depth. It lengthens as the
+  # beam strikes the ground surface more obliquely
+  path <- 1 / si
+  # Extinction coefficient: foliage area met by the beam per unit plant area passed
+  kd <- G * path
   kd[kd > 6000] <- 6000
   return(kd)
 }
 #' @title Scattering directionality factor
 #' @description Calculates the canopy scattering directionality factor for use in two-stream models
 #' using one of two methods
-#' @param lref leaf reflectance (0-1)
-#' @param ltra leaf transmittance. Note that `ltra + lref` must be < 1.
+#' @param x ratio of horizontal to vertical projections of leaf foliage
 #' @param method one of "Sellers" - leaf directionality factor approximated by
 #' calculating mean leaf angle or "Pinty" - leaf directionality factor calculated
 #' by integrating the inclination density distribution function.
 #' @return J - the scattering directionality factor
 #' @rdname scattercoef
 #' @export
-scattercoef <- function(lref, ltra, x, method = "Sellers") {
+scattercoef <- function(x, method = "Sellers") {
   if (method == "Pinty") {
-    A<-x+1.774*(x+1.182)^(-0.733)
-    if (length(x) >1) {
-      J<-A
-      s <- which(x <= 1)
-      J[s] <- ((x[s]^2 * atan(sqrt(1 - x[s]^2) / x[s])) / (A[s] * (1 - x[s]^2)^(3 / 2)))-
-        (x[s]^3 / (A[s] * (1 - x[s]^2) * ((1 - x[s]^2) + x[s]^2)))
-      y <- 1/x[-s]
-      J[-s] <- -(y^2 * sqrt(1 - y^2) * log((sqrt(1 - y^2) - y^2 +1) / (sqrt(1 - y^2) + y^2 - 1))
-                 + 2 * y^2 - 2) / (2 * A[-s] * y * (y^2 - 1)^2)
-      J[x==1] <- 1 / 3
-    } else {
-      if (x <1 ) J <- ((x^2 * atan(sqrt(1 - x^2) / x)) / (A * (1 - x^2)^(3 / 2))) -
-          (x^3 / (A * (1 - x^2) * ((1 - x^2) + x^2)))
-      if (x>1) {
-        y<-1/x
-        J <- -(y^2 * sqrt(1 - y^2) * log((sqrt(1 - y^2) - y^2 + 1) / (sqrt(1 - y^2) + y^2 - 1))
-               + 2 * y^2 - 2) / (2 * A * y * (y^2 - 1)^2)
-      }
-      if (x == 1) J <- 1 / 3
-    }
+    # Mean squared cosine of leaf inclination, integrated exactly over an
+    # ellipsoidal distribution of leaf angles
+    A <- x + 1.774 * (x + 1.182)^(-0.733)
+    # Spherical distribution: leaves face all directions equally
+    J <- rep(1 / 3, length(x))
+    # Leaves more upright than spherical
+    s <- which(x < 1)
+    e <- sqrt(1 - x[s]^2)
+    J[s] <- (x[s]^2 * atan(e / x[s])) / (A[s] * e^3) - x[s]^3 / (A[s] * e^2)
+    # Leaves flatter than spherical
+    s <- which(x > 1 & is.finite(x))
+    y <- 1 / x[s]
+    e <- sqrt(1 - y^2)
+    J[s] <- -(y^2 * e * log((e - y^2 + 1) / (e + y^2 - 1)) + 2 * y^2 - 2) /
+      (2 * A[s] * y * e^4)
+    # Entirely horizontal leaves
+    J[is.infinite(x)] <- 1
   } else {
-    if (x == 1) {
-      J <- 1/3
-    } else {
-      mla <- 9.65 * (3 + x)^-1.65 # mean leaf angle
-      if (mla > pi/2) mla = pi/2
-      J <- cos(mla)^2
-    }
+    # Every leaf is taken to lie at the mean inclination from the horizontal
+    # (radians), which is upright for small x and flat for large x
+    mla <- pmin(9.65 * (3 + x)^-1.65, pi / 2)
+    J <- cos(mla)^2
+    # Spherical distribution: leaves face all directions equally
+    J[x == 1] <- 1 / 3
   }
   return(J)
 }
@@ -146,7 +148,7 @@ scattercoef <- function(lref, ltra, x, method = "Sellers") {
 #' @param pai total one side area of canopy elements per unit ground area
 #' @param lref leaf reflectance (0-1)
 #' @param ltra leaf transmittance. Note that `ltra + lref` must be < 1.
-#' @param x ratio of vertical to horizontal projections of leaf foliage
+#' @param x ratio of horizontal to vertical projections of leaf foliage
 #' @param gref ground reflectance
 #' @param slope slope of ground surface (decimal degrees from horizontal)
 #' @param aspect aspect of ground surface (decimal degrees from north)
@@ -159,30 +161,26 @@ scattercoef <- function(lref, ltra, x, method = "Sellers") {
 #' @return a list of the following
 #' \describe{
 #'  \item{albd}{combined ground and canopy albedo for diffuse radiation}
-#'  \item{albc}{canopy only albedo for direct radiation}
-#'  \item{albg}{ground only albedo - same as gref}
 #'  \item{albb}{combined ground and canopy albedo for direct radiation}
-#'  \item{wgtg}{relative weighting of ground contribution to total albedo for direct radiation}
-#'  \item{wgti}{relative weighting of ground contribution to total albedo for diffuse radiation}
-#'  \item{K}{canopy extinction coefficient for vegetation above a horizontal surface}
+#'  \item{trd}{fraction of diffuse radiation from the sky that passes through the canopy to the ground}
 #' }
 #' @rdname albedo
 #' @export
 albedo <- function(pai, lref, ltra, x, gref, slope, aspect, solp,
                    scattermethod = "Sellers", leafh = FALSE) {
   if (leafh) {
-    pai <- pai / cos(slope * pi/180)
+    pai <- pai * cos(slope * pi/180)
   }
-  zen <- solp$zen
-  azi <- solp$azi
+  # A trace of ground reflectance keeps the solution defined for ground that reflects nothing
+  gref <- max(gref, 0.001)
   # Calculate canopy extinction coefficient
   si <- solarindex(slope, aspect, solp)
   K <- cank(solp, x, si)
   # Calculate two-stream base parameters
   om <- lref + ltra # single scattering albedo of individual canopy elements
-  a <- 1 - om # single scattering absorbtance of individual canopy elements on first interaction.
+  a <- 1 - om # single scattering absorptance of individual canopy elements on first interaction.
   del <- lref - ltra # scattering asymmetry
-  J <- scattercoef(lref, ltra, x, scattermethod)
+  J <- scattercoef(x, scattermethod)
   gma <- 0.5 * (om + J * del)
   ss <- 0.5 * (om + J * del / K) * K # back-scatter coefficient
   sstr <- om * K - ss  # scatter coefficient
@@ -205,90 +203,104 @@ albedo <- function(pai, lref, ltra, x, gref, slope, aspect, solp,
   # Calculate albedos
   albd <- (p1 + p2) # white sky albedo
   albb <- (p5 / sig + p6 + p7) # black sky albedo
-  # Calculate weights
-  wgtg <- exp(-K * pai) # ground weighting (direct)
-  wgti <- exp(-pai) # ground weighting (diffuse)
-  albc <- (albb - wgtg * gref) / (1 - wgtg) # canopy albedo
-  # Calculate leaf absorption coefficient
-  sc <- K * si
-  return(list(albd = albd, albc = albc, albg = gref, albb = albb, wgtg = wgtg, wgti = wgti, sc = sc))
+  # Calculate fraction of sky diffuse radiation reaching the ground
+  trd <- exp(-pai)
+  return(list(albd = albd, albb = albb, trd = trd))
 }
 #' @title Calculates radiation absorbed by canopy
 #' @description Calculates combined longwave and shortwave radiation absorption.
-#' @param climdata a data.frame of weather variables - see e.g. example dataset micropoint::climdata
+#' @param climdata a data.frame of weather variables - see e.g. example dataset `climdata`
 #' @param vegp a list of vegetation parameters - see e.g. example dataset micropoint::vegparams
 #' @param groundp a list of ground parameters - see e.g. micropoint::groundparams
 #' @param lat latitude (decimal degrees), negative south of the equator
 #' @param long longitude (decimal degrees), negative west of the Greenwich meridian
+#' @param leafh optional logical indicating whether `vegp$pai` is the total one-side plant
+#' area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)
 #' @return radiation absorption by canopy (W/m^2)
 #' @rdname calcRabs
 #' @export
-calcRabs <- function(climdata, vegp, groundp, lat, long) {
+calcRabs <- function(climdata, vegp, groundp, lat, long, leafh = FALSE) {
   # Calculate solar position
   tme <- as.POSIXlt(climdata$obs_time, tz = "UTC")
   solp <- sunposition(tme, lat, long)
   albs <- albedo(vegp$pai, vegp$lref, vegp$ltra, vegp$x, groundp$gref,
-                 groundp$slope, groundp$aspect, solp)
+                 groundp$slope, groundp$aspect, solp, leafh = leafh)
   # Calculate shortwave radiation absorption
   Rb0 <- (climdata$swdown - climdata$difrad) / cos(solp$zen * pi/180)
   Rb0[Rb0 > 1352] <- 1352
   si <- solarindex(groundp$slope, groundp$aspect, solp) # terrain solar coefficient
-  Rabs_sw <- (1 - albs$albd) * climdata$difrad +
-    (1 - albs$albg) * albs$wgtg * Rb0 * si +
-    (1 - albs$albc) * (1 - albs$wgtg) * Rb0 * albs$sc
+  Rabs_sw <- (1 - albs$albd) * climdata$difrad + (1 - albs$albb) * Rb0 * si
   # Calculate longwave radiation absorption
-  Rabs_lw <- climdata$lwdown * (albs$wgti * groundp$em + (1 - albs$wgti) * vegp$em)
+  Rabs_lw <- climdata$lwdown * (albs$trd * groundp$em + (1 - albs$trd) * vegp$em)
   return(Rabs_sw +  Rabs_lw)
 }
 #' @title Two-stream radiation model
 #' @description Calculates upward and downward fluxes of shortwave radiation within canopies
-#' accomodating inclined surfaces and non-random canopy gaps
-#' @param vegp a list of vegetation parameters - see e.g. example dataset micropoint::vegparams
+#' accommodating inclined surfaces
+#' @param vegp a list of vegetation parameters as returned by [createplant_inputs()]
 #' @param groundp a list of ground parameters - see e.g. micropoint::groundparams
 #' @param paii vector of plant area index values per unit ground area ordered
 #' sequentially from canopy bottom to top. Note sum(paii) should equal vegp$pai
 #' @param swdown a single numeric value of flux density of downward shortwave
 #' radiation on a flat horizontal surface
 #' @param difrad a single numeric value of flux density of downward diffuse radiation
-#' @param lat latitude (decimal degrees), negative south of the equator
-#' @param long longitude (decimal degrees), negative west of the Greenwich meridian
-#' @param solp a list of the solar zenith and azimith angle
-#' @return a list of radiation fluxes in the same units as `swrad` and `difrad`
+#' @param solp a list of the solar zenith and azimuth angle
+#' @param PAR optional logical indicating whether to use leaf reflectance and transmittance
+#' for photosynthetically active radiation (`vegp$lrefp`, `vegp$ltrap`) in place of those for
+#' shortwave radiation (`vegp$lref`, `vegp$ltra`), and a ground reflectance of 0.75 times
+#' `groundp$gref`
+#' @param leafh optional logical indicating whether `paii` is the total one-side plant
+#' area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)
+#' @param scattermethod one of "Sellers" - leaf directionality factor approximated by
+#' calculating mean leaf angle or "Pinty" - leaf directionality factor calculated
+#' by integrating the inclination density distribution function.
+#' @return a list of radiation fluxes in the same units as `swdown` and `difrad`
 #' \describe{
 #'  \item{Rdirdown}{Flux density of downward direct radiation perpendicular to the solar beam}
 #'  \item{Rdifdown}{Flux density of downward diffuse radiation}
 #'  \item{Rswup}{Flux density of upward shortwave radiation - assumed entirely diffuse}
 #'  \item{Rleafabs}{Flux density of shortwave radiation absorbed by leaves - averaged over both sides}
-#'  \item{Rsun}{Flux density of shortwave radiation absorbed by sunlit leaves}
-#'  \item{Rshade}{Flux density of shortwave radiation absorbed by shaded leaves}
+#'  \item{Rsun}{Flux density of shortwave radiation absorbed by sunlit leaves - averaged over both sides}
+#'  \item{Rshade}{Flux density of shortwave radiation absorbed by shaded leaves - averaged over both sides}
 #'  \item{sunlitfrac}{Fraction of leaves that are sunlit}
 #'  \item{Rgroundabs}{Flux density of shortwave radiation absorbed by ground surface}
 #' }
 #' @rdname twostream
 #' @export
-twostream <- function(vegp, groundp, paii, swdown, difrad, lat, long, solp, PAR = FALSE) {
+twostream <- function(vegp, groundp, paii, swdown, difrad, solp, PAR = FALSE, leafh = FALSE,
+                      scattermethod = "Sellers") {
   if (swdown > 0) {
-    if (sum(paii) != vegp$pai) {
+    # Foliage above a unit of horizontal area is spread over the larger area of sloping ground beneath it
+    if (leafh) {
+      paii <- paii * cos(groundp$slope * pi/180)
+      vegp$pai <- vegp$pai * cos(groundp$slope * pi/180)
+    }
+    if (abs(sum(paii) - vegp$pai) > 1e-10) {
       vegp$pai <- sum(paii)
       warning("vegp$pai != sum(paii). Adjusting total pai")
     }
-    # Cumulative leaf areas
-    pia <- rev(cumsum(rev(paii)))
+    # Plant area above the middle of each layer
+    pia <- rev(cumsum(rev(paii))) - 0.5 * paii
     # Canopy extinction coefficient
     si <- solarindex(groundp$slope, groundp$aspect, solp)
     cosz <- cos(solp$zen * pi /180)
     kd <- cank(solp, vegp$x, si)
     k <-  cank(solp, vegp$x, cosz)
-    # Calculate two-stream base parames
+    # Calculate leaf optical parameters
     if (PAR) {
       om <- vegp$lrefp + vegp$ltrap
       del <- vegp$lrefp - vegp$ltrap # scattering asymmetry
+      # Soil reflects less visible light than shortwave radiation as a whole
+      gref <- 0.75 * groundp$gref
     } else {
       om <- vegp$lref + vegp$ltra # single scattering albedo of individual canopy elements
       del <- vegp$lref - vegp$ltra # scattering asymmetry
+      gref <- groundp$gref
     }
-    a <- 1 - om # single scattering absorbtance of individual canopy elements on first interaction.
-    J <- with(vegp,scattercoef(lref, ltra, x))
+    # A trace of ground reflectance keeps the solution defined for ground that reflects nothing
+    gref <- max(gref, 0.001)
+    a <- 1 - om # single scattering absorptance of individual canopy elements on first interaction.
+    J <- scattercoef(vegp$x, scattermethod)
     gma <- 0.5 * (om + J * del)
     ss <- 0.5 * (om + J * del / kd) * kd # back-scatter coefficient
     sstr <- om * kd - ss  # scatter coefficient
@@ -296,8 +308,8 @@ twostream <- function(vegp, groundp, paii, swdown, difrad, lat, long, solp, PAR 
     h <- sqrt(a^2 + 2 * a * gma)
     S1 <- exp(-h * vegp$pai)
     S2 <- exp(-kd * vegp$pai)
-    u1 <- a + gma * (1 - 1 / groundp$gref)
-    u2 <- a + gma * (1 - groundp$gref)
+    u1 <- a + gma * (1 - 1 / gref)
+    u2 <- a + gma * (1 - gref)
     D1 <- (a + gma + h) * (u1 - h) * 1 / S1 - (a + gma - h) * (u1 + h) * S1
     D2 <- (u2 + h) * 1 / S1 - (u2 - h) * S1
     # Calculate two-stream diffuse parameters
@@ -307,39 +319,41 @@ twostream <- function(vegp, groundp, paii, swdown, difrad, lat, long, solp, PAR 
     p4 <- (-S1 / D2) * (u2 - h)
     # Calculate direct parameters
     sig <- kd^2 + gma^2 - (a + gma)^2
+    if (abs(sig) < 1e-10) sig <- sign(sig) * 1e-10
     p5 <- -ss * (a + gma - kd) - gma * sstr
     v1 <- ss - (p5 * (a + gma + kd)) / sig
     v2 <- ss - gma - (p5 / sig) * (u1 + kd)
     p6 <- (1 / D1) * ((v1 / S1) * (u1 - h) - (a + gma - h) * S2 * v2)
     p7 <- (-1 / D1) * ((v1 * S1) * (u1 + h) - (a + gma + h) * S2 * v2)
-    p8 <- sstr * (a + gma + kd) - gma * ss
-    v3 <- (sstr + gma * groundp$gref - (p8 / -sig) * (u2 - kd)) * S2
+    p8 <- sstr * (a + gma + kd) + gma * ss
+    v3 <- (sstr + gma * gref - (p8 / -sig) * (u2 - kd)) * S2
     p9 <- (-1 / D2) * ((p8 / (-sig * S1)) * (u2 + h) + v3)
     p10 <- (1 / D2) * (((p8 * S1) / -sig) * (u2 - h) + v3)
     # Calculate normalised fluxes
     Rdu <- p1 * exp(-h * pia) + p2 * exp(h * pia)  # upward diffuse
-    Rdd <- p3 * exp(-h * pia) + p4 * exp(h * pia)  # downwrad diffuse
+    Rdd <- p3 * exp(-h * pia) + p4 * exp(h * pia)  # downward diffuse
     Rbu <- (p5 / sig) * exp(-kd * pia) + p6 * exp(-h * pia) + p7 * exp(h * pia) # Contribution of direct to upward diffuse
     Rbd <- (p8 / -sig) * exp(-kd * pia) + p9 * exp(-h * pia) + p10 * exp(h * pia) # Contribution of direct to downward diffuse
     Rbb <- exp(-kd * pia)
     # Calculate radiation streams
     Rbeam <- (swdown - difrad) / cos (solp$zen * pi/180)
     Rbeam[Rbeam > 1352] <- 1352
+    Rb <- Rbeam * si # Direct radiation intercepted by inclined ground surface
     Rdirdown <- Rbb * Rbeam
-    Rdifdown <- Rdd * difrad + Rbd * Rbeam
-    Rswup <- Rdu * difrad + Rbu * Rbeam
+    Rdifdown <- Rdd * difrad + Rbd * Rb
+    Rswup <- Rdu * difrad + Rbu * Rb
     # Calculate radiation absorbed by leaf
     RswL_abs <- a * 0.5 * (k * cosz * Rdirdown + Rdifdown + Rswup)  # average absorbed
     RswL_sun <- a * 0.5 * (k * cosz * Rbeam + Rdifdown + Rswup)
     RswL_shade <- a * 0.5 * (Rdifdown + Rswup)
     # Ground absorbed
-    Rddg <- p3 * exp(-h * vegp$pai) + p4 * exp(h * vegp$pai)  # downwrad diffuse at ground
+    Rddg <- p3 * exp(-h * vegp$pai) + p4 * exp(h * vegp$pai)  # downward diffuse at ground
     Rbdg <- (p8 / -sig) * exp(-kd * vegp$pai) + p9 * exp(-h * vegp$pai) + p10 * exp(h * vegp$pai) # Contribution of direct to downward diffuse
-    Rdifdowng <- Rddg * difrad + Rbdg * Rbeam
+    Rdifdowng <- Rddg * difrad + Rbdg * Rb
     Rdirdowng <- Rbeam * exp(-kd * vegp$pai)
-    RswG_abs <- (1 - groundp$gref) * (si * Rdirdowng + Rdifdowng)
+    RswG_abs <- (1 - gref) * (si * Rdirdowng + Rdifdowng)
   } else {
-    n <- length(pia)
+    n <- length(paii)
     RswL_abs <- RswL_sun <- RswL_shade <- Rbb <- Rdirdown <- Rdifdown <- Rswup <- rep(0, n)
     RswG_abs <- 0
   }
@@ -349,62 +363,49 @@ twostream <- function(vegp, groundp, paii, swdown, difrad, lat, long, solp, PAR 
 #' @title Below-canopy longwave radiation model
 #' @description Calculates upward and downward fluxes of longwave radiation within
 #' canopies along with longwave radiation absorbed by leaves
-#' @param  paii vector of plant area index values per unit ground area ordered
+#' @param paii vector of plant area index values per unit ground area ordered
 #' sequentially from canopy bottom to top.
-#' @param lwdown flux density of downward longwave radiation form sky (W/m^2)
+#' @param lwdown flux density of downward longwave radiation from sky (W/m^2)
 #' @param tleaf vector of leaf temperatures (deg C)
 #' @param tground ground surface temperature (deg C)
 #' @param vegem emissivity of leaves
-#' @param groundem emissivity of ground surface
 #' @return a list of radiation fluxes
 #' \describe{
 #'  \item{Rlwdown}{Flux density of downward longwave radiation (W/m^2)}
-#'  \item{Rlwdown}{Flux density of upward longwave radiation (W/m^2)}
+#'  \item{Rlwup}{Flux density of upward longwave radiation (W/m^2)}
 #'  \item{RlwLabs}{Flux density of longwave radiation absorbed by leaves - averaged over both sides}
 #' }
 #' @rdname longwavebelow
 #' @export
-longwavebelow <- function(paii, lwdown, tleaf, tground, vegem = 0.97, groundem = 0.97) {
-  # Calculate pai above and below
-  pait <- sum(paii)
-  paia <- rev(cumsum(rev(paii)))
-  paib <- pait - paia
-  # For each element i, calculate weight to every other element
-  # weight is paii of j * transmission between i & j
-  pij <- abs(outer(paia, paia, "-"))
-  wgts <- exp(-pij) * matrix(paii, nrow = length(paii), ncol = length(paii), byrow = TRUE)
-  diag(wgts) <- 0
-  # Calculate transmission from ground and canopy
-  trh <- exp(-paia)
-  trg <- exp(-paib)
-  # Calculate total canopy weight
-  wgt <- rowSums(wgts)
-  # Check how close result is to two
-  wsum <- wgt + trh + trg
-  # Calculate and apply adjustment factor
-  mu <- 1 + (2 - 2 * (wsum / 2)) / wgt
-  wgts <- wgts * mu # mu recycled
-  # Calculate weight of canopy elements for ground absorbed
-  wgtg <- trg * paii
-  gwsum <- sum(wgtg)
-  trsky = exp(-pait)
-  mug <- 1 + (1 - (gwsum + trsky)) / gwsum
-  wgtg <- wgtg * mug
-  # Calculate longwave fluxes
-  groundLW <- groundem * 5.67e-8 * (tground + 273.15)^4
-  leafLW <- vegem * 5.67e-8 * (tleaf + 273.15)^4
-  lwsky <- lwdown * trh  # longwave radiation downward from sky
-  lwgro <- groundLW * trg # longwave radiation upward from ground
-  # Downward component (j >= i)
-  upper_mask <- upper.tri(wgts, diag = TRUE)
-  lwcand <- rowSums(wgts * leafLW[col(wgts)] * upper_mask)
-  # Upward component (j <= i)
-  lower_mask <- lower.tri(wgts, diag = TRUE)
-  lwcanu <- rowSums(wgts * leafLW[col(wgts)] * lower_mask)
-  # Longwave radiation fluxes
-  Rlwdown <- lwsky + lwcand
-  Rlwup <-   lwgro + lwcanu
-  RlwLabs <- 0.5 * vegem * (Rlwdown + Rlwup)
+longwavebelow <- function(paii, lwdown, tleaf, tground, vegem = 0.97) {
+  n <- length(paii)
+  # Longwave leaving a surface is what it emits plus what it reflects, which
+  # together amount to black-body radiation at its temperature
+  groundLW <- 5.67e-8 * (tground + 273.15)^4
+  leafLW <- 5.67e-8 * (tleaf + 273.15)^4
+  # Fraction of longwave that passes through a whole layer, through half a layer,
+  # and that reaches the average leaf of a layer from one of its faces
+  tr <- exp(-paii)
+  trhalf <- exp(-0.5 * paii)
+  trmean <- ifelse(paii > 0, -expm1(-paii) / paii, 1)
+  Rlwdown <- Rlwup <- Rdmean <- Rumean <- numeric(n)
+  # Downward longwave, followed from the sky down through each layer in turn. Each
+  # layer lets part of what arrives through and replaces the rest with its own
+  flux <- lwdown
+  for (i in n:1) {
+    Rlwdown[i] <- flux * trhalf[i] + leafLW[i] * (1 - trhalf[i]) # at the middle of the layer
+    Rdmean[i] <- flux * trmean[i] + leafLW[i] * (1 - trmean[i])  # at the average leaf of the layer
+    flux <- flux * tr[i] + leafLW[i] * (1 - tr[i])               # leaving the base of the layer
+  }
+  # Upward longwave, followed from the ground up through each layer in the same way
+  flux <- groundLW
+  for (i in 1:n) {
+    Rlwup[i] <- flux * trhalf[i] + leafLW[i] * (1 - trhalf[i])
+    Rumean[i] <- flux * trmean[i] + leafLW[i] * (1 - trmean[i])
+    flux <- flux * tr[i] + leafLW[i] * (1 - tr[i])
+  }
+  # Leaves absorb from both sides
+  RlwLabs <- 0.5 * vegem * (Rdmean + Rumean)
   return(list(Rlwdown = Rlwdown,
               Rlwup =   Rlwup,
               RlwLabs = RlwLabs))
@@ -412,38 +413,54 @@ longwavebelow <- function(paii, lwdown, tleaf, tground, vegem = 0.97, groundem =
 
 #' Clear-sky solar radiation
 #'
-#' Calculates clear-sky direct solar radiation from time, location, air
-#' temperature, relative humidity and pressure.
+#' Calculates the shortwave radiation reaching a horizontal surface under a
+#' cloudless sky from time, location, air temperature, relative humidity and
+#' pressure.
 #'
 #' @param climdata Data frame containing at least \code{obs_time},
 #'   \code{temp}, \code{relhum} and \code{pres}.
 #' @param lat Latitude (decimal degrees)
 #' @param long Longitude (decimal degrees)
+#' @param haze Logical. If \code{TRUE}, radiation is reduced by a typical amount
+#'   of haze and dust. If \code{FALSE}, the air is taken to be clean, giving the
+#'   most radiation a cloudless sky can deliver.
+#' @param hourmean Logical. If \code{TRUE}, radiation is calculated every five
+#'   minutes and averaged over the hour centred on each \code{obs_time}. If
+#'   \code{FALSE}, it is calculated at each \code{obs_time}.
 #'
 #' @return Numeric vector of clear-sky radiation (W m^-2)
 #' @export
-clearskyrad <- function(climdata, lat, long) {
+clearskyrad <- function(climdata, lat, long, haze = TRUE, hourmean = FALSE) {
 
-  tme <- as.POSIXlt(climdata$obs_time, tz = "UTC")
+  tme <- as.POSIXct(climdata$obs_time, tz = "UTC")
   temp <- climdata$temp
   relhum <- climdata$relhum
   pres <- climdata$pres
-  solp <- sunposition(tme, lat = lat, long = long)
-  zenr <- solp$zen * pi / 180
-  csr <- rep(0, length(zenr))
-  sel <- zenr <= pi / 2
-  if (any(sel)) {
-    m <- 35 * cos(zenr[sel]) / sqrt(1224 * cos(zenr[sel])^2 + 1)
-    TrTpg <- 1.021 - 0.084 * sqrt(m * 0.00949 * pres[sel] + 0.051)
-    xx <- log(relhum[sel] / 100) + (17.27 * temp[sel]) / (237.3 + temp[sel])
-    Td <- (237.3 * xx) / (17.27 - xx)
-    u <- exp(0.1133 - log(3.78) + 0.0393 * Td)
-    Tw <- 1 - 0.077 * (u * m)^0.3
-    Ta <- 0.935 * m
-    od <- TrTpg * Tw * Ta
-    csr[sel] <- 1352.778 * cos(zenr[sel]) * od
+  # Water in the column of air above the surface, from dew point (degrees Fahrenheit)
+  xx <- log(relhum / 100) + (17.27 * temp) / (237.3 + temp)
+  Td <- (237.3 * xx) / (17.27 - xx)
+  u <- exp(0.1133 - log(3.78) + 0.0393 * (Td * 1.8 + 32))
+  # Minutes from each time at which the sun's position is taken
+  mins <- 0
+  if (hourmean) mins <- seq(-27.5, 27.5, 5)
+  csr <- rep(0, length(tme))
+  for (mn in mins) {
+    solp <- sunposition(as.POSIXlt(tme + mn * 60, tz = "UTC"), lat = lat, long = long)
+    zenr <- solp$zen * pi / 180
+    sel <- zenr <= pi / 2
+    if (any(sel)) {
+      # Depth of atmosphere crossed by the beam, relative to the sun overhead
+      m <- 35 / sqrt(1224 * cos(zenr[sel])^2 + 1)
+      # Fractions passed by the gases of the air, by water vapour and by haze
+      TrTpg <- 1.021 - 0.084 * sqrt(m * 0.00949 * pres[sel] + 0.051)
+      Tw <- 1 - 0.077 * (u[sel] * m)^0.3
+      Ta <- 1
+      if (haze) Ta <- 0.935^m
+      # Radiation arriving above the atmosphere less these losses
+      csr[sel] <- csr[sel] + 1352.778 * cos(zenr[sel]) * TrTpg * Tw * Ta
+    }
   }
-  csr
+  csr / length(mins)
 }
 
 

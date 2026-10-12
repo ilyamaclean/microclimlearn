@@ -4,27 +4,25 @@
 \alias{longwavebelow}
 \title{Below-canopy longwave radiation model}
 \usage{
-longwavebelow(paii, lwdown, tleaf, tground, vegem = 0.97, groundem = 0.97)
+longwavebelow(paii, lwdown, tleaf, tground, vegem = 0.97)
 }
 \arguments{
 \item{paii}{vector of plant area index values per unit ground area ordered
 sequentially from canopy bottom to top.}
 
-\item{lwdown}{flux density of downward longwave radiation form sky (W/m^2)}
+\item{lwdown}{flux density of downward longwave radiation from sky (W/m^2)}
 
 \item{tleaf}{vector of leaf temperatures (deg C)}
 
 \item{tground}{ground surface temperature (deg C)}
 
 \item{vegem}{emissivity of leaves}
-
-\item{groundem}{emissivity of ground surface}
 }
 \value{
 a list of radiation fluxes
 \describe{
  \item{Rlwdown}{Flux density of downward longwave radiation (W/m^2)}
- \item{Rlwdown}{Flux density of upward longwave radiation (W/m^2)}
+ \item{Rlwup}{Flux density of upward longwave radiation (W/m^2)}
  \item{RlwLabs}{Flux density of longwave radiation absorbed by leaves - averaged over both sides}
 }
 }

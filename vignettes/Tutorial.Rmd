@@ -58,14 +58,20 @@ knitr::opts_chunk$set(
 * [Above canopy](#above-canopy)
   + [Radiation and albedo](#radiation-and-albedo)
   + [Sensible heat and wind](#sensible-heat-and-wind)
+    - [Low wind speeds](#low-wind-speeds)
+    - [The roughness sublayer](#the-roughness-sublayer)
   + [Latent heat and stomatal conductance](#latent-heat-and-stomatal-conductance)
   + [A more complex microclimate model](#a-more-complex-microclimate-model)
-* [Below canopy](#Below canopy)
+* [Below canopy](#below-canopy)
   + [Two-stream radiation models](#two-stream-radiation-models)
   + [Longwave radiation](#longwave-radiation)
   + [Wind speed](#wind-speed)
+  + [Thermal diffusivity](#thermal-diffusivity)
   + [Leaf temperature](#leaf-temperature)
   + [Air temperature and humidity](#air-temperature-and-humidity)
+    - [The far field](#the-far-field)
+    - [The near field](#the-near-field)
+    - [Coupling leaves and air](#coupling-leaves-and-air)
 * [Ground heat storage](#ground-heat-storage)
   + [Simple estimates](#simple-estimates)
   + [Soil temperature model](#soil-temperature-model)
@@ -104,10 +110,7 @@ require(devtools) # Install from CRAN if not already installed
 devtools::install_github("ilyamaclean/microclimlearn")
 devtools::install_github("ilyamaclean/micropoint")
 library(microclimlearn)
-library(micropoint)
 ```
-
-The 'micropoint' package, once loaded, provides access to a few built-in datasets useful for running microclimate models, including a dataset of macroclimate weather variables and lists of ground and vegetation parameters. These will be described in more detail later.
 
 ### The concept of energy balance
 The conceptual starting point for modelling microclimate is the law of energy conservation. Organisms and other opaque objects absorb shortwave solar radiation and longwave (thermal) radiation from the sky and surrounding surfaces, while emitting their own thermal radiation. They exchange sensible heat with the air and latent heat through vapour exchange (e.g. evapotranspirative cooling). When the net energy balance is positive, the object warms; when negative, it cools.
@@ -121,7 +124,7 @@ In reality, vegetation is seldom homogeneous. Leaf area, canopy height, and opti
 In the next section we illustrate how the energy balance can be solved by creating our own very simple microclimate model from first principles.
 
 ### A very simple microclimate model
-The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the micropoint package, but first we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation.
+The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package, but first we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation.
 
 To calculate absorbed shortwave radiation, we must specify an albedo — the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
 
@@ -167,7 +170,9 @@ This point aside, next, we calculate the bulk surface stomatal resistance, which
 # Calculate bulk surface stomatal resistance (rS)
 gsmax <- 0.33 # maximum stomatal conductance of leaves (mol/m^2/s)
 rho <- 43 # approximate molar density of air (mol / m^3)
-rPAR <- climdata$swdown * 4.6  # Flux density of PAR converted to mol/m^2/s
+# About half of shortwave radiation is PAR, and a joule of PAR is 4.6 umol of photons
+rPAR <- climdata$swdown * 0.5 * 4.6  # Flux density of PAR (umol/m^2/s)
+# The surface conducts about three times as much as its leaves (Kelliher et al. 1995)
 rS <- rho * (rPAR + 300) /  (gsmax * 3 * rPAR) # s/m 
 ```
 
@@ -176,14 +181,14 @@ Finally, we need to calculate the rate of heat storage by the ground. In practic
 ```{r eval=FALSE}
 sb <- 5.67e-8 # Stefan–Boltzmann constant W/m^2/K^4
 Rem <- em * sb * (climdata$temp + 273.15) ^ 4 # Emitted radiation (approx) W/m^2
-Rnet <- climdata$swdown + climdata$lwdown - Rem # Net radiation (W/m^2)
+Rnet <- Rabs - Rem # Net radiation (W/m^2)
 G <- ifelse(Rnet > 0, 0.1 * Rnet, 0.5 * Rnet) # Rate of ground heat storage (W / m^2)
 ```
 
 We can now calculate the surface temperature that balances the energy budget using the function `SolveEnergyBalance`. This function offers two solution methods. The "uniroot" option solves the energy balance numerically, using R’s built-in `uniroot` function to find the temperature at which net energy flux is zero. It provides an exact numerical solution but can be slower because it repeatedly evaluates the full energy balance. The "Penman" option applies the Penman–Monteith equation, estimating the equilibrium temperature through a linearised approximation of the energy terms. It is faster but less precise, and under extreme conditions can lead to noticeable errors. Accuracy of the "Penman" method can be improved substantially by allowing a few iterations.
 
 ```{r eval=FALSE}
- Find surface temperature using uniroot method
+# Find surface temperature using uniroot method
 Ts1 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
                           Rabs, rHa, rS, G, em = 0.97,
                           method = "uniroot", iters = 1)
@@ -218,7 +223,7 @@ The temperature of this notional surface is mainly a theoretical construct, sinc
 
 ```{r eval=FALSE}
 # Calculate wind friction velocity
-uf <- (ka * climdata$windspeed) / log((zref - d) / zm)
+uf <- (ka * u2) / log((zref - d) / zm)
 
 # Select hottest hour
 hr <- which.max(Ts1)
@@ -228,7 +233,7 @@ Ta <- climdata$temp[hr]    # air temperature
 # Calculate sensible heat flux
 pk <- climdata$pres[hr]
 cp <- cpair(Ta)         # specific heat of air
-ph <- rhohair(Ta, pk)   # molar density of air
+ph <- rhoair(Ta, pk)   # molar density of air
 
 H <- ((ph * cp) / rHa[hr]) * (Ts - Ta)
 
@@ -242,7 +247,7 @@ plot(z ~ Tz, type = "l",
 ```
 ![](images/img3.png)
 
-We now describe the radiation, sensible and latent heat component of the energy budget in more detail, beginning with the simpler case of deriving microclimate conditions above the canopy, before turning to the more complex situation below the canopy. We then turn to modelling ground heat flux, which itself requires modelling of soil water content. Before that there are a few tutorial exercises.
+We now describe the radiation, sensible and latent heat component of the energy budget in more detail, beginning with the simpler case of deriving microclimate conditions above the canopy, before turning to the more complex situation below the canopy. We then turn to modelling ground heat flux, which itself requires modelling of soil water content.
 
 ## Above canopy
 ### Radiation and albedo
@@ -256,9 +261,10 @@ plot(solp$zen ~ as.POSIXct(tme), type = "l",
      xlab = "Month", ylab = "Zenith angle")
 ```
 ![](images/img4.png)
-The reader may wish to use the `sunposition` function to explore how the solar zenith angle changes over the coarse of a single day or with latitude.
 
-The `albedo` function handles albedo calculations, but before demonstrating it, we briefly turn to how direct radiation is attenuated through a vegetated canopy. Because this depends on leaf inclination, which is impractical to specify for individual leaves, we assume a continuous distribution of leaf angles following an oblate or prolate spherical form. This is reasonable for many canopies but may be less appropriate for species with strongly heliotropic leaves or highly directional foliage arrangements. The distribution is defined by a single parameter x, representing the ratio of vertical to horizontal leaf projections (x = 0 for completely horizontal leaves, x = infinity for completely vertical leaves, and x = 1 for random orientation). 
+The reader may wish to use the `sunposition` function to explore how the solar zenith angle changes over the course of a single day or with latitude.
+
+The `albedo` function handles albedo calculations, but before demonstrating it, we briefly turn to how direct radiation is attenuated through a vegetated canopy. Because this depends on leaf inclination, which is impractical to specify for individual leaves, we assume a continuous distribution of leaf angles following an oblate or prolate spherical form. This is reasonable for many canopies but may be less appropriate for species with strongly heliotropic leaves or highly directional foliage arrangements. The distribution is defined by a single parameter x, representing the ratio of horizontal to vertical leaf projections (x = 0 for completely vertical leaves, x = infinity for completely horizontal leaves, and x = 1 for random orientation). 
 
 We also account for the possibility of sloping ground, which alters the optical path length through the canopy. This is handled by computing a solar coefficient that expresses the fraction of direct radiation intercepted by a surface relative to one perpendicular to the solar beam. Terrain shading could additionally be incorporated by setting direct radiation to zero when the sun is below the local horizon. From this, we derive an extinction coefficient that determines how strongly the canopy attenuates direct beam radiation per unit plant area index (PAI):
 
@@ -293,7 +299,7 @@ legend("topleft", legend = c("x = 1", "x = 0.1", "x = 10"),
 ```
 ![](images/img5.png)
 
-You can see here how leaf inclination affects the extinction coefficient: more vertically oriented leaves reduce attenuation when the sun is near its zenith but greatly increase it when the sun is low (high zenith angles). The `albedo` function calls `cank` so there is no need to compute the extinction coefficient separately. it requires several inputs as detailed in the comments below. Here typical values are chosen. The `scattermethod` input just determines which method to use to calculate radiation Scattering directionality factor (see `?scattercoef`). The Sellers method specified by default is marginally less accurate than the computationally more complex Pinty method. The `leafh` input is logical indicating whether the provided plant area index value is per unit horizontal ground area or per unit inclined ground area. 
+You can see here how leaf inclination affects the extinction coefficient: more vertically oriented leaves reduce attenuation when the sun is near its zenith but greatly increase it when the sun is low (high zenith angles). The `albedo` function calls `cank` so there is no need to compute the extinction coefficient separately. It requires several inputs as detailed in the comments below. Here typical values are chosen. The `scattermethod` input just determines which method to use to calculate the radiation scattering directionality factor (see `?scattercoef`). The Sellers method specified by default is marginally less accurate than the computationally more complex Pinty method. The `leafh` input is logical, indicating whether the plant area index is per unit horizontal ground area (`TRUE`) or per unit inclined ground area (`FALSE`). 
 
 ```{r eval=FALSE}
 pai <- 3      # plant area index (m^2 m^-2)
@@ -309,12 +315,20 @@ albvars <- albedo(pai, lref, ltra, x, gref, slope, aspect, solp,
                   scattermethod = "Sellers", leafh = FALSE)
 ```
 
-The function returns albd, the white-sky albedo for diffuse radiation (independent of solar zenith angle and therefore time-invariant); albb, the black-sky albedo for direct radiation (time-varying); and K, the canopy extinction coefficient. To obtain the overall albedo, combine the white- and black-sky components by weighting them according to the fraction of total incoming radiation that is diffuse:
+The function returns albd, the white-sky albedo for diffuse radiation (independent of solar zenith angle and therefore time-invariant); albb, the black-sky albedo for direct radiation (time-varying); and trd, the fraction of diffuse radiation that passes through the canopy to the ground. To obtain the overall albedo, combine the white- and black-sky components by weighting them according to the fraction of the radiation arriving at the surface that is diffuse, which on sloping ground means first working out how much direct radiation the slope receives:
 
 ```{r eval=FALSE}
-# Calculate diffuse fraction
-difprop <- climdata$difrad / climdata$swdown
-difprop[climdata$swdown == 0] <- 1
+# Direct radiation on a surface facing the sun, from that on flat ground
+Rb0 <- (climdata$swdown - climdata$difrad) / cos(solp$zen * pi / 180)
+
+# Direct radiation arriving at the sloping surface
+si <- solarindex(slope, aspect, solp)
+Rdir <- Rb0 * si
+
+# Fraction of the radiation arriving at the slope that is diffuse
+Rtot <- climdata$difrad + Rdir
+difprop <- climdata$difrad / Rtot
+difprop[Rtot == 0] <- 1
 
 # Calculate albedo
 alb <- difprop * albvars$albd + (1 - difprop) * albvars$albb
@@ -324,7 +338,7 @@ plot(alb ~ as.POSIXct(tme), type = "l", ylim = c(0, 1),
 ```
 ![](images/img6.png)
 
-Sun-facing slopes absorb more direct radiation than flat ground, but the extent to which they do depends on how much of that radiation is intercepted by vegetation before reaching the surface. The albedo function returns weighting factors needed to calculate this absorption. These are then used by the `calcRabs` function, which brings everything together to estimate total absorbed radiation, including both shortwave and longwave components, the fraction intercepted and absorbed by vegetation and the fraction absorbed by the underlying ground surface.
+Sun-facing slopes absorb more direct radiation than flat ground. The `calcRabs` function brings everything together to estimate the total radiation absorbed by the vegetation and the underlying ground surface, including both shortwave and longwave components.
 
 Because `calcRabs` and related functions require multiple vegetation and ground parameters, these are grouped into single lists, as shown below. Parameter names follow the same convention as in the micropoint package.
 
@@ -358,11 +372,9 @@ plot(Rabs ~ as.POSIXct(tme), type = "l",
 ### Sensible heat and wind
 The sensible heat flux from a vegetated surface depends on the temperature difference between the surface and the air at a reference height above the canopy, and on how easily moving air can carry that heat away (the convective conductivity, or the inverse of resistance to heat loss). Stronger winds reduce this resistance and allow more heat to be transferred. Because wind speed changes with height — slower near the surface and faster higher up — estimating this resistance requires describing how wind varies vertically. The key quantity that controls this wind-speed profile is the friction velocity, which is simply a measure of how strongly the wind interacts with and “drags” against the surface. In plain terms, it captures how vigorously the wind is stirring the air close to the ground: higher friction velocity means more turbulence and more efficient heat exchange.
 
-The relationship between wind speed at reference height and friction velocity is set by two additional parameters: the roughness length for momentum, which reflects how rough the canopy surface is to the wind, and the zero-plane displacement height, the height above the ground surface at which the wind profile extrapolates to zero. Together, these describe how vegetation slows and redirects airflow, shaping the wind profile near the surface. In the simple example above these parameters were calculated from vegetation height, but in reality they have an additional dependence on the plant area index, and hence functions are included for calculating them.
+The relationship between wind speed at reference height and friction velocity is set by two additional parameters: the roughness length for momentum, which reflects how rough the canopy surface is to the wind, and the zero-plane displacement height, which controls the height above the ground surface at which the wind profile extrapolates to zero. Together, these describe how vegetation slows and redirects airflow, shaping the wind profile near the surface. In the simple example above these parameters were calculated from vegetation height, but in reality they have an additional dependence on the plant area index. The `windfric` function calculates them automatically, but thus requires `pai` to be passed as an input. 
 
-A further complication is that roughness length, friction velocity, and resistance to heat loss all depend on thermally generated turbulence, quantified using diabatic corrections for momentum and heat. These corrections require that the sensible heat flux is known, yet estimating that flux also depends on dibatic coefficients, creating a circular problem that must be solved iteratively. I.e. when a surfaces is heated, the air above it becomes more turbulent and it looses heat more readily, and when it is cooled, the opposite occurs, but in both instances the degree of heat and cooling depends on how much turbulence there is. The `micropoint` package handles this iterative process automatically. In the examples below, we first show how vegetation height influences the shape of the wind and temperature profiles ignoring the diabatic correction coefficients (i.e. by setting the diabatic correction for momentum - `psim` and that for heat `psih` to zero). Below that we show how the how the diabatic correction coefficients can be derived iteratively and influence the shape of the profiles.
-
-In the code below, we first define the wind speed at the reference height, the three canopy heights, and plant area index. We then compute zero-plane displacement, roughness length, and friction velocity for each canopy. Next, we create height vectors spanning from the top of each canopy to zref, apply the wind-profile function to each, and plot the resulting profiles, with dashed lines marking canopy height.
+In the code below, we first define the wind speed at the reference height, the three canopy heights, and plant area index. We then compute the friction velocity. Next, we create height vectors spanning from the top of each canopy to `zref`, apply the wind-profile function to each, and plot the resulting profiles, with dashed lines marking canopy height.
 
 ```{r eval=FALSE}
 # Plot wind profiles for three canopy heights
@@ -371,15 +383,13 @@ zref <- 2            # reference height (m)
 h <- c(0.05, 0.1, 0.5) # vegetation heights (m)
 pai <- 1             # plant area index
 
-d <- zeroplanedis(h, pai)                     # zero-plane displacement
-zm <- roughlength(h, pai, d, psih = 0)       # roughness length
-uf <- windfric(uref, zref, d, zm, psim = 0)  # friction velocity
+uf <- windfric(uref, zref, h, pai)  # friction velocity
 
 # Build height grids and wind profiles
 z_list <- lapply(h, function(hi) seq(hi, zref, length.out = 100))
-uz_list <- Map(function(z, ufi, di, zmi)
-                 windprofile_above(z, ufi, di, zmi, psim = 0),
-               z_list, as.list(uf), as.list(d), as.list(zm))
+uz_list <- Map(function(z, ufi, hi)
+                 windprofile_above(z, ufi, hi, pai),
+               z_list, as.list(uf), as.list(h))
 
 # Bind to matrices for plotting
 Z <- do.call(cbind, z_list)
@@ -395,11 +405,14 @@ matplot(UZ, Z, type = "l", lwd = 2, col = cols, lty = 1,
 
 abline(h = h, lty = 2, col = cols)
 
-legend("topright",
+legend("topleft",
        legend = c("h = 0.05 m", "h = 0.1 m", "h = 0.5 m"),
        col = cols, lwd = 2, bty = "n")
 ```
 ![](images/img8.png)
+
+A further complication is that friction velocity and resistance to heat loss both depend on thermally generated turbulence, quantified using diabatic corrections for momentum and heat. These corrections require that the sensible heat flux is known, yet estimating that flux also depends on diabatic coefficients, creating a circular problem that must be solved iteratively. I.e. when a surface is heated, the air above it becomes more turbulent and it loses heat more readily, and when it is cooled, the opposite occurs, but in both instances the degree of heat and cooling depends on how much turbulence there is. The `micropoint` package handles this iterative process automatically. The wind profiles above ignore the diabatic corrections, and in the example below we show how vegetation height influences the shape of the temperature profile in the same way. This is the default behaviour of the functions, which assume neutral conditions unless told otherwise. Below that we show how the diabatic corrections can be derived iteratively and influence the shape of the profiles.
+
 In the code below we set the air temperature and pressure at the reference height, assume a sensible heat flux of 200 W per square metre, and calculate the volumetric heat capacity of air. We then compute the resistance to zref for each canopy and use this to estimate its heat-exchange surface temperature. Next, we obtain resistances for each height vector and, together with the surface temperatures, derive temperature–height profiles, which are then plotted.
 
 ```{r eval=FALSE}
@@ -408,20 +421,18 @@ tref <- 15        # air temperature at reference height (°C)
 pk <- 101.3       # pressure (kPa)
 H <- 200          # sensible heat flux (W m^-2)
 
-phcp <- rhohair(tref, pk) * cpair(tref) # volumetric heat capacity of air
+phcp <- rhoair(tref, pk) * cpair(tref) # volumetric heat capacity of air
 
 # Resistance to reference height for each canopy
-rHa_ref <- mapply(function(di, zmi, ufi)
-  canopyresistance(zref, di, zmi, ufi, psih = 0),
-  d, zm, uf)
+rHa_ref <- canopyresistance(zref, uf, h, pai)
 
 # Heat-exchange surface temperature
 th <- tref + (rHa_ref / phcp) * H
 
 # Resistance and temperature profiles
-rHa_z_list <- Map(function(z, di, zmi, ufi)
-                    canopyresistance(z, di, zmi, ufi, psih = 0),
-                  z_list, as.list(d), as.list(zm), as.list(uf))
+rHa_z_list <- Map(function(z, ufi, hi)
+                    canopyresistance(z, ufi, hi, pai),
+                  z_list, as.list(uf), as.list(h))
 
 tz_list <- Map(function(rHa_i, th_i)
                  th_i - (rHa_i / phcp) * H,
@@ -444,7 +455,8 @@ legend("topright",
        col = cols, lwd = 2, lty = 1, bty = "n")
 ```
 ![](images/img9.png)
-In the examples below, we show how the diabatic coefficients are derived iteratively and demonstrate their influence on the temperature and wind profiles. In contrast to the previous examples, we set the radiation absorbed the canopy (`Rabs`) and then calculate the sensible heat flux explicitly. In the first example we set a high value for `Rabs` to ensure surface heating. The diabatic coefficients `psim` and `psih` are initially set to zero, so the wind and temperature profiles are calculated as before, except that the sensible heat flux is now obtained from the heat-exchange surface temperature using `SolveEnergyBalance`, rather than specified directly. We then use a `while` loop to update the diabatic coefficients iteratively, repeating the calculations until `psim` converges. To do this, we calculate a quantity called the Obukhov length, which is simply a measure of the height above the surface where buoyancy begins to meaningfully influence turbulence, and is the main parameter used to calculate the degree of turbulence.
+
+In the examples below, we show how the diabatic coefficients are derived iteratively and demonstrate their influence on the temperature and wind profiles. In contrast to the previous examples, we set the radiation absorbed by the canopy (`Rabs`) and then calculate the sensible heat flux explicitly. In the first example we set a high value for `Rabs` to ensure surface heating. Neutral conditions are assumed initially, so the wind and temperature profiles are calculated as before, except that the sensible heat flux is now obtained from the heat-exchange surface temperature using `SolveEnergyBalance`, rather than specified directly. The degree to which heating or cooling of the surface alters turbulence is described by a quantity called the Obukhov length, which is simply a measure of the height above the surface where buoyancy begins to meaningfully influence turbulence. It is calculated from the friction velocity and the sensible heat flux, and is passed to the functions as the input `LL`, from which they calculate the diabatic corrections internally. We therefore calculate the Obukhov length from the neutral solution and then use a `while` loop to update it iteratively, repeating the calculations until the friction velocity converges.
 
 ```{r eval=FALSE}
 # -------------------------------------------------------------- #
@@ -455,51 +467,42 @@ Rabs <- 1000 # absorbed radiation (W m^-2); high value heats canopy
 z <- seq(0.12, 2, length.out = 100) # heights above a 0.12 m canopy (m)
 
 # * * Compute wind profile assuming neutral atmospheric conditions * * #
-d <- zeroplanedis(h = 0.12, pai = 1) # zero-plane displacement height
-zm <- roughlength(h = 0.12, pai = 1, d, psih = 0) # roughness length for momentum transfer
-uf <- windfric(uref = 3, zref = 2, d, zm, psim = 0) # friction velocity
-uz1 <- windprofile_above(z, uf, d, zm, psim = 0)
+uf <- windfric(uref = 3, zref = 2, h = 0.12, pai = 1) # friction velocity
+uz1 <- windprofile_above(z, uf, h = 0.12, pai = 1)
 
 # * * Compute temperature profile assuming neutral conditions * * #
-rHa <- canopyresistance(z = 2, d, zm, uf, psih = 0) # aerodynamic resistance
+rHa <- canopyresistance(z = 2, uf, h = 0.12, pai = 1) # aerodynamic resistance
 th <- SolveEnergyBalance(Ta = 15, pk = 101.3, rh = 75, Rabs, rHa, rS = 100,
                          G = 0, em = 0.97,
                          method = "uniroot") # canopy temperature
-phcp <- rhohair(15, 101.3) * cpair(15) # volumetric heat capacity of air
+phcp <- rhoair(15, 101.3) * cpair(15) # volumetric heat capacity of air
 H <- (phcp / rHa) * (th - 15) # sensible heat flux
-rHa <- canopyresistance(z, d, zm, uf, psih = 0) # resistance at each height
+rHa <- canopyresistance(z, uf, h = 0.12, pai = 1) # resistance at each height
 tz1 <- th - (rHa / phcp) * H # air temperature profile
 
-# * * * * * Iterate to derive diabatic coefficients * * * * * #
-psim <- psih <- 0 # initially assume neutral conditions
+# * * * * * Iterate to derive the Obukhov length * * * * * #
+LL <- Obukhov(15, 101.3, uf, H) # Obukhov length from the neutral solution
 tol <- 1e-9 # convergence tolerance
 error <- tol * 100
 
 while (error > tol) {
-  zm <- roughlength(h = 0.12, pai = 1, d, psih) # update roughness length
-  uf <- windfric(uref = 3, zref = 2, d, zm, psim) # update friction velocity
-  rHa <- canopyresistance(z = 2, d, zm, uf, psih) # update aerodynamic resistance
+  olduf <- uf
+  uf <- windfric(uref = 3, zref = 2, h = 0.12, pai = 1, LL) # update friction velocity
+  rHa <- canopyresistance(z = 2, uf, h = 0.12, pai = 1, LL) # update aerodynamic resistance
 
   th <- SolveEnergyBalance(Ta = 15, pk = 101.3, rh = 75, Rabs, rHa,
                            rS = 100, G = 0, em = 0.97,
                            method = "uniroot") # updated canopy temperature
 
   H <- (phcp / rHa) * (th - 15) # updated sensible heat flux
-  oldpsim <- psim
+  LL <- Obukhov(15, 101.3, uf, H) # updated Obukhov length
 
-  LL <- Obukhov(15, 101.3, uf, H) # Obukhov length
-  psim <- dpsim(zm / LL) - dpsim((zref - d) / LL) # momentum correction
-  psih <- dpsih((0.2 * zm) / LL) - dpsih((zref - d) / LL) # heat correction
-
-  error <- abs(psim - oldpsim)
+  error <- abs(uf - olduf)
 }
 
 # * * Recalculate profiles including diabatic corrections * * #
-psims <- dpsim(zm / LL) - dpsim((z - d) / LL)
-psihs <- dpsih((0.2 * zm) / LL) - dpsih((z - d) / LL)
-
-uz2 <- windprofile_above(z, uf, d, zm, psims) # wind profile with stability corrections
-rHa <- canopyresistance(z, d, zm, uf, psihs)
+uz2 <- windprofile_above(z, uf, h = 0.12, pai = 1, LL) # wind profile with stability corrections
+rHa <- canopyresistance(z, uf, h = 0.12, pai = 1, LL) # resistance at each height
 tz2 <- th - (rHa / phcp) * H # temperature profile with stability corrections
 ```
 
@@ -514,48 +517,42 @@ Rabs <- 250 # absorbed radiation (W m^-2); low value cools canopy
 z <- seq(0.12, 2, length.out = 100) # heights above a 0.12 m canopy (m)
 
 # * * Compute temperature profile assuming neutral conditions * * #
-rHa <- canopyresistance(z = 2, d, zm, uf, psih = 0) # aerodynamic resistance
+uf <- windfric(uref = 3, zref = 2, h = 0.12, pai = 1) # friction velocity
+rHa <- canopyresistance(z = 2, uf, h = 0.12, pai = 1) # aerodynamic resistance
 th <- SolveEnergyBalance(Ta = 15, pk = 101.3, rh = 75, Rabs, rHa, rS = 100,
                          G = 0, em = 0.97,
                          method = "uniroot") # canopy temperature
 
-phcp <- rhohair(15, 101.3) * cpair(15) # volumetric heat capacity of air
+phcp <- rhoair(15, 101.3) * cpair(15) # volumetric heat capacity of air
 H <- (phcp / rHa) * (th - 15) # sensible heat flux
 
-rHa <- canopyresistance(z, d, zm, uf, psih = 0) # resistance at each height
-uz3 <- uz1 # unchanged because wind profile is initially neutral
+rHa <- canopyresistance(z, uf, h = 0.12, pai = 1) # resistance at each height
+uz3 <- uz1 # the neutral wind profile is the same as for the heated surface
 tz3 <- th - (rHa / phcp) * H # air temperature profile
 
-# * * * * * Iterate to derive diabatic coefficients * * * * * #
-psim <- psih <- 0 # initially assume neutral conditions
+# * * * * * Iterate to derive the Obukhov length * * * * * #
+LL <- Obukhov(15, 101.3, uf, H) # Obukhov length from the neutral solution
 tol <- 1e-9 # convergence tolerance
 error <- tol * 100
 
 while (error > tol) {
-  zm <- roughlength(h = 0.12, pai = 1, d, psih) # update roughness length
-  uf <- windfric(uref = 3, zref = 2, d, zm, psim) # update friction velocity
-  rHa <- canopyresistance(z = 2, d, zm, uf, psih) # update aerodynamic resistance
+  olduf <- uf
+  uf <- windfric(uref = 3, zref = 2, h = 0.12, pai = 1, LL) # update friction velocity
+  rHa <- canopyresistance(z = 2, uf, h = 0.12, pai = 1, LL) # update aerodynamic resistance
 
   th <- SolveEnergyBalance(Ta = 15, pk = 101.3, rh = 75, Rabs, rHa,
                            rS = 100, G = 0, em = 0.97,
                            method = "uniroot") # updated canopy temperature
 
   H <- (phcp / rHa) * (th - 15) # updated sensible heat flux
-  oldpsim <- psim
+  LL <- Obukhov(15, 101.3, uf, H) # updated Obukhov length
 
-  LL <- Obukhov(15, 101.3, uf, H) # Obukhov length
-  psim <- dpsim(zm / LL) - dpsim((zref - d) / LL) # momentum correction
-  psih <- dpsih((0.2 * zm) / LL) - dpsih((zref - d) / LL) # heat correction
-
-  error <- abs(psim - oldpsim)
+  error <- abs(uf - olduf)
 }
 
 # * * Recalculate temperature and wind profile * * #
-psims <- dpsim(zm / LL) - dpsim((z - d) / LL)
-psihs <- dpsih((0.2 * zm) / LL) - dpsih((z - d) / LL)
-
-uz4 <- windprofile_above(z, uf, d, zm, psims) # wind profile with stability corrections
-rHa <- canopyresistance(z, d, zm, uf, psihs) # resistance at each height
+uz4 <- windprofile_above(z, uf, h = 0.12, pai = 1, LL) # wind profile with stability corrections
+rHa <- canopyresistance(z, uf, h = 0.12, pai = 1, LL) # resistance at each height
 tz4 <- th - (rHa / phcp) * H # temperature profile with stability corrections
 ```
 
@@ -622,12 +619,104 @@ legend("topleft", legend = c("Neutral", "Diabatic"),
 ```
 ![](images/img10.png)
 
-When the surface is heated, the diabatic coefficients increase turbulence, producing a slight increase in friction velocity (`uf`) and a more curved wind profile than under neutral conditions. When the surface is cooled, the diabatic coefficients suppress turbulence, reducing uf and producing a less curved profile. The temperature profiles behave similarly: under heating, the diabatic coefficients reduce resistance to heat loss, lowering canopy-top temperatures relative to the neutral case while increasing profile curvature. Under cooling, resistance to heat loss increases, leading to stronger thermal stratification and less curvature in the profile.
+When the surface is heated, buoyancy adds to turbulence, producing a slight increase in friction velocity (`uf`). The air is mixed more thoroughly, so wind speed is more uniform with height than under neutral conditions and is higher close to the canopy. When the surface is cooled, buoyancy suppresses turbulence, reducing `uf`, and wind speed close to the canopy is lower and increases more steadily with height. The temperature profiles behave similarly: under heating, resistance to heat loss is reduced, lowering canopy-top temperatures relative to the neutral case and confining the steepest part of the temperature gradient to the air just above the canopy. Under cooling, resistance to heat loss increases, so the canopy and the air close to it are colder than in the neutral case and the temperature difference extends further up the profile.
+
+#### Low wind speeds
+The calculations above run into difficulty when there is very little wind. As wind speed approaches zero, friction velocity and turbulent heat exchange also decline, causing resistance to heat loss to become very large. Sun-heated surfaces then attain unrealistically high modelled temperatures. In reality, a hot surface generates its own air movement: the air warmed by the surface rises and draws in cooler air.This process, known as free convection, maintains heat exchange even in still conditions.
+
+The function `effectivewind` accounts for free convection by estimating the velocity of the rising air from the sensible heat flux and combining it with the measured wind speed.This effective wind speed replaces the measured wind speed when calculating friction velocity. When heat flows from the air to the surface, free convection does not occur and the measured wind speed is used unchanged. Because the calculation depends on sensible heat flux, effective wind speed is updated iteratively alongside the Obukhov length.
+
+The code below calculates the temperature of a strongly heated canopy across a range of wind speeds, using the same approach as the heated surface example above. We compare results with and without free convection and plot the differences.
+
+```{r eval=FALSE}
+# Canopy temperature of a strongly heated surface at a given wind speed
+canopytemp <- function(uref, convection) {
+  phcp <- rhoair(15, 101.3) * cpair(15) # volumetric heat capacity of air
+  H <- 0     # sensible heat flux, none initially
+  LL <- Inf  # neutral conditions initially
+  uf <- 0
+  error <- 1
+
+  while (error > 1e-9) {
+    olduf <- uf
+    u <- uref
+    # Add the stirring of the air by convection to the measured wind
+    if (convection) u <- effectivewind(uref, H, tc = 15, pk = 101.3)
+
+    uf <- windfric(u, zref = 2, h = 0.12, pai = 1, LL) # friction velocity
+    rHa <- canopyresistance(z = 2, uf, h = 0.12, pai = 1, LL) # aerodynamic resistance
+
+    th <- SolveEnergyBalance(Ta = 15, pk = 101.3, rh = 75, Rabs = 1000, rHa,
+                             rS = 100, G = 0, em = 0.97,
+                             method = "Penman", iters = 5) # canopy temperature
+
+    H <- (phcp / rHa) * (th - 15) # sensible heat flux
+    LL <- Obukhov(15, 101.3, uf, H) # Obukhov length
+
+    error <- abs(uf - olduf)
+  }
+  return(th)
+}
+
+# Canopy temperature across a range of wind speeds
+uref <- seq(0.05, 3, length.out = 60) # wind speed at reference height (m/s)
+th1 <- sapply(uref, canopytemp, convection = FALSE) # measured wind only
+th2 <- sapply(uref, canopytemp, convection = TRUE)  # with convection
+
+plot(th1 ~ uref, type = "l", lwd = 2, ylim = c(20, 90),
+     xlab = "Wind speed (m/s)", ylab = "Canopy temperature")
+lines(th2 ~ uref, lwd = 2, col = "red")
+
+legend("topright", legend = c("Measured wind", "Effective wind"),
+       col = c("black", "red"), lwd = 2, bty = "n")
+```
+![](images/img10a.png)
+
+Using measured wind speed alone, canopy temperature rises steeply as the wind drops and exceeds 80 °C in near-calm conditions. With the effective wind speed, canopy temperature levels off at about 29 °C, because the convection generated by the surface itself is then sufficient to carry the heat away. At higher wind speeds convection adds less to the measured wind and the two estimates converge, differing by about 1 °C at 3 m/s.
+
+#### The roughness sublayer
+So far, we have calculated how wind speed and temperature vary with height using a standard approach known as Monin-Obukhov Similarity Theory (MOST). This describes how turbulent mixing changes with height above the ground, accounting for both wind and the effects of atmospheric stability. A key assumption is that the turbulent eddies responsible for mixing become progressively larger with height. However, this assumption breaks down just above vegetation, particularly forests. Where faster-moving air above the canopy meets slower-moving air within it, large eddies form that enhance mixing. The region influenced by these eddies is known as the roughness sublayer. It extends only a short distance above low vegetation, but can reach several metres above a forest canopy.
+
+The functions `windfric`, `windprofile_above` and `canopyresistance` use MOST by default (`MOST = TRUE`), as in the examples above. Setting `MOST = FALSE` also accounts for the enhanced mixing within the roughness sublayer. Below, we calculate wind profiles above a 10 m forest canopy under neutral atmospheric conditions, with and without this adjustment. We then plot the results, marking the top of the roughness sublayer with a dashed line.
+
+```{r eval=FALSE}
+# Wind profile above a forest canopy with and without a roughness sublayer
+uref <- 3   # wind speed at reference height (m/s)
+zref <- 20  # reference height (m)
+h <- 10     # vegetation height (m)
+pai <- 3    # plant area index
+
+z <- seq(h, zref, length.out = 100) # heights above canopy (m)
+
+# Standard profile
+uf1 <- windfric(uref, zref, h, pai) # friction velocity
+uz1 <- windprofile_above(z, uf1, h, pai)
+
+# Profile with a roughness sublayer
+uf2 <- windfric(uref, zref, h, pai, MOST = FALSE) # friction velocity
+uz2 <- windprofile_above(z, uf2, h, pai, MOST = FALSE)
+
+# Height of the top of the roughness sublayer
+d <- zeroplanedis(h, pai) # zero-plane displacement height
+zw <- d + 2 * (h - d)
+
+plot(z ~ uz1, type = "l", lwd = 2,
+     xlim = c(1, 3), ylim = c(h, zref),
+     xlab = "Wind speed (m/s)", ylab = "Height (m)")
+lines(z ~ uz2, lwd = 2, col = "red")
+abline(h = zw, lty = 2)
+
+legend("topleft", legend = c("Standard", "Roughness sublayer"),
+       col = c("black", "red"), lwd = 2, bty = "n")
+```
+![](images/img10b.png)
+
+Within the roughness sublayer the more effective mixing means that wind speed changes less steeply with height, so the wind at the canopy top is slightly stronger. Above the sublayer both profiles are logarithmic and converge on the wind speed at the reference height. The effects of the roughness sublayer on heat exchange are covered later.
 
 ### Latent heat and stomatal conductance
-In our simple microclimate example, bulk surface stomatal resistance to vapour loss is calculated using a basic approach in which stomata respond only to photosynthetically active radiation. In reality, transpiration is a dynamic, regulated process: stomata respond to light, humidity, temperature, and soil moisture, balancing carbon uptake against the risk of excessive water loss. Capturing this behaviour requires a more detailed representation of stomatal resistance. The model presented below is an analytical stomatal-optimisation scheme developed as part of the xylem-hydraulics component of the Joint UK Land Environment Simulator (JULES) land-surface model (Ellers et al., 2020).
+In our simple microclimate example, bulk surface stomatal resistance to vapour loss is calculated using a basic approach in which stomata respond only to photosynthetically active radiation. In reality, transpiration is a dynamic, regulated process: stomata respond to light, humidity, temperature, and soil moisture, balancing carbon uptake against the risk of excessive water loss. Capturing this behaviour requires a more detailed representation of stomatal resistance. The model presented below is an analytical stomatal-optimisation scheme developed as part of the xylem-hydraulics component of the Joint UK Land Environment Simulator (JULES) land-surface model (Eller et al., 2020).
 
-This model is relatively parameter-rich, so a table of values for major plant functional types is included with the tutorial package. The helper function createplant_inputs() extracts the relevant values and returns a ready-to-use vector of vegetation parameters for a chosen plant functional type. The available plant functional types (see ?PFTtable) are intentionally broad and are best treated as starting points for more detailed, site- or species-specific parameterisation. For example, a nominal vegetation height is provided, but users will often have better information for their target vegetation. Many of the remaining traits correspond to those available in the TRY database.
+This model is relatively parameter-rich, so a table of values for major plant functional types is included with the tutorial package. The helper function createplant_inputs() extracts the relevant values and returns a ready-to-use list of vegetation parameters for a chosen plant functional type. The available plant functional types (see ?PFTtable) are intentionally broad and are best treated as starting points for more detailed, site- or species-specific parameterisation. For example, a nominal vegetation height is provided, but users will often have better information for their target vegetation. Many of the remaining traits correspond to those available in the TRY database.
 
 In the example below, we first extract vegetation parameters for C3 grass and then run the key function stomatalcond_calc. This returns stomatal conductance (the inverse of resistance), calculated at the leaf scale. Although the model is intended for individual leaves, it is useful to first explore how conductance responds to environmental drivers, so we illustrate this here.
 
@@ -643,78 +732,78 @@ par(mfrow = c(2, 3))
 # CO2 concentration
 Ca <- 280:450 # CO2 concentration (ppm)
 
-gs <- stomatalcond_calc(Ca, Rsw = 500, tair = 20, tleaf = 25,
+gs <- stomatalcond_calc(Ca, Rswabs = 500, tair = 20, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
 plot(gs ~ Ca, type = "l",
      xlab = expression(CO[2] ~ "concentration (ppm)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 
 # Shortwave radiation
-Rsw <- 0:1000 # incident shortwave radiation (W m^-2)
+Rswabs <- 0:1000 # radiation absorbed by the leaf (W m^-2), of which 48% is taken to be PAR
 
-gs <- stomatalcond_calc(Ca = 400, Rsw, tair = 20, tleaf = 25,
+gs <- stomatalcond_calc(Ca = 400, Rswabs, tair = 20, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ Rsw, type = "l",
-     xlab = expression("Solar radiation (W " * m^-2 * ")"),
+plot(gs ~ Rswabs, type = "l",
+     xlab = expression("Absorbed radiation (W " * m^-2 * ")"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 
 # Air temperature
 tair <- (100:300) / 10 # air temperature (°C)
 
-gs <- stomatalcond_calc(Ca = 400, Rsw = 500, tair, tleaf = 25,
+gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
 plot(gs ~ tair, type = "l",
      xlab = expression("Air temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 
 # Leaf temperature
 tleaf <- (100:300) / 10 # leaf temperature (°C)
 
-gs <- stomatalcond_calc(Ca = 400, Rsw = 500, tair = 20, tleaf,
+gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
 plot(gs ~ tleaf, type = "l",
      xlab = expression("Leaf temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 
 # Relative humidity
 rh <- 50:100 # relative humidity (%)
 
-gs <- stomatalcond_calc(Ca = 400, Rsw = 500, tair = 20, tleaf = 25,
+gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
                         rh, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
 plot(gs ~ rh, type = "l",
      xlab = "Relative humidity (%)",
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 
 # Atmospheric pressure
 pk <- c(980:1040) / 10 # pressure (kPa)
 
-gs <- stomatalcond_calc(Ca = 400, Rsw = 500, tair = 20, tleaf = 25,
+gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
                         rh = 75, pk, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
 plot(gs ~ pk, type = "l",
      xlab = "Atmospheric pressure (kPa)",
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 ```
 ![](images/img11.png)
 
-Stomatal conductance is sensitive to CO2 and strongly responsive to solar radiation under low light conditions. It also responds to leaf–air temperature differences, but shows weaker sensitivity to other climatic variables. In practice, leaves can regulate their temperature by increasing transpiration when they get too hot.
+Stomatal conductance declines modestly with increasing CO2, as higher ambient concentrations allow the same rate of carbon assimilation with a smaller stomatal aperture. It rises steeply with radiation at low light levels, reflecting light limitation of photosynthesis, but soon saturates, changing little once the leaf absorbs more than about 100 W m^-2^. The temperature panels reflect both a direct effect of temperature on photosynthetic rates and a strong indirect effect through VPD: as the difference between leaf and air temperature changes, so does the vapour pressure deficit, altering the hydraulic cost of transpiration. Where the prescribed combination of leaf and air temperature drives VPD toward zero, stomatal conductance rises sharply to its anatomical maximum, and it remains there when the leaf is at or below the dewpoint of the air, as there is then no vapour pressure deficit and so no water to be lost by opening the stomata. In practice these conditions are very rarely encountered because leaf temperature almost invariably exceeds air temperature during the day, maintaining a positive VPD. Above the dewpoint, stomatal conductance declines with increasing leaf temperature as higher leaf temperatures drive greater VPD. Conductance increases with relative humidity and shows weak sensitivity to atmospheric pressure.
 
 The final environmental input is soil water potential, which captures drought stress. Because most ecologists are more familiar with volumetric soil moisture, the package includes a helper function to convert moisture to water potential. This conversion requires three soil parameters: saturated volumetric water content, a shape parameter (`b`), and the air-entry water potential (`psi_e`). Lookup values for these parameters are provided in the built-in `soilparams` dataset in the `micropoint` package; in the example below, we use values for clay loam. 
 
@@ -723,15 +812,15 @@ The final environmental input is soil water potential, which captures drought st
 ?micropoint::soilparams
 
 # Select values for clay loam
-Smin <- 0.091 # volumetric water content at wilting point
+Smin <- 0.091 # residual volumetric water content
 Smax <- 0.419 # volumetric water content at saturation
 b <- 5.2      # shape parameter
-psie <- 2.6   # air-entry water potential
+psie <- 2.6   # air-entry water potential (J/kg)
 
 theta <- seq(Smin, Smax, length.out = 100) # volumetric water content
-psi_r <- PsiFromtheta(theta, psie, b, Smax) # soil water potential
+psi_r <- PsiFromtheta(theta, psie, b, Smax) # soil water potential (MPa)
 
-gs <- stomatalcond_calc(Ca = 400, Rsw = 500, tair = 20, tleaf = 25,
+gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r,
                         vegparams, z, C3 = TRUE)
 
@@ -740,13 +829,13 @@ par(mfrow = c(1, 1))
 plot(gs ~ theta, type = "l",
      xlab = expression("Volumetric water content (m"^3 * " m"^-3 * ")"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.1))
+     ylim = c(0, 0.5))
 ```
 ![](images/img12.png)
 
-Here we see that leaves sharply restrict water loss as soil moisture declines.
+Here we see that stomatal conductance is insensitive to soil moisture while the soil is reasonably wet, but declines sharply as it dries.
 
-Next, we scale stomatal conductance from individual leaves to the canopy as a whole. In principle this could be done by summing conductances across all leaves, but a simpler and more practical approach is to assume that the dominant source of within-canopy variation in stomatal conductance is the availability of photosynthetically active radiation (PAR). We therefore partition the canopy into sunlit and shaded components, compute the total sunlit and shaded leaf area per unit ground area, and estimate representative PAR flux densities for each. Leaf-level stomatal conductance is then evaluated under these two light regimes and scaled to the canopy by weighting by the corresponding sunlit and shaded leaf area. This is done using the function `bulkstomatalresist_calc` (which returns resistance as opposed to conductance). To compute the sunlit leaf area we also need to know the sun's position, hence this is provided as an input. Below we demonstrate how bulk stomatal conductance scales relative to leaf stomatal conductance as a function of plant area
+Next, we scale stomatal conductance from individual leaves to the canopy as a whole. In principle this could be done by summing conductances across all leaves, but a simpler and more practical approach is to assume that the dominant source of within-canopy variation in stomatal conductance is the availability of photosynthetically active radiation (PAR). We therefore partition the canopy into sunlit and shaded components, compute the total sunlit and shaded leaf area per unit ground area, and estimate representative PAR flux densities for each. Leaf-level stomatal conductance is then evaluated under these two light regimes and scaled to the canopy by weighting by the corresponding sunlit and shaded leaf area. This is done using the function `bulkstomatalresist_calc` (which returns resistance as opposed to conductance). To compute the sunlit leaf area we also need to know the sun's position, hence this is provided as an input. The function also requires the fraction of plant area that is living leaf (`Lfrac`), as woody material does not transpire; here we set it to one. Below we demonstrate how bulk stomatal conductance scales relative to leaf stomatal conductance as a function of plant area.
 
 ```{r eval=FALSE}
 # ===================================================================== #
@@ -766,7 +855,7 @@ Rdif <- 300 # diffuse radiation (W m^-2)
 
 om <- vegparams$lrefp + vegparams$ltrap # leaf reflectance + transmittance (PAR)
 
-k <- cank(solp, x = 1,
+k <- cank(solp, x = vegparams$x,
           cos(solp$zen * pi / 180)) # canopy extinction coefficient
 
 # Compute absorbed radiation
@@ -785,7 +874,8 @@ gs <- stomatalcond_calc(Ca = 430, Rswabs, tair = 11, tleaf = 30,
 # ~~~~~~~~ Compute bulk stomatal conductance for C3 grass ~~~~~~~~~~~~~ #
 # ===================================================================== #
 
-PAI <- (1:400) / 100
+PAI <- (1:400) / 100 # plant area index
+Lfrac <- 1 # fraction of plant area that is living leaf
 
 # Compute bulk stomatal resistance
 rS <- 0
@@ -797,11 +887,11 @@ for (i in 1:length(PAI)) {
   rS[i] <- bulkstomatalresist_calc(solp, Ca = 430, Rsw, Rdif,
                                    tair = 11, tcanopy = 30,
                                    rh = 75, pk = 101.3,
-                                   psi_r = 0, vegp2)
+                                   psi_r = 0, vegp2, Lfrac)
 }
 
 # Convert to bulk stomatal conductance
-gS <- rhohair(11, 101.3) / rS
+gS <- rhoair(11, 101.3) / rS
 
 # ===================================================================== #
 # Compute ratio of bulk surface to leaf conductance and plot results
@@ -820,18 +910,18 @@ abline(h = 1, lty = 2, col = "red")
 ```
 ![](images/img13.png)
 
-We can see that the ratio doesn't scale linearly with the total plant area index because of the degree of shelf-shading. The bulk stomatal conductance when PAI = 4 is only 1.62 times higher than leaf conductance.
+We can see that bulk stomatal conductance rises almost in proportion to plant area index. It falls a little short of doing so because of self-shading: as plant area increases, a greater share of the leaves are shaded and receive less light. The effect is small, as stomatal conductance saturates at low light levels, so shaded leaves conduct almost as much as sunlit ones. When PAI = 4, bulk stomatal conductance is 3.5 times leaf conductance.
 
 ### A more complex microclimate model
 We now combine the concepts described previously to simulate canopy microclimate using the `solve_wholecanopy` function. For each hour, this function calculates absorbed radiation using `calcRabs`, iteratively solves for diabatic coefficients, friction velocity, and bulk surface stomatal resistance, and updates canopy temperature until convergence. Soil water content and ground heat storage are specified using simplified inputs. Because calculations are performed independently for each hour, the function must be called sequentially to generate a time series; here we illustrate this for June.
 
-We first define input parameters, starting from defaults for a C3 grassland but reducing canopy height and plant area index. Atmospheric CO2 is estimated using functions from `micropoint`, and weather data are subset to June.
+We first define input parameters, starting from defaults for a C3 grassland but reducing canopy height and plant area index, and setting the fraction of plant area that is living leaf. Atmospheric CO2 is estimated using functions from `micropoint`, and weather data are subset to June.
 
 We then define vectors for soil water content and ground heat storage and call `solve_wholecanopy` for each hour. Finally, we show how the outputs can be used to estimate air temperature at 0.2 m above ground.
 
 ```{r eval=FALSE}
 # ----------------------- Create data inputs ------------------------------- #
-weather <- micropoint::climdata
+weather <- climdata
 
 tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
 sel <- which(tme$mon + 1 == 6) # select hours in June
@@ -843,6 +933,7 @@ groundp <- micropoint::groundparams
 vegp <- createplant_inputs("C3")
 vegp$h <- 0.12  # vegetation height (m)
 vegp$pai <- 0.5 # plant area index
+Lfrac <- 0.6    # fraction of plant area that is living leaf
 
 Ca <- micropoint::Cafromyear(2017) # atmospheric CO2 concentration (ppm)
 
@@ -882,30 +973,19 @@ for (hr in 1:720) {
   can <- solve_wholecanopy(weather, vegp, groundp, hr,
                            lat = 49.96807, long = -5.215668,
                            zref = 2, G[hr],
-                           theta[hr], soilrh[hr], Ca)
-
-  # ------------- Calculate diabatic coefficient at reqhgt ----------------- #
-  d <- zeroplanedis(vegp$h, vegp$pai) # zero-plane displacement height
-
-  zm <- roughlength(vegp$h, vegp$pai, d,
-                    can$psih) # roughness length (momentum)
-
-  zh <- 0.2 * zm # roughness length (heat)
-
-  psih <- dpsih(zh / can$LL) -
-          dpsih((reqhgt - d) / can$LL) # diabatic correction
+                           theta[hr], soilrh[hr], Ca, Lfrac = Lfrac)
 
   # ---------------- Calculate temperature at reqhgt ----------------------- #
 
   # Volumetric heat capacity of air
-  phcp <- rhohair(weather$temp[hr], weather$pres[hr]) *
+  phcp <- rhoair(weather$temp[hr], weather$pres[hr]) *
           cpair(weather$temp[hr])
 
-  # Air temperature profile
-  mu <- can$H / (0.41 * phcp * can$uf)
+  # Resistance to heat transfer between the canopy and reqhgt
+  rHa <- canopyresistance(reqhgt, can$uf, vegp$h, vegp$pai, can$LL)
 
-  Tz[hr] <- can$tcanopy -
-            mu * (log((reqhgt - d) / zh) + psih)
+  # Air temperature at reqhgt
+  Tz[hr] <- can$tcanopy - (can$H / phcp) * rHa
 }
 
 # ----------------------------- Plot results ------------------------------- #
@@ -938,7 +1018,7 @@ legend("topright",
 ```
 ![](images/image13b.png)
 
-Though described as more complex, the processes outlined so far are in fact a simplification, treating the vegetation surface as a homogeneous layer with no vertical temperature variation and a single canopy-scale energy balance. In reality, most canopies exhibit strong vertical temperature gradients, making this assumption inaccurate. Resolving these gradients requires representing the canopy as interacting vertical layers, each with its own energy balance, where conditions reflect both local leaf exchange and heat transported from elsewhere in the canopy. We tackle this in the next section, but a key requirement is estimating the Lagrangian timescale—the characteristic time over which air retains the thermal influence of leaves as it moves through the canopy. This is not directly observable, and is typically inferred by assuming that effective thermal diffusivity—the efficiency of heat transport by turbulent mixing—transitions smoothly from within the canopy to the air above. The derivation of this approach is outlined in the accompanying equations vignette.
+Though described as more complex, the processes outlined so far are in fact a simplification, treating the vegetation surface as a homogeneous layer with no vertical temperature variation and a single canopy-scale energy balance. In reality, most canopies exhibit strong vertical temperature gradients, making this assumption inaccurate. Resolving these gradients requires representing the canopy as interacting vertical layers, each with its own energy balance, where conditions reflect both local leaf exchange and heat transported from elsewhere in the canopy. We tackle this in the next section.
 
 ## Below canopy
 
@@ -947,8 +1027,7 @@ A two-stream radiation model extends the concepts introduced for albedo by expli
 
 The `twostream` function implements these processes by combining vegetation properties (leaf area, reflectance, and transmittance) with ground surface characteristics (reflectance, slope, and aspect), together with information on solar position and the total and diffuse downward fluxes at the top of the canopy. The function returns the downward and upward diffuse fluxes, the downward direct flux, as well as the shortwave radiation absorbed by leaves and the underlying ground surface.
 
-To illustrate the application of the `twostream`, we first create the necessary vegetation inputs, including a profile of plant area index values and multiple heights in the canopy. We use inbuilt datasets and functions in the `micropoint`
-package to do this:
+To illustrate the application of the `twostream` function, we first create the necessary vegetation inputs, including a profile of plant area index values at multiple heights in the canopy. We use inbuilt datasets and functions in the `micropoint` package to do this:
 
 ```{r eval=FALSE}
 # Use inbuilt vegetation parameter dataset from micropoint package
@@ -963,7 +1042,7 @@ paii <- micropoint::PAIgeometry(PAI = vegp$pai,
 z <- ((1:1000) / 1000) * vegp$h # height above ground (m)
 
 plot(z ~ paii, type = "l",
-     xlab = "Plant area index density",
+     xlab = "Plant area index of each layer",
      ylab = "Height (m)",
      main = paste0("Total PAI: ", round(sum(paii), 2)))
 ```
@@ -973,7 +1052,7 @@ Next we generate the rest of the required inputs:
 
 ```{r eval=FALSE}
 # Extract data for a sunny hour
-weather <- micropoint::climdata
+weather <- climdata
 
 swdown <- weather$swdown[4094] # incoming shortwave radiation (W m^-2)
 difrad <- weather$difrad[4094] # diffuse radiation (W m^-2)
@@ -983,15 +1062,14 @@ tme <- as.POSIXlt(weather$obs_time[4094], tz = "UTC")
 solp <- sunposition(tme, lat = 49.96807, long = -5.215668)
 ```
 
-After that, it is a simple case of running the twostream model. In the example below, we also plot outputs to show how the fluxes vary with height within the canopy
+After that, it is a simple case of running the twostream model. In the example below, we also plot outputs to show how the fluxes vary with height within the canopy.
 
 ```{r eval=FALSE}
 # Run two-stream model and plot radiation fluxes
 groundp <- micropoint::groundparams
 
 tsmod <- twostream(vegp, groundp, paii,
-                   swdown, difrad,
-                   lat, long, solp)
+                   swdown, difrad, solp)
 
 plot(z ~ tsmod$Rdirdown, type = "l", col = "red", lwd = 2,
      xlab = expression("Radiation flux (W " * m^-2 * ")"),
@@ -1047,8 +1125,7 @@ lwb <- longwavebelow(paii,
                      lwdown = 300,
                      tleaf,
                      tground = 15,
-                     vegem = 0.97,
-                     groundem = 0.97)
+                     vegem = 0.97)
 
 # Plot longwave radiation fluxes
 plot(z ~ lwb$Rlwdown, type = "l", col = "red", lwd = 2,
@@ -1077,7 +1154,7 @@ legend("bottomleft",
 ![](images/img16.png)
 
 ### Wind speed
-The shape of the wind profile below canopy does not match that above canopy and is partially contingent on the vertical distribution of foliage. We illustrate this, but simulating two different foliage profiles and the calculating the wind profile for each using the inbuilt function `windprofile_below`.
+The shape of the wind profile below canopy does not match that above canopy and is partially contingent on the vertical distribution of foliage. We illustrate this by simulating two different foliage profiles and then calculating the wind profile for each using the inbuilt function `windprofile_below`.
 
 ```{r eval=FALSE}
 paii_skew <- micropoint::PAIgeometry(PAI = 4,
@@ -1096,13 +1173,13 @@ wind_unif <- windprofile_below(hgt = 25, paii_unif, uh)
 
 # ----------------------- Plot results ----------------------------- #
 
-z <- ((1:100) / 100) * 25 # height above ground (m)
+z <- ((1:100) - 0.5) / 100 * 25 # height of the middle of each layer (m)
 
 par(mfrow = c(1, 2))
 
 # Foliage profiles
 plot(z ~ paii_skew, type = "l", lwd = 2, col = "darkgreen",
-     xlab = "PAI density",
+     xlab = "Plant area index of each layer",
      ylab = "Height (m)",
      xlim = c(0, 0.06))
 
@@ -1136,6 +1213,55 @@ legend("bottomright",
 ```
 ![](images/img17.png)
 
+In both canopies, wind speed decreases with depth below the canopy top as foliage absorbs momentum from the moving air. Most of this slowing occurs in the upper canopy, where wind speeds are highest. Further down, the wind is weaker, so foliage exerts less drag and the rate of decrease diminishes. Although both canopies have the same total plant area, wind speeds are higher throughout the skewed canopy. Its sparse upper crown allows wind to penetrate further, while much of its foliage is concentrated lower down, where wind speeds are already low and drag is consequently weaker. Thus, a canopy with foliage distributed evenly through its depth slows the wind more than one with the same amount of foliage concentrated lower down. Close to the ground, surface drag becomes dominant, bringing wind speed to zero at the surface.
+
+### Thermal diffusivity
+So far, the transfer of heat through the air has been described in terms of resistance between two heights: the larger the resistance, the greater the temperature difference needed to carry a given flux of heat between them. This resistance depends on both the distance between the two heights and how efficiently heat is transferred through the air between them. The latter is described by **thermal diffusivity**, which measures how readily turbulence carries heat vertically at a given height. Where the air is vigorously mixed by large eddies, thermal diffusivity is high and heat is transferred easily; where mixing is weak, it is low.
+
+The two quantities are directly related. The inverse of thermal diffusivity gives the resistance per metre of height, so the total resistance between two heights is found by integrating this over the distance between them. Air in which thermal diffusivity is low therefore contributes more resistance per metre than air in which it is high. This explains why much of the resistance between the ground and the air above it arises close to the surface, where turbulent mixing is weakest. Once thermal diffusivity is known at every height, resistance can be calculated between any two heights, including within the canopy. It is therefore useful to examine how thermal diffusivity varies with height.
+
+Between the reference height and the ground, four distinct regions can be recognised, each with a different pattern of turbulent mixing. Well above the canopy, mixing follows Monin-Obukhov Similarity Theory, with eddies generally growing in size with height. Closer to the canopy, within the roughness sublayer, larger eddies generated at canopy top provide additional mixing. Thermal diffusivity at canopy top can be up to three times greater than predicted by standard MOST. Within the canopy, heat is carried by turbulent gusts penetrating from above. These weaken as they pass through the foliage, causing thermal diffusivity to decline with depth. Close to the ground, the size of turbulent eddies is constrained by their height above the surface. This limits mixing further, causing thermal diffusivity to fall to zero at ground level, as it does over bare ground.
+
+How distinct these four regions are depends on canopy density. In a dense forest, the roughness sublayer is well developed because the canopy generates substantial turbulent mixing above it. Within the canopy, foliage weakens the gusts penetrating from above, so thermal diffusivity falls steeply with depth. By the time the air reaches the lower canopy, mixing is already weak, and the additional constraint imposed by the ground becomes important only very close to the surface. As foliage becomes sparse, the roughness sublayer weakens and the influence of the ground extends further upwards. The zero-plane displacement decreases, fewer large eddies are generated at canopy top, and gusts penetrate further towards the ground. Mixing through an increasing proportion of the canopy is therefore limited by proximity to the ground rather than attenuation by foliage. In the limit of no foliage, the canopy and roughness sublayer disappear, leaving the standard bare-ground profile predicted by MOST.
+
+The function `thermaldiffusivity` returns thermal diffusivity at any height between the ground and the reference height. It combines all four regions into a continuous profile, with their extent and strength varying with plant area index, so the same function can be used for surfaces ranging from bare ground to dense forest. The code below illustrates this by calculating thermal diffusivity for a dense forest canopy, a very sparse canopy of the same height, and bare ground, all with the same wind speed at the reference height. Bare ground is specified by setting vegetation height to zero.
+
+```{r eval=FALSE}
+uref <- 3  # wind speed at reference height (m s^-1)
+zref <- 20 # reference height (m)
+h <- 7     # vegetation height (m)
+z <- seq(0, zref, length.out = 500) # heights above ground (m)
+
+# Dense canopy
+uf_dense <- windfric(uref, zref, h, pai = 3, MOST = FALSE) # friction velocity
+KH_dense <- thermaldiffusivity(z, uf_dense, h, pai = 3)
+
+# Sparse canopy
+uf_sparse <- windfric(uref, zref, h, pai = 0.01, MOST = FALSE)
+KH_sparse <- thermaldiffusivity(z, uf_sparse, h, pai = 0.01)
+
+# Bare ground with a roughness length of 0.004 m
+uf_bare <- 0.41 * uref / log(zref / 0.004)
+KH_bare <- thermaldiffusivity(z, uf_bare, h = 0, pai = 0)
+
+# Plot the three profiles
+plot(z ~ KH_dense, type = "l", lwd = 2, col = "darkgreen",
+     xlab = expression("Thermal diffusivity (" * m^2 ~ s^-1 * ")"),
+     ylab = "Height (m)",
+     xlim = c(0, 2.5))
+lines(z ~ KH_sparse, lwd = 2, col = "orange")
+lines(z ~ KH_bare, lwd = 2, col = "black", lty = 2)
+abline(h = h, lty = 3) # canopy height
+
+legend("bottomright",
+       legend = c("Dense canopy", "Sparse canopy", "Bare ground"),
+       col = c("darkgreen", "orange", "black"),
+       lty = c(1, 1, 2), lwd = 2, bty = "n")
+```
+![](images/img17a.png)
+
+The dotted line marks the top of the canopy, while the dashed lines show the upper limit of the roughness sublayer and the height below which mixing is limited by proximity to the ground. Bare ground, shown in black, has a single profile, with thermal diffusivity increasing approximately linearly from the surface. In the dense canopy, all four regions are apparent. Above about 15 m, thermal diffusivity follows the near-linear profile predicted by MOST, but is much higher than over bare ground because the canopy is rougher. Within the roughness sublayer, additional mixing raises thermal diffusivity to three times the standard value at canopy top. It then declines steeply through the canopy, becoming more similar to the bare-ground profile from about 3 m downwards, before approaching zero near the surface. In the sparse canopy, the roughness sublayer is barely apparent and the ground limits mixing through most of the canopy. The profile is therefore close to that over bare ground, although the additional drag from the sparse vegetation increases thermal diffusivity slightly.
+
 ### Leaf temperature
 To compute leaf temperature, we use `SolveEnergyBalance()`. This requires the relevant resistances to be specified. The resistance to heat loss is calculated with `leafresistance()`, which controls the transfer of heat between the leaf surface and the surrounding air. This depends on wind speed and leaf size and shape: faster wind and smaller leaves reduce resistance, allowing more efficient heat exchange. The function uses standard heat transfer relationships to represent both wind-driven and buoyancy-driven exchange, determining how strongly leaf temperature is coupled to the surrounding air.
 
@@ -1152,11 +1278,11 @@ paii <- micropoint::PAIgeometry(PAI = vegp$pai,
                                 spread = 70,
                                 n = 100)
 
-# ----------------------- Set initial temperatures ------------------------ #
+# -------------------- Set temperatures and humidity ---------------------- #
 tleaf <- rep(26, 100) # initial leaf temperature (°C)
-tair <- rep(25, 100)  # initial air temperature (°C)
+tair <- rep(25, 100)  # air temperature (°C)
 tground <- 25         # ground temperature (°C)
-rh <- rep(80, 100) # initial relative humidity (%)
+rh <- rep(80, 100)    # relative humidity (%)
 
 # ---------------------- Calculate absorbed radiation --------------------- #
 # Run two-stream model
@@ -1167,8 +1293,6 @@ solp <- sunposition(tme,
 tsmod <- twostream(vegp, groundp, paii,
                    swdown = 839,
                    difrad = 223,
-                   lat = 49.96807,
-                   long = -5.215668,
                    solp)
 
 # Run longwave model
@@ -1176,8 +1300,7 @@ lwb <- longwavebelow(paii,
                      lwdown = 300,
                      tleaf,
                      tground,
-                     vegem = 0.97,
-                     groundem = 0.97)
+                     vegem = 0.97)
 Rabs <- lwb$RlwLabs + tsmod$Rleafabs # absorbed radiation (W m^-2)
 
 # ----------------------- Calculate heat resistance ----------------------- #
@@ -1189,16 +1312,14 @@ rHa <- leafresistance(tair, dT, uz,
                       vegp$len, vegp$wid, vegp$x)
 
 # -------------------- Calculate stomatal resistance ---------------------- #
-# Calculate sunlit and shaded PAR
+# Radiation absorbed by sunlit and shaded leaves, with leaf properties for PAR
 tsmod <- twostream(vegp, groundp, paii,
                    swdown = 839,
                    difrad = 223,
-                   lat = 49.96807,
-                   long = -5.215668,
                    solp,
                    PAR = TRUE)
 
-z <- ((1:100) / 100) * vegp$h # height above ground (m)
+z <- ((1:100) - 0.5) / 100 * vegp$h # height of the middle of each layer (m)
 
 # Sunlit leaf stomatal conductance (mol m^-2 s^-1)
 gs_sun <- stomatalcond_calc(Ca = 430,
@@ -1226,7 +1347,7 @@ gs_shade <- stomatalcond_calc(Ca = 430,
 gs <- gs_sun * tsmod$sunlitfrac +
       (1 - tsmod$sunlitfrac) * gs_shade
 
-ph <- rhohair(tair, pk = 101.3) # air density (mol m^-3)
+ph <- rhoair(tair, pk = 101.3) # air density (mol m^-3)
 rS <- ph / gs # stomatal resistance (s m^-1)
 
 # ---------------------- Derive leaf temperature -------------------------- #
@@ -1250,117 +1371,196 @@ plot(z ~ tleaf, type = "l", lwd = 2, col = "darkgreen",
 ```
 ![](images/img18.png)
 
+Leaves are warmer than the surrounding air throughout the canopy, with temperatures highest about two-thirds of the way up. Two opposing effects determine this pattern. Absorbed radiation increases towards canopy top, warming the leaves, but wind speed also increases, reducing resistance to heat loss. Near the ground, leaves are coolest because they absorb little radiation, despite the weak wind. At canopy top, they absorb the most radiation but lose heat efficiently to the moving air. Between these extremes, leaves receive substantial radiation while remaining sheltered from the wind, producing the highest temperatures.
+
 ### Air temperature and humidity
-Here we show how to calculate air temperature and humidity within the canopy. In the leaf temperature and longwave radiation examples these were treated as known inputs, but here they are instead determined from heat and water vapour exchange within the canopy.
 
-Air temperature and humidity at any given height within the canopy are influenced not only by local exchanges, but also by exchanges occurring elsewhere in the canopy. Conditions at a point therefore reflect two components: a local contribution from nearby leaves, and a distributed contribution from heat and vapour exchanged throughout the canopy. The functions temp_below and relhum_below implement this using Raupach’s (1989a,b) localized near-field approach, combining these local and distributed effects to determine conditions at each height. In practice, the canopy is divided into vertical layers, and the fluxes from each layer are used to calculate the resulting air temperature and humidity profiles, with transfer between layers controlled by wind-driven mixing.
+In the earlier examples, air temperature and humidity were treated as known inputs when calculating leaf temperature and longwave radiation. Here we calculate them from the exchange of heat and water vapour within the canopy.
 
+Air temperature at any height depends on heat released by foliage throughout the canopy, not just at that height. The functions `temp_below` and `relhum_below` account for this using Raupach's (1989a,b) localized near-field approach, which separates the influence of nearby foliage (the **near field**) from that of heat and water vapour transported through the canopy as a whole (the **far field**). Together, these determine the vertical profiles of air temperature and humidity.
 
-In the code below, we calculate air temperature and humidity within the canopy by working through the coupling between leaves and air. We begin with initial guesses of air temperature and humidity, use these to calculate leaf temperature and the associated heat and vapour exchange, and then use those exchanges to update the air temperature and humidity profiles. This process is repeated until the air conditions are consistent with the exchanges from the leaves throughout the canopy.
+We illustrate the two components separately using `farfield` and `nearfield`. Both require the heat released by each canopy layer. Later we calculate this from leaf temperature, but for now we make the simplifying assumption that half the radiation absorbed by each layer is released as sensible heat. We use 500 W m^-2^ of radiation at canopy top, giving a total sensible heat flux of about 200 W m^-2^. Rather than the smooth foliage profiles used previously, we use the inbuilt dataset `wythampai`, a plant area profile measured by laser scanning at Wytham Woods, Oxfordshire, by Calders *et al.* (2023). This has the uneven vertical distribution of foliage characteristic of real woodland.
 
-We begin by assembling the inputs needed to run the model: weather data and ground and vegetation parameters. The canopy is then divided into 100 layers, with plant area distributed through the profile to define how much leaf material is present at each height. Finally, atmospheric CO₂ concentration is specified for use in the stomatal calculations later on.
+#### The far field
 
-In the next step, we run solve_wholecanopy(). This is used to derive key inputs required for the profile calculations, including wind speed at the top of the canopy and the Lagrangian timescale, which controls how heat and vapour are transferred between layers. Then we extract the required climate variables for hour 4094 (the hottest hour in the dataset). We also specify initial profiles of air temperature and humidity, which provide the starting point for calculating leaf temperature and longwave radiation before the iterative solution begins. 
+The far field describes how heat released throughout the canopy is distributed by turbulent mixing. Heat from each layer is transferred through the air above and below it, with the resulting temperature profile determined by the heat sources, the resistance to heat transfer between heights, and the temperatures at canopy top and the ground. The function `farfield` calculates this using the thermal diffusivity profile described earlier, determined from canopy height, plant area index and friction velocity.
 
-We then run the two-stream and longwave radiation models to calculate absorbed radiation, and use this to derive leaf temperature. From this, we obtain the sensible and latent heat fluxes from each canopy layer, which are among the variables passed to the temperature and humidity profile functions. These are then used in temp_below() and relhum_below() to update the air temperature and humidity profiles.
+```{r eval=FALSE}
+# ------------------------- Foliage profile ------------------------------- #
+paii <- wythampai$paii # plant area index of each layer
+z <- wythampai$z       # height of the middle of each layer (m)
+hgt <- 24.5            # canopy height (m)
+pai <- sum(paii)       # plant area index of the whole canopy
 
-Because leaf temperature depends on air temperature and humidity, and these in turn depend on the heat and vapour fluxes from the leaves, the calculation is carried out within a while loop. At each iteration, leaf temperature is updated, the resulting fluxes are recalculated, and the air profiles are updated again. This is repeated until the profiles are consistent with the exchanges throughout the canopy.
+# ---------------- Heat released by each canopy layer --------------------- #
+Rnet <- 500 # radiation at canopy top available to heat the canopy (W m^-2)
+k <- 0.5    # extinction coefficient: how strongly foliage attenuates radiation
 
-After updating the air temperature and humidity profiles, we do not immediately feed these new values back into the next iteration. In simpler iterative examples this can work, but here it tends to produce see-sawing, with successive estimates overshooting in opposite directions rather than settling smoothly. This is especially a problem near the bottom of the canopy, where exchange with the ground adds an additional strong source or sink of heat and vapour.
+# Fraction of that radiation passing the top and the bottom of each layer
+pabove <- rev(cumsum(rev(paii))) - paii # plant area above the top of each layer
+trtop <- exp(-k * pabove)
+trbottom <- exp(-k * (pabove + paii))
 
-To avoid this, we apply a weighted Aitken relaxation step. The basic idea of relaxation is simple: rather than jumping all the way from the previous estimate to the newly calculated one, we move only part of the way. This partial update can be thought of as a backweighting of the new solution, pulling it back towards the previous one to reduce instability. The Aitken method improves on a fixed relaxation factor by adjusting this weighting dynamically from one iteration to the next, based on how the residuals are changing. If the solution is settling smoothly, the method allows larger steps; if it is oscillating, it applies stronger damping.The updated values are then used for the next iteration, and the process repeats until the change between successive temperature profiles as measured by the `error` term becomes small enough that it is below the specified tolerance limit.
+# Half of the radiation absorbed by each layer is released as sensible heat
+Hz <- 0.5 * Rnet * (trtop - trbottom) # sensible heat flux (W m^-2 of ground)
 
-In the final section, we plot the leaf and air temperature and humidity profiles. Relative humidity is converted to vapour pressure, as leaf-level relative humidity is not very meaningful and relative humidity itself depends on temperature. Expressing humidity as vapour pressure makes it easier to interpret changes in moisture independently of temperature.
+# ----------------------- Far-field temperature --------------------------- #
+uf <- 0.2       # friction velocity (m s^-1)
+ttop <- 20      # air temperature at canopy top (°C)
+tground <- 19.5 # ground surface temperature (°C)
+
+# Heights from the ground surface to canopy top (m), closely spaced near the ground
+zall <- c(0, 0.02, 0.05, 0.1, z, hgt)
+tfar <- farfield(Hz, hgt, pai, uf,
+                 top = ttop,
+                 ground = tground,
+                 tair = ttop, # sets the density and heat capacity of air
+                 z = zall)
+
+# ---------------------------- Plot results ------------------------------- #
+par(mfrow = c(1, 2))
+plot(z ~ paii, type = "l", lwd = 2, col = "darkgreen",
+     xlab = "Plant area index of layer",
+     ylab = "Height (m)")
+plot(zall ~ tfar, type = "l", lwd = 2, col = "red",
+     xlab = expression("Far-field temperature (" * degree * "C)"),
+     ylab = "Height (m)")
+```
+
+![](images/img18a.png)
+
+Foliage is densest between 11 and 19 m, with a sharp peak around 15 m, and this is where most of the heat is released. Despite this uneven distribution, the far-field temperature profile is smooth. Temperature increases from 20 °C at canopy top to about 22 °C at 4 m, because most of the heat must flow upwards through the air above it. Below this, the profile turns towards the cooler ground surface, which absorbs a small proportion of the heat released within the canopy.
+
+#### The near field
+
+The far field describes heat that has become dispersed by turbulent mixing. Immediately after heat leaves a leaf, however, it remains concentrated in the air moving away from its source. This produces a local warming beyond that predicted by the far field alone, known as the near field. Its influence extends over a relatively short distance, typically around a metre, so it reflects the foliage and heat sources close to each height.
+
+The function `nearfield` calculates this additional warming using the same canopy properties and heat fluxes. Adding the near and far fields gives the air temperature profile.
+
+```{r eval=FALSE}
+# ----------------------- Near-field temperature -------------------------- #
+tnear <- nearfield(Hz, hgt, pai, uf,
+                   tair = ttop, # sets the density and heat capacity of air
+                   z = zall)
+
+# --------------------------- Air temperature ----------------------------- #
+tair <- tfar + tnear
+
+# ---------------------------- Plot results ------------------------------- #
+par(mfrow = c(1, 2))
+plot(zall ~ tnear, type = "l", lwd = 2, col = "blue",
+     xlab = expression("Near-field temperature (" * degree * "C)"),
+     ylab = "Height (m)")
+plot(zall ~ tair, type = "l", lwd = 2, col = "black",
+     xlab = expression("Air temperature (" * degree * "C)"),
+     ylab = "Height (m)")
+lines(zall ~ tfar, lwd = 2, col = "red", lty = 2)
+legend("left",
+       legend = c("Far + near", "Far only"),
+       col = c("black", "red"),
+       lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8)
+```
+
+![](images/img18b.png)
+
+The near-field contribution is small, reaching about 0.3 °C, but follows the uneven distribution of foliage. It is greatest around 13–15 m, where most heat is released, and much smaller in the sparse upper crown and near the ground. Adding it to the far field therefore introduces local variation into the otherwise smooth temperature profile. Near-field warming increases with heat release and becomes more pronounced when wind speeds are low.
+
+The same approach applies to humidity. Setting `vapour = TRUE` and supplying latent rather than sensible heat fluxes allows `farfield` and `nearfield` to calculate the corresponding contributions to vapour pressure, using vapour pressures at canopy top and the ground in place of temperatures.
+
+#### Coupling leaves and air
+
+The near and far fields are combined by `temp_below` and `relhum_below`, which calculate air temperature and relative humidity from the sensible and latent heat fluxes of each canopy layer.
+
+So far, these fluxes have been prescribed. In reality, they depend on leaf temperature, which itself depends on the surrounding air. We therefore need to solve leaf and air conditions together. Starting with estimates of air temperature and humidity, we calculate leaf temperature and the resulting heat and vapour fluxes, update the air profiles, and repeat until the solution converges.
+
+For this example we use the Wytham Woods foliage profile and weather conditions for the hottest hour in `climdata`. The function `solve_wholecanopy` provides conditions at canopy top and the wind parameters needed for turbulent mixing, including the roughness sublayer (`MOST = FALSE`). We assume vapour pressure is unchanged between the reference height and canopy top, and set ground temperature 1 °C below canopy-top air temperature.
+
+Shortwave radiation and wind speed are calculated once, before the loop. At each iteration we update absorbed longwave radiation, leaf resistances and leaf temperature, then calculate the sensible and latent heat fluxes as in the earlier examples. These are converted from fluxes per unit leaf surface to fluxes per unit ground area by multiplying by twice the plant area index of each layer, accounting for exchange from both sides of the leaves. Finally, `temp_below` and `relhum_below` update the air profiles. The loop stops when the maximum change in air temperature is less than 0.001 °C; here it takes seven iterations.
 
 ```{r eval=FALSE}
 # -------------------------- Derive model inputs -------------------------- #
-weather <- micropoint::climdata
+weather <- climdata
 groundp <- micropoint::groundparams
 vegp <- createplant_inputs("BDT") # broadleaf deciduous trees
-paii <- micropoint::PAIgeometry(PAI = vegp$pai,
-                                skew = 7,
-                                spread = 70,
-                                n = 100) # PAI in each layer
+paii <- wythampai$paii            # plant area index of each layer
+z <- wythampai$z                  # height of the middle of each layer (m)
+n <- length(paii)                 # number of canopy layers
+vegp$h <- 24.5                    # canopy height (m)
+vegp$pai <- sum(paii)             # plant area index of the whole canopy
 Ca <- micropoint::Cafromyear(2017) # atmospheric CO2 concentration (ppm)
 
-# -------- Run canopy solver to derive turbulence variables --------------- #
+# --------- Run canopy solver to derive conditions at canopy top ---------- #
 lat <- 49.96807
 long <- -5.215668
-can <- solve_wholecanopy(weather, vegp, groundp,
-                         hr = 4094,
+hr <- 4094
+can <- solve_wholecanopy(weather, vegp, groundp, hr,
                          lat, long,
-                         zref = 22,
+                         zref = 30,
                          G = 20,
                          theta = 0.2,
-                         Ca)
+                         soilrh = 87,
+                         Ca,
+                         MOST = FALSE,
+                         Lfrac = 0.6)
 
 # ---------------------- Set reference climate variables ------------------ #
-lwdown <- weather$lwdown[4094] # downward longwave radiation (W m^-2)
-swdown <- weather$swdown[4094] # downward shortwave radiation (W m^-2)
-difrad <- weather$difrad[4094] # diffuse radiation (W m^-2)
-pk <- weather$pres[4094] # pressure (kPa)
-uf <- can$uf # friction velocity
-uh <- can$uh # wind speed at canopy top (m s^-1)
-th <- can$th # canopy-top air temperature (°C)
-TL <- can$TL # Lagrangian timescale
-tground <- 22 # ground surface temperature (°C)
-psi_r <- -0.5 # root-zone water potential
-soilrh <- 87 # effective soil surface relative humidity (%)
+lwdown <- weather$lwdown[hr] # downward longwave radiation (W m^-2)
+swdown <- weather$swdown[hr] # downward shortwave radiation (W m^-2)
+difrad <- weather$difrad[hr] # diffuse radiation (W m^-2)
+pk <- weather$pres[hr]       # pressure (kPa)
+uf <- can$uf                 # friction velocity (m s^-1)
+LL <- can$LL                 # Obukhov length (m)
+uh <- can$uh                 # wind speed at canopy top (m s^-1)
+th <- can$th                 # air temperature at canopy top (°C)
+
+# Relative humidity at canopy top (%), from vapour pressure at reference height
+eref <- satvap(weather$temp[hr]) * weather$relhum[hr] / 100
+rhtop <- 100 * eref / satvap(th)
+
+tground <- th - 1 # ground surface temperature (°C)
+soilrh <- 87      # effective relative humidity of the soil surface (%)
+psi_r <- -0.5     # root-zone water potential (MPa)
 
 # ---------------- Initial guesses of below-canopy profiles --------------- #
-tleaf <- rep(th + 1, 100) # leaf temperature (°C)
-tair <- rep(th, 100) # air temperature (°C)
-rh <- rep(weather$relhum[4094], 100) # relative humidity (%)
+tleaf <- rep(th + 1, n) # leaf temperature (°C)
+tair <- rep(th, n)      # air temperature (°C)
+rh <- rep(rhtop, n)     # relative humidity (%)
 
 # --------------------- Calculate shortwave radiation --------------------- #
-tme <- as.POSIXlt(weather$obs_time[4094], tz = "UTC")
+tme <- as.POSIXlt(weather$obs_time[hr], tz = "UTC")
 solp <- sunposition(tme, lat, long) # zenith and azimuth angles
 tsmod <- twostream(vegp, groundp, paii,
-                   swdown, difrad,
-                   lat, long, solp)
+                   swdown, difrad, solp)
+# With leaf properties for PAR, for the stomatal calculations
+tspar <- twostream(vegp, groundp, paii,
+                   swdown, difrad, solp,
+                   PAR = TRUE)
 
 # ------------------------- Calculate wind profile ------------------------ #
-uz <- windprofile_below(vegp$h, paii, uh) # wind speed profile
-z <- ((1:100) / 100) * vegp$h # height above ground (m)
+uz <- windprofile_below(vegp$h, paii, uh) # wind speed of each layer (m s^-1)
 
 # -------------------------- Initialise while loop ------------------------ #
 error <- 1e99
-aitkt <- list(oldv = tair,
-              newv = tair,
-              z = z,
-              hgt = vegp$h)
-ea <- satvap(tair) * (rh / 100)
-aitkr <- list(oldv = ea,
-              newv = ea,
-              z = z,
-              hgt = vegp$h)
 itr <- 0
 
-while (error > 1e-2) {
+while (error > 1e-3) {
 
   # ------------------- Calculate absorbed radiation ---------------------- #
   lwb <- longwavebelow(paii,
                        lwdown,
                        tleaf,
                        tground,
-                       0.97,
-                       0.97)
+                       vegem = 0.97)
   Rabs <- lwb$RlwLabs + tsmod$Rleafabs # absorbed radiation (W m^-2)
 
   # --------------------- Calculate heat resistance ----------------------- #
-  dT <- abs(tleaf - tair) # leaf-air temperature difference
+  dT <- abs(tleaf - tair) # leaf-air temperature difference (°C)
   rHa <- leafresistance(tair, dT, uz,
                         vegp$len, vegp$wid, vegp$x)
 
   # ------------------ Calculate stomatal resistance ---------------------- #
-  tsmod <- twostream(vegp, groundp, paii,
-                     swdown, difrad,
-                     lat, long,
-                     solp,
-                     PAR = TRUE)
-
   gs_sun <- stomatalcond_calc(Ca,
-                              tsmod$Rsun,
+                              tspar$Rsun,
                               tair,
                               tleaf,
                               rh,
@@ -1370,7 +1570,7 @@ while (error > 1e-2) {
                               z)
 
   gs_shade <- stomatalcond_calc(Ca,
-                                tsmod$Rshade,
+                                tspar$Rshade,
                                 tair,
                                 tleaf,
                                 rh,
@@ -1379,10 +1579,11 @@ while (error > 1e-2) {
                                 vegp,
                                 z)
 
-  gs <- gs_sun * tsmod$sunlitfrac +
-        (1 - tsmod$sunlitfrac) * gs_shade
+  gs <- gs_sun * tspar$sunlitfrac +
+        (1 - tspar$sunlitfrac) * gs_shade
 
-  rS <- rhohair(tair, pk) / gs # stomatal resistance (s m^-1)
+  ph <- rhoair(tair, pk) # air density (mol m^-3)
+  rS <- ph / gs          # stomatal resistance (s m^-1)
 
   # --------------------- Derive leaf temperature ------------------------- #
   tleaf <- SolveEnergyBalance(tair,
@@ -1396,252 +1597,212 @@ while (error > 1e-2) {
                               method = "Penman",
                               iters = 4)
 
-  # --------------------- Calculate air temperature ----------------------- #
-  ph <- rhohair(tair, pk) # air density (mol m^-3)
-  cp <- cpair(tair) # heat capacity of air
-  Hz <- (ph * cp / rHa) * (tleaf - tair) # sensible heat flux
+  # ------------- Heat and vapour released by each layer ------------------ #
+  # Per unit leaf surface (W m^-2)
+  cp <- cpair(tair)                # heat capacity of air (J mol^-1 K^-1)
+  es <- satvap(tleaf)              # vapour pressure of the leaf (kPa)
+  ea <- satvap(tair) * (rh / 100)  # vapour pressure of the air (kPa)
+  H <- (ph * cp / rHa) * (tleaf - tair)                    # sensible heat
+  L <- (latvap(tleaf) * ph / ((rHa + rS) * pk)) * (es - ea) # latent heat
 
-  tairn <- temp_below(vegp$h,
-                      paii,
-                      TL,
-                      uf,
-                      pk,
-                      Hz,
-                      tair,
-                      tleaf,
-                      tground)
+  # Per unit ground area: both sides of the leaves, times plant area
+  Hz <- 2 * paii * H
+  Lz <- 2 * paii * L
+
+  # --------------------- Calculate air temperature ----------------------- #
+  tairn <- temp_below(Hz, vegp$h, vegp$pai, uf,
+                      ttop = th,
+                      tground = tground,
+                      tair = tair,
+                      pk = pk,
+                      LL = LL)
 
   # --------------------- Calculate relative humidity --------------------- #
-  rV <- rHa + rS # total vapour resistance
-  es <- satvap(tleaf) # leaf vapour pressure
-  ea <- satvap(tair) * (rh / 100) # air vapour pressure
+  rh <- relhum_below(Lz, vegp$h, vegp$pai, uf,
+                     rhtop = rhtop,
+                     ttop = th,
+                     tground = tground,
+                     soilrh = soilrh,
+                     tair = tairn,
+                     pk = pk,
+                     LL = LL)
 
-  Lz <- ((latvap(tleaf) * ph) / (rV * pk)) * (es - ea) # latent heat flux
-
-  rhn <- relhum_below(vegp$h,
-                      paii,
-                      TL,
-                      uf,
-                      pk,
-                      Lz,
-                      rh,
-                      tair,
-                      tleaf,
-                      tground,
-                      soilrh)
-
-  ean <- satvap(tairn) * (rhn / 100) # updated vapour pressure
-
-  # --------------------- Weight old and new values ----------------------- #
-  error <- max(abs(tair - tairn)) # convergence error
-  aitkt$oldv <- tair
-  aitkr$oldv <- ea
-  aitkt$newv <- tairn
-  aitkr$newv <- ean
-
-  aitkt <- aitken_weightdif(aitkt)
-  aitkr <- aitken_weightdif(aitkr)
-
-  tair <- aitkt$newv
-  rh <- (aitkr$newv / satvap(tair)) * 100
-
+  # ------------------------ Check for convergence ------------------------ #
+  error <- max(abs(tairn - tair))
+  tair <- tairn
   itr <- itr + 1
 }
 
 # ----------------------------- Plot results ------------------------------ #
-es <- satvap(tleaf) # leaf vapour pressure
-ea <- satvap(tair) * (rh / 100) # air vapour pressure
-
 par(mfrow = c(1, 2))
 # Temperature profiles
 plot(z ~ tleaf, type = "l", col = "darkgreen", lwd = 2,
-     xlim = c(22, 35),
+     xlim = c(24, 32),
      xlab = expression("Temperature (" * degree * "C)"),
      ylab = "Height (m)")
-par(new = TRUE)
-plot(z ~ tair, type = "l", col = "blue", lwd = 2,
-     xlim = c(22, 35),
-     xlab = "", ylab = "")
+lines(z ~ tair, col = "blue", lwd = 2)
 legend("bottomright",
        legend = c("Leaf", "Air"),
        col = c("darkgreen", "blue"),
        lwd = 2,
        bty = "n")
 
-# Vapour pressure profiles
-plot(z ~ es, type = "l", col = "darkgreen", lwd = 2,
-     xlim = c(0, 6),
-     xlab = "Vapour pressure (kPa)",
+# Relative humidity profile of the air
+plot(z ~ rh, type = "l", col = "blue", lwd = 2,
+     xlim = c(50, 65),
+     xlab = "Relative humidity (%)",
      ylab = "Height (m)")
-par(new = TRUE)
-plot(z ~ ea, type = "l", col = "blue", lwd = 2,
-     xlim = c(0, 6),
-     xlab = "", ylab = "")
-legend("bottomright",
-       legend = c("Leaf", "Air"),
-       col = c("darkgreen", "blue"),
-       lwd = 2,
-       bty = "n")
 ```
+
 ![](images/img19.png)
 
-In the example above, ground surface temperature is held fixed and heat storage is only estimated rather than calculated explicitly. In the next section, we show how both of these terms can be solved directly.
+Leaves are 1.5–4.3 °C warmer than the surrounding air, with the highest temperatures around 15 m, where radiation absorption is greatest. Air temperature varies much less, rising from 25.9 °C at canopy top to 26.5 °C near 15 m before falling towards the cooler ground. Relative humidity remains close to 53% through most of the canopy, reaching a minimum where the air is warmest, then rising to 63% near the moist ground as the air cools and water evaporates from the soil.
+
+Here ground temperature is prescribed and the gorund heat flux is approximated. The next section shows how both can be calculated explicitly.
 
 ## Ground heat storage
-Analogous to our canopy example above, in calculating the rate of heat storage in the ground it is useful to mentally divide the soil profile into a number of vertical layers and calculate the heat flow and storage within each layer. What matters then is both the thermal conductivity of the soil and its heat capacity.
 
-The thermal conductivity of the soil depends on its physical properties, namely the quartz, mineral and organic content of the soil. These are assumed to be static properties and depend on soil type. The inbuilt table `soilparams` in the `micropoint` package is a look-up table for deriving these parameters for a given soil type, and is used by some of the functions we showcase later. An important point, however, is that it is also dependent on the fraction of soil water content, which is not fixed and must itself be modelled. We can demonstrate this dependence using the `thermalConductivity` function in the code below. Here the volume fraction of quartz and minerals (Vq and Vm respectively) and the mass fraction of clay (Mc) typical of clay loam are provided as inputs. The temperature and pressure inputs partially determine conductivity in the air space, and temperature input is also used to check whether the water is in the form of ice.
+During the day, the ground warms and heat flows into the soil; at night, the flow reverses. How quickly soil stores and releases heat depends on two properties: **thermal conductivity**, which determines how readily heat flows through it, and **volumetric heat capacity**, which determines how much energy is needed to raise its temperature. As with the canopy example above, we can think of the soil as a series of vertical layers, with heat conducted between layers and stored within each.
+
+Both properties depend on soil composition and moisture. Soil consists of mineral particles, organic matter, water and air. The proportions of solid constituents are treated as fixed properties of each soil type, with typical values provided in the `micropoint` table `newsoilparamstable`. Water content, however, varies over time and strongly influences both thermal properties. Water conducts heat over twenty times more effectively than air and has a volumetric heat capacity several thousand times greater. As water replaces air in soil pores, both conductivity and heat capacity increase.
+
+Below, we use `thermalConductivity` and `heatCapacity` to examine how these properties vary with water content in a clay loam, from nearly dry to saturated. Temperature and pressure affect the properties of pore air, while temperature also determines whether soil water is frozen.
 
 ```{r eval=FALSE}
-Vw <- seq(0.08, 0.4, length.out = 100) # volumetric water fraction
-k <- thermalConductivity(Vq = 0.06,
-                         Vm = 0.509,
-                         Vo = 0.02,
-                         Vw,
-                         Mc = 0.5422,
-                         Tc = 15,
-                         pk = 101.3)
+# Composition of a typical clay loam
+Vq <- 0.0386 # volumetric quartz fraction
+Vm <- 0.4907 # volumetric fraction of other minerals
+Vo <- 0.0107 # volumetric organic fraction
+Mc <- 0.5422 # mass fraction of clay
 
-par(mfrow = c(1, 1))
+# Volumetric water fraction, from almost dry to saturated
+Vw <- seq(0.02, 0.46, length.out = 100)
+
+# Thermal conductivity (W m^-1 K^-1)
+k <- thermalConductivity(Vq, Vm, Vo, Vw, Mc,
+                         Tc = 15,    # soil temperature (°C)
+                         pk = 101.3) # atmospheric pressure (kPa)
+
+# Volumetric heat capacity (MJ m^-3 K^-1)
+Ch <- heatCapacity(Vq, Vm, Vo, Vw,
+                   Tc = 15,
+                   pk = 101.3) / 1e6
+
+# Plot both against water content
+par(mfrow = c(1, 2))
 plot(k ~ Vw, type = "l", lwd = 2, col = "blue",
      xlab = expression("Volumetric water fraction (m"^3 * " m"^-3 * ")"),
      ylab = expression("Thermal conductivity (W m"^-1 * " K"^-1 * ")"))
-```
-![](images/img20.png)
-
-Likewise the soil heat capacity as dependence on soil physical properties:
-
-```{r eval=FALSE}
-Ch <- heatCapacity(Vq = 0.06, # volumetric quartz fraction
-                   Vm = 0.509, # volumetric mineral fraction
-                   Vo = 0.02, # volumetric organic fraction
-                   Vw, # volumetric water fraction
-                   Tc = 15, # temperature (°C)
-                   pk = 101.3) / 1e6 # volumetric heat capacity (MJ m^-3 K^-1)
-
 plot(Ch ~ Vw, type = "l", lwd = 2, col = "red",
      xlab = expression("Volumetric water fraction (m"^3 * " m"^-3 * ")"),
      ylab = expression("Volumetric heat capacity (MJ m"^-3 * " K"^-1 * ")"))
 ```
-![](images/img21.png)
+
+![](images/img20.png)
+
+Heat capacity increases linearly with water content, from about 1.3 to 3.2 MJ m^-3^ K^-1^, because it is the sum of the heat capacities of the soil constituents weighted by their volumes. Thermal conductivity increases more than sixfold, from about 0.2 to 1.4 W m^-1^ K^-1^, with the steepest increase at intermediate moisture levels. In dry soil, heat passes between particles mainly at their points of contact. As the soil wets, water bridges the gaps between particles, allowing heat to flow more readily.
+
+The ratio of thermal conductivity to volumetric heat capacity is known as **thermal diffusivity**. It determines how rapidly temperature changes propagate through the soil. Here, diffusivity more than doubles between dry and saturated conditions, allowing daily temperature fluctuations to penetrate deeper into wet soil.
 
 ### Simple estimates
-The rate of heat storage in the ground is one of the most difficult components of the energy balance to calculate explicitly, so we first present a simplified model before introducing a full formulation. Here, the soil is assumed to be infinitely deep with uniform thermal properties, and the surface temperature is approximated as a sinusoidal cycle. Under these assumptions, ground heat flux is also sinusoidal, but phase-shifted by 3 hours and scaled according to the amplitude of surface temperature, the soil’s thermal properties, and the damping depth, which determines how far temperature fluctuations penetrate into the soil.
 
-In the code below, we use `solve_wholecanopy` to estimate the temperature of a sparsely vegetated surface, assuming this approximates ground surface temperature. We initially set the heat storage term (G) to zero, then iteratively update it and pass it back to `solve_wholecanopy` on each step. The effect of including `G` is shown in the plot. The first iteration (with `G = 0`) is shown in red. As the model iterates, intermediate solutions are plotted as semi-transparent lines transitioning from red to blue, and the final converged solution is shown in blue. Including `G` shifts the temperature cycle slightly later in the day and reduces its amplitude.
+Ground heat storage is difficult to calculate explicitly, so we begin with a simplified approach before introducing a more complete model. We assume that the soil is infinitely deep, has uniform thermal properties and experiences a sinusoidal daily cycle in surface temperature. Under these conditions, ground heat flux also varies sinusoidally, peaking three hours before surface temperature. Its magnitude depends on the amplitude of the temperature cycle, soil thermal conductivity and the *damping depth*: the depth at which temperature fluctuations fall to 37% of their surface amplitude. Damping depth is determined by the soil's thermal diffusivity.
+
+Below, we use `solve_wholecanopy` to estimate the temperature of bare ground on 21 June. With vegetation height and plant area index set to zero, the temperature it returns is that of the ground surface. Because surface temperature depends on ground heat flux (G), and G in turn depends on surface temperature, we solve for both iteratively. Starting with G set to zero, we fit a sinusoidal cycle to the calculated temperatures, use its amplitude and timing to estimate G, and repeat until temperatures converge. The initial solution is shown in red, intermediate iterations as semi-transparent lines and the final solution in blue. Accounting for ground heat storage reduces daytime temperatures, raises nighttime temperatures and shifts the temperature peak slightly later.
 
 ```{r eval=FALSE}
-weather <- micropoint::climdata
+# ----------------------------- Model inputs ------------------------------ #
+weather <- climdata
 tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
 sel <- which(tme$mon + 1 == 6 &
              tme$mday == 21) # select hours of 21 June
-weather <- weather[sel,]
+weather <- weather[sel, ]
 
 groundp <- micropoint::groundparams # ground parameters
 
-vegp <- createplant_inputs("C3") # vegetation parameters for C3 grass
-vegp$h <- 0.05 # vegetation height (m)
-vegp$pai <- 0.02 # plant area index
+vegp <- createplant_inputs("C3") # vegetation parameters
+vegp$h <- 0 # vegetation height (m): zero for bare ground
+vegp$pai <- 0 # plant area index: zero for bare ground
 
-Ca <- micropoint::Cafromyear(2017) # atmospheric CO2 concentration (ppm)
+# --------------------- Thermal properties of the soil -------------------- #
+# Clay loam with a volumetric water fraction of 0.3
+k <- thermalConductivity(Vq = 0.0386, Vm = 0.4907, Vo = 0.0107,
+                         Vw = 0.3, Mc = 0.5422,
+                         Tc = 15, pk = 101.3) # thermal conductivity (W m^-1 K^-1)
+Ch <- heatCapacity(Vq = 0.0386, Vm = 0.4907, Vo = 0.0107,
+                   Vw = 0.3,
+                   Tc = 15, pk = 101.3) # heat capacity (J m^-3 K^-1)
+
+tt <- 0:23        # hours of day
+om <- 2 * pi / 24 # angular frequency of the daily cycle (radians per hour)
+ka <- k / Ch      # thermal diffusivity (m^2 s^-1)
+DampDepth <- sqrt(2 * ka * 3600 / om) # damping depth (m)
 
 # -------------------------- Initialise variables ------------------------- #
 G <- rep(0, 24) # ground heat flux (W m^-2)
-error <- 1e99 # difference from previous iteration
-Told <- 0 # temperature in previous iteration
-itr <- 1 # iteration counter
+error <- 1e99   # difference from previous iteration
+Told <- 0       # temperature in previous iteration
+itr <- 1        # iteration counter
 
 cols <- adjustcolor(colorRampPalette(c("red", "blue"))(12),
                     alpha.f = 0.25)
 
-tt <- 0:23 # hours of day
-om <- 2 * pi / 24 # angular frequency
-
 while (error > 1e-3) {
-   # ------------------------ Cycle through each hour --------------------- #
-   Ts <- 0 # initialise canopy temperature
+  # ------------------------ Cycle through each hour ---------------------- #
+  Ts <- 0 # initialise surface temperature
 
-   for (hr in 1:24) {
-      # ---------------------- Run canopy solver -------------------------- #
-      can <- solve_wholecanopy(weather, vegp, groundp,
-                               hr,
-                               lat = 49.96807,
-                               long = -5.215668,
-                               zref = 2,
-                               G[hr],
-                               theta = 0.3,
-                               soilrh = 0.85,
-                               Ca)
-      Ts[hr] <- can$tcanopy # canopy temperature
-   }
+  for (hr in 1:24) {
+    can <- solve_wholecanopy(weather, vegp, groundp,
+                             hr,
+                             lat = 49.96807,
+                             long = -5.215668,
+                             zref = 2,
+                             G[hr],
+                             theta = 0.3,
+                             soilrh = 85,
+                             Lfrac = 0) # no living leaf
+    Ts[hr] <- can$tcanopy # surface temperature (°C)
+  }
 
-   # Plot diurnal temperature on each iteration
-   if (itr == 1) {
-     plot(Ts ~ tt, type = "l", col = "red",
-          ylim = c(5, 55),
-          xlab = "", ylab = "",
-          lwd = 2)
-   } else {
-     plot(Ts ~ tt, type = "l", col = cols[itr],
-          ylim = c(5, 55),
-          xlab = "", ylab = "",
-          lwd = 2)
-   }
-   par(new = TRUE)
+  # Plot diurnal temperature on each iteration
+  if (itr == 1) {
+    plot(Ts ~ tt, type = "l", col = "red",
+         ylim = c(10, 40),
+         xlab = "Hour",
+         ylab = expression("Temperature (" * degree * "C)"),
+         lwd = 2)
+  } else {
+    lines(Ts ~ tt, col = cols[min(itr, 12)], lwd = 2)
+  }
 
-   # ----------- Calculate decimal hour of peak temperature -------------- #
-   m <- lm(Ts ~ sin(om * tt) + cos(om * tt))
-   hrmx <- as.numeric(((pi / 2 -
-             atan2(coef(m)[3], coef(m)[2])) / om) %% 24)
+  # ---------- Fit a sinusoidal cycle to surface temperature -------------- #
+  m <- lm(Ts ~ sin(om * tt) + cos(om * tt))
+  # Decimal hour at which the fitted cycle peaks
+  hrmx <- as.numeric(((pi / 2 -
+            atan2(coef(m)[3], coef(m)[2])) / om) %% 24)
+  A0 <- (max(Ts) - min(Ts)) / 2 # amplitude of temperature cycle (°C)
 
-   # ------------------------ Calculate ground flux ----------------------- #
-   A0 <- (max(Ts) - min(Ts)) / 2 # amplitude of temperature cycle
+  # ------------------------ Calculate ground flux ------------------------ #
+  # Peaks three hours (a phase of pi / 4) before surface temperature
+  G <- sqrt(2) * A0 * k / DampDepth *
+       sin(om * (tt - hrmx) + 3 * pi / 4)
 
-   k <- thermalConductivity(Vq = 0.06, # volumetric quartz fraction
-                            Vm = 0.509, # volumetric mineral fraction
-                            Vo = 0.02, # volumetric organic fraction
-                            Vw = 0.3, # volumetric water fraction
-                            Mc = 0.5422, # clay mass fraction
-                            Tc = Ts, # temperature (°C)
-                            pk = weather$pres)
-
-   Ch <- heatCapacity(Vq = 0.06, # volumetric quartz fraction
-                      Vm = 0.509, # volumetric mineral fraction
-                      Vo = 0.02, # volumetric organic fraction
-                      Vw = 0.3, # volumetric water fraction
-                      Tc = 15, # temperature (°C)
-                      pk = 101.3)
-
-   ka <- k / Ch # thermal diffusivity
-   DampDepth <- sqrt(2 * ka * 3600 / om) # damping depth (m)
-
-   # Compute ground heat flux
-   G <- sqrt(2) * A0 *
-        sin(om * (tt - hrmx) + 3 * pi / 4) / DampDepth
-
-   error <- max(abs(Ts - Told)) # convergence error
-   Told <- Ts
-   itr <- itr + 1
-
-   if (itr > 12) itr <- 12 # ensure colours plot correctly
+  error <- max(abs(Ts - Told)) # convergence error
+  Told <- Ts
+  itr <- itr + 1
 }
 
 # ---------------------- Plot final converged temperature ----------------- #
-plot(Ts ~ tt, type = "l", col = "blue",
-     ylim = c(5, 55),
-     xlab = "Hour",
-     ylab = expression("Temperature (" * degree * "C)"),
-     lwd = 2)
+lines(Ts ~ tt, col = "blue", lwd = 2)
 ```
+
 ![](images/img22.png)
-   
-The damping depth also provides a route to computing sub-surface temperatures.
-In the code below, we derive these for depths of 5 cm and 20 cm respectively
+
+The same approach can be used to estimate temperatures below the surface. As depth increases, daily temperature fluctuations become smaller and their peaks occur progressively later. Below, we calculate temperature cycles at 5 cm and 20 cm depth, comparing them with the modelled surface temperature and its sinusoidal approximation.
 
 ```{r eval=FALSE}
 # Assumes code above already run
 Tav <- mean(Ts) # average temperature (°C)
-A0 <- (max(Ts) - min(Ts)) / 2 # amplitude of cycle
 
 # ---------------- Temperatures at 5 cm depth ---------------------------- #
 z <- -0.05 # depth below surface (m)
@@ -1653,33 +1814,18 @@ z <- -0.2 # depth below surface (m)
 Tz20 <- Tav + A0 * exp(z / DampDepth) *
         sin(om * (tt - hrmx) + pi / 2 + z / DampDepth)
 
+# Assumed sinusoidal cycle at the surface
+Tz0 <- Tav + A0 * sin(om * (tt - hrmx) + pi / 2)
+
 # ----------------------------- Plot results ----------------------------- #
-# Actual surface temperature
 plot(Ts ~ tt, type = "l", col = "red",
-     ylim = c(5, 55),
+     ylim = c(10, 40),
      xlab = "Hour",
      ylab = expression("Temperature (" * degree * "C)"),
      lwd = 2)
-par(new = TRUE)
-# Assumed sinusoidal cycle
-Tz0 <- Tav + A0 * sin(om * (tt - hrmx) + pi / 2)
-plot(Tz0 ~ tt, type = "l", col = "red",
-     ylim = c(5, 55),
-     xlab = "", ylab = "",
-     lwd = 2, lty = 2)
-par(new = TRUE)
-# 5 cm depth
-plot(Tz5 ~ tt, type = "l",
-     ylim = c(5, 55),
-     xlab = "", ylab = "",
-     lwd = 2)
-
-par(new = TRUE)
-# 20 cm depth
-plot(Tz20 ~ tt, type = "l", col = "blue",
-     ylim = c(5, 55),
-     xlab = "", ylab = "",
-     lwd = 2)
+lines(Tz0 ~ tt, col = "red", lwd = 2, lty = 2)
+lines(Tz5 ~ tt, col = "black", lwd = 2)
+lines(Tz20 ~ tt, col = "blue", lwd = 2)
 legend("topleft",
        legend = c("Surface temperature",
                   "Sinusoidal approximation",
@@ -1690,21 +1836,21 @@ legend("topleft",
        lwd = 2,
        bty = "n")
 ```
+
 ![](images/img23.png)
 
-While the procedure above provides a reasonable way to estimate ground heat storage and subsurface temperatures, it relies on assumptions that are clearly limiting. In particular, assuming a sinusoidal surface temperature cycle is unrealistic, and the assumption of vertically uniform thermal properties is problematic given their dependence on soil water content. We therefore turn to a more comprehensive model.
+This approach captures the main features of ground heat storage and the attenuation of temperature fluctuations with depth, but its assumptions are restrictive. Surface temperature rarely follows a perfect sinusoidal cycle, while soil thermal properties vary with depth and changing water content. We therefore turn to a more comprehensive model that relaxes these assumptions.
 
 ### Soil temperature model
-Here we divide the soil into multiple layers. The surface layer has a non-zero energy balance determined by the absorbed radiation and the exchange of longwave radiation, sensible and latent heat with the air above. When this balance is positive the surface warms, and when it is negative it cools. Heat is then conducted between adjacent soil layers at a rate determined by the thermal conductivity and the temperature gradient between them, and the resulting temperature change in each layer depends on its heat capacity.
 
-At each timestep the temperature profile is updated by solving the discretised heat equation across all layers simultaneously using a tridiagonal matrix formulation. This yields a midpoint (partly implicit) solution that is numerically stable over typical timestep lengths. The calculation is embedded within an iteration because the surface heat flux depends on the surface temperature, which is itself part of the solution. A fixed temperature is imposed at the lower boundary, and the solution is constrained to avoid non-physical oscillations in the vertical temperature profile.
+We now move to a more realistic model in which the soil is divided into vertical layers. Heat flows between adjacent layers according to their thermal conductivity and temperature differences, while the resulting temperature change in each layer depends on its heat capacity. At the surface, temperature is determined by the balance between absorbed radiation, emitted longwave radiation and sensible and latent heat exchange with the air.
 
-To set up the model, we first use the function `createsoilplist`. The user specifies the soil type, the number of layers, and the total depth of the soil profile, extending to a lower boundary where temperatures are assumed to be stable. The function then constructs a geometrically increasing sequence of layer thicknesses, so that deeper layers are progressively thicker, improving numerical stability. For each layer, typical values are assigned for bulk density, heat capacity, and the fractions of quartz, mineral, clay, and organic matter.  The user can optionally apply a scaling factor to control the vertical distribution of organic matter near the surface. By default, bulk density is assumed to increase slightly with depth. Once created, any of the default parameters can be modified byu the user. 
+At each timestep, the temperatures of all soil layers are calculated simultaneously by solving the heat equation using a tridiagonal matrix. Because surface heat exchange itself depends on surface temperature, the calculation is iterated until the surface energy balance converges. Temperature is held fixed at the lower boundary, typically at a depth where daily fluctuations are negligible.
 
-Available soil types are `Sand`, `Loamy sand`, `Sandy loam`, `Loam`, `Silt loam`, `Sandy clay loam`, `Clay loam`, `Silty clay loam`, `Sandy clay`, `Silty clay` and `Clay`. In the example below the default parameters for `clay loam` and leave `surface_organicmu` at its default value of 3, meaning the surface layer is given three times as much soil organic material as the average for the profile. 
+We first use `createsoilplist` to define the soil profile, specifying its type, depth and number of layers. The function assigns default values for bulk density and the proportions of quartz, other minerals, clay and organic matter, with bulk density increasing slightly with depth. Organic matter can also be concentrated near the surface using `surface_organicmu`. Here we use a 2 m clay loam profile with 15 layers and three times the average organic matter content in the surface layer. Other available soil types can be determined by inspecting the `createsoilplist` help file.
 
 ```{r eval=FALSE}
-# -------------- Generate list of soil model parameters --------------- # 
+# -------------- Generate list of soil model parameters --------------- #
 soilp <- createsoilplist(soiltype = "Clay loam",
                          nlayers = 15, # number of soil layers
                          totalDepth = 2, # total soil depth (m)
@@ -1714,7 +1860,7 @@ soilp <- createsoilplist(soiltype = "Clay loam",
                          FreeDrain = TRUE) # free drainage lower boundary
 ```
 
-The final input, `FreeDrain`, is used by the soil water model described later. Once the soil parameters have been generated, the model is initialised using InitSoilheatmod as follows:
+The `FreeDrain` argument controls the lower boundary of the soil water model, described later. We initialise the temperature and moisture profiles using `InitSoilheatmod`:
 
 ```{r eval=FALSE}
 # Initial soil temperature sequence: surface to lower boundary layer
@@ -1723,22 +1869,21 @@ theta <- rep(0.3, 16) # volumetric soil water fraction
 soilheat <- InitSoilheatmod(soilp, Te, theta)
 ```
 
-This function creates a list containing the state variables required to run the model: initial soil temperature and water content for each layer, plus a fixed temperature at the lower boundary. A sensible choice for this boundary condition is the mean annual temperature. Each call to the soil heat model advances the system by one timestep and returns an updated object of the same form, with revised soil temperatures. The model also returns an estimate of the rate of ground heat storage.
+This creates the initial soil state, with layers spaced more closely near the surface where temperature changes most rapidly. The final temperature specifies the fixed lower boundary, for which mean annual temperature is a reasonable approximation. Each subsequent call to `SoilHeatModel` advances the temperature profile by one timestep and calculates the ground heat flux (`Gflux`), representing the net heat transferred from the surface into the soil.
 
-We are now ready to run the soil heat model. In addition to the soil parameters and state variables, the model requires the radiation absorbed at the surface, air temperature, relative humidity, and atmospheric pressure at a reference height, along with the resistance to heat transfer between the soil surface and that reference height (zref).
-
-In the example below, we run the model for short grass over 10 days in June. The function `solve_wholecanopy` is used to estimate the radiation absorbed by the soil surface, while `groundresistance` provides the resistance to heat transfer. The soil heat model (`SoilHeatModel`) is then applied at each hourly timestep.
-
-We store the surface temperature and compute the rate of ground heat storage. Because `solve_wholecanopy` requires an estimate of ground heat storage as an input, the calculations are embedded within an iterative loop. The final code block plots the resulting time series, illustrating the diurnal cycle in surface temperature and ground heat flux.
+Below, we simulate 10 days in June for bare ground. With vegetation height and plant area index set to zero, `solve_wholecanopy` treats the surface as bare soil. At each hour it provides the radiation absorbed by the ground and the resistance to heat transfer between the ground and reference height, which depends on wind speed and on the stability of the air. These inputs are passed to `SoilHeatModel`, which calculates surface and subsurface temperatures and ground heat flux. Because the stability of the air depends on how much heat the surface gives to it, and so on ground heat flux, the two calculations are iterated until the flux converges. The resulting soil temperatures are then carried forward to the next hour (`soilheat$oldTe <- soilheat$Te`).
 
 ```{r eval=FALSE}
 # ---------------- Create driving data from inbuilt datasets -------------- #
-weather <- micropoint::climdata
+weather <- climdata
 groundp <- micropoint::groundparams
 
 vegp <- createplant_inputs("C3")
-vegp$h <- 0.1 # vegetation height (m)
-vegp$pai <- 0.15 # total plant area index
+vegp$h <- 0 # vegetation height (m): zero for bare ground
+vegp$pai <- 0 # total plant area index: zero for bare ground
+
+lat <- 49.96807 # latitude (decimal degrees)
+long <- -5.215668 # longitude (decimal degrees)
 
 boundaryT <- mean(weather$temp) # lower boundary temperature (°C)
 
@@ -1749,6 +1894,7 @@ sel <- which(tme$mon + 1 == 6 &
              tme$mday < 11)
 
 weather <- weather[sel,]
+tme <- tme[sel]
 
 # ---------------- Create parameters for soil heat model ----------------- #
 soilp <- createsoilplist(soiltype = "Clay loam",
@@ -1768,42 +1914,35 @@ theta <- rep(0.3, 16) # volumetric water content
 soilheat <- InitSoilheatmod(soilp, Te, theta) # initialise soil heat model
 
 # -------------------------- Initialise variables ------------------------- #
-error <- 1e99 # difference between current and previous G
+error <- 1e99 # error tolerance for iterative solve
 G <- 0 # ground heat flux (W m^-2)
 
-Tsurface <- 0 # ground surface temperature (°C)
-Gflux <- rep(G, 24) # ground heat flux for each timestep
+Tsurface <- rep(0, 240) # ground surface temperature (°C)
+Gflux <- rep(0, 240) # ground heat flux for each timestep
 
 for (hr in 1:240) {
 
   while (error > 1e-4) {
 
-     # ---------------------- Run canopy model ---------------------------- #
+     # ------ Absorbed radiation and resistance to heat transfer --------- #
      can <- solve_wholecanopy(weather, vegp, groundp,
                               hr,
-                              49.96807,
-                              -5.215668,
+                              lat,
+                              long,
                               zref = 2,
                               G,
-                              0.3,
-                              0.8)
-
-     # -------- Compute resistance from ground surface to zref ----------- #
-     rHg <- groundresistance(vegp$h,
-                             vegp$pai,
-                             can$uf,
-                             can$LL,
-                             can$psih,
-                             zref = 2)
+                              theta = 0.3,
+                              soilrh = 100, # moist soil: air at its surface is saturated
+                              Lfrac = 0) # no living leaf
 
      # ------------------------- Run soil heat model --------------------- #
      soilheat <- SoilHeatModel(soilheat,
                                soilp,
-                               Rabs = can$Rabs,
+                               Rabs = can$Rabs, # radiation absorbed by the ground
                                Tref = weather$temp[hr],
                                relhum = weather$relhum[hr],
                                atmPressure = weather$pres[hr],
-                               rHg)
+                               rHa = can$rHg) # resistance from ground to zref
 
      error <- abs(G - soilheat$Gflux) # convergence error
      G <- soilheat$Gflux
@@ -1820,7 +1959,7 @@ for (hr in 1:240) {
 # ----------------------------- Plot time series -------------------------- #
 par(mfrow = c(2, 2))
 
-tmec <- as.POSIXct(tme[sel], tz = "UTC")
+tmec <- as.POSIXct(tme, tz = "UTC")
 
 # Soil surface temperature
 plot(Tsurface ~ tmec, type = "l", lwd = 2, col = "red",
@@ -1843,45 +1982,29 @@ plotdailycycle <- function(v, clr) {
   vd <- matrix(v, ncol = 24, byrow = TRUE)
 
   # Daily minima and maxima
-  vmn <- rep(apply(vd, 1, min), each = 24)
-  vmx <- rep(apply(vd, 1, max), each = 24)
+  vmn <- apply(vd, 1, min)
+  vmx <- apply(vd, 1, max)
 
   # Scale values between 0 and 1
-  vfrac <- (v - vmn) / (vmx - vmn)
+  vdfrac <- (vd - vmn) / (vmx - vmn)
 
-  # Rebuild day × hour matrix
-  vdfrac <- matrix(vfrac, ncol = 24, byrow = TRUE)
-
-  for (i in 1:dim(vdfrac)[1]) {
-
-    # Plot each daily cycle
-    v24 <- vdfrac[i,]
-
-    if (i < dim(vdfrac)[1]) {
-
-      plot(v24, type = "l",
-           ylim = c(0, 1),
-           col = clr,
-           xlab = "", ylab = "")
-
-      par(new = TRUE)
-
-    } else {
-
-      plot(v24, type = "l",
-           ylim = c(0, 1),
-           col = clr,
-           xlab = "Hour",
-           ylab = "Normalised diurnal cycle")
-    }
-  }
+  # Plot each daily cycle
+  matplot(t(vdfrac), type = "l", lty = 1,
+          col = clr,
+          xlab = "Hour",
+          ylab = "Normalised diurnal cycle")
 }
 
 # Plot daily cycles for surface temperature and ground heat flux
 plotdailycycle(Tsurface, rgb(1, 0, 0, 0.5))
 plotdailycycle(Gflux, rgb(0, 0, 1, 0.5))
 ```
+
 ![](images/img24.png)
+
+The plots show pronounced daily cycles in both surface temperature and ground heat flux, with variations between days reflecting changing weather conditions. The lower panels rescale each day's cycle to highlight their timing. Ground heat flux typically peaks in mid-morning, several hours before surface temperature, consistent with the simpler model above. Unlike that model, however, the timing and magnitude of heat exchange are now calculated directly from the evolving soil temperature profile rather than assuming a sinusoidal cycle.
+
+Bare ground is the simplest case. Beneath vegetation, the ground absorbs only the shortwave radiation that passes through the canopy, together with longwave radiation emitted by the canopy itself. It also exchanges heat and water vapour with air that the foliage has warmed, cooled or moistened, and in turn alters that air and so the temperature of the leaves. The ground, the canopy and the air within it must therefore be solved together. This is what `micropoint` is designed to do.
 
 ### Soil water model
 Soil hydrological processes are typically represented by dividing the soil into a set of vertical layers, analogous to the heat model. Evaporation removes water from the surface, while transpiration extracts water throughout the profile according to root distribution. At the same time, water is redistributed within the soil, with fluxes occurring between layers. However, the gradient that drives these fluxes is not the gradient in volumetric water content $\small \theta$, but the gradient in soil water potential $\small \psi_w$, defined as the pressure of water relative to atmospheric pressure (and therefore negative in unsaturated soils).
@@ -1895,8 +2018,8 @@ In the code below, we compare the Campbell and van Genuchten formulations for a 
 Campbell_params <- Campbellparams("Clay loam")
 VG_params <- VGparams("Clay loam")
 
-theta <- seq(VG_params$Smin + 1e-3,
-             VG_params$Smax,
+theta <- seq(VG_params$Smin + 1e-2,
+             VG_params$Smax - 1e-2,
              length.out = 100)
 
 psiw1 <- with(Campbell_params,
@@ -1910,7 +2033,6 @@ psiw2 <- with(VG_params,
               PsiFromthetaVG(theta,
                              Smin,
                              Smax,
-                             psie,
                              alpha,
                              n))
 
@@ -1951,13 +2073,12 @@ In the code below, we illustrate how the relationship differs between contrastin
 VG_params1 <- VGparams("Clay")
 VG_params2 <- VGparams("Sand")
 
-theta <- seq(0.07, 0.37, length.out = 100) # volumetric water content
+theta <- seq(0.1, 0.35, length.out = 100) # volumetric water content
 
 psiw1 <- with(VG_params1,
               PsiFromthetaVG(theta,
                              Smin,
                              Smax,
-                             psie,
                              alpha,
                              n))
 
@@ -1965,7 +2086,6 @@ psiw2 <- with(VG_params2,
               PsiFromthetaVG(theta,
                              Smin,
                              Smax,
-                             psie,
                              alpha,
                              n))
 
@@ -2059,7 +2179,9 @@ Once the inner loop has converged, selected outputs are stored for that hour. In
 
 ```{r eval=FALSE}
 # ---------------- Load example forcing and parameter datasets ------------ #
-weather <- micropoint::climdata # meteorological forcing data
+# Reload the weather dataset: the name climdata is reused for model driving variables
+climdata <- microclimlearn::climdata
+weather <- climdata # meteorological forcing data
 groundp <- micropoint::groundparams # ground surface parameters
 
 vegp <- createplant_inputs("C3") # vegetation parameters for C3 grass
@@ -2353,7 +2475,9 @@ The final plots show the simulated evolution of snow depth and the corresponding
 
 ```{r eval=FALSE}
 # ---------------- Load example forcing and parameter datasets ------------ #
-weather <- micropoint::climdata # meteorological forcing data
+# Reload the weather dataset: the name climdata is reused for model driving variables
+climdata <- microclimlearn::climdata
+weather <- climdata # meteorological forcing data
 
 # Reduce air temperatures to create persistent snow conditions
 weather$temp <- weather$temp - 11 # air temperature offset (°C)
@@ -2465,7 +2589,7 @@ for (hr in 1:744) {
   snowdepth <- snowdepthall[hr] <- sum(snowmod$depth) # snow depth (m)
 
   # --------------------- Compute atmospheric stability ---------------- #
-  ph <- rhohair(weather$temp[hr],
+  ph <- rhoair(weather$temp[hr],
                 weather$pres[hr]) # air density (mol m^-3)
   cp <- cpair(weather$temp[hr]) # heat capacity of air
   H <- (ph * cp / rHa) *
@@ -2748,7 +2872,9 @@ The example below illustrates this workflow for a small reptile in short grass. 
 
 ```{r eval=FALSE}
 # -------------------- Create June weather dataset ------------------------- #
-weather <- micropoint::climdata
+# Reload the weather dataset: the name climdata is reused for model driving variables
+climdata <- microclimlearn::climdata
+weather <- climdata
 
 # Select data for June
 tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
@@ -2873,7 +2999,7 @@ for (hr in 1:720) {
   # --------- Calculate conditions 6 cm above the ground surface --------- #
 
   # Roughness length
-  zm <- roughlength(vegp$h, vegp$pai, d, can$psih)
+  zm <- roughlength(vegp$h, vegp$pai, d)
 
   # Stability correction term
   psih6 <- dpsih(zm / can$LL) -
@@ -3015,15 +3141,75 @@ In the final plot, the red line shows predicted body temperature and the black l
 The microcdata object contains the quantities needed for this calculation: air temperature and humidity at the animal’s height (Tair, relhum), surface temperature and upward longwave flux from below (Tsurf, Rlwup), and the direct, diffuse and reflected shortwave components (Rdirdown, Rdifdown, Rswup).
 
 ### Endotherms
-For endotherms, the treatment here is restricted to birds and mammals and is intentionally simple. A more complete representation of endotherm energy balance would need to account explicitly for processes such as active control of blood flow to the skin, variation in insulation with fur or feather depth and posture, evaporative cooling, and metabolic adjustments associated with thermogenesis or heat dissipation. Readers are referred to the'NicheMapR` package for more complex handling. Here, these complexities are represented in a highly simplified way through alternative resistances to sensible heat loss under warm and cold conditions.
+For endotherms, the treatment here is restricted to birds and mammals and is intentionally simple. A more complete representation of endotherm energy balance would need to account explicitly for processes such as active control of blood flow to the skin, variation in insulation with fur or feather depth and posture, evaporative cooling, and metabolic adjustments associated with thermogenesis or heat dissipation. Readers are referred to the `NicheMapR` package for more complex handling. Here, these complexities are represented in a highly simplified way through alternative resistances to sensible heat loss under warm and cold conditions.
 
 As for ectotherms, boundary layer resistance is first calculated from body size, shape and orientation relative to the wind. For endotherms, however, this is only one component of the total resistance to heat loss. In mammals, the boundary layer sits outside an insulating coat, and heat must also pass through the coat itself and through tissues whose conductance can vary with vasodilation or vasoconstriction. The `mammal_resistance` function therefore combines boundary layer, coat and vascular resistances to give total resistances under warm and cold conditions. Coat resistance depends on coat thickness and decreases with wind speed, while vascular resistance is represented using fixed values corresponding to greater or lesser blood flow to the body surface.
 
-For birds, the same general logic applies, but insulation is represented through plumage conductance rather than coat thickness. The bird_resistance function combines boundary layer resistance with a plumage resistance estimated from body mass using an allometric scaling relationship, such that larger birds have lower mass-specific conductance and therefore greater insulation. Alternative values represent reduced and increased insulation, capturing warm and cold states in a simple way, rather than resolving the detailed structure of feathers or ptiloerection.
+For birds, the same general logic applies, but insulation is represented through plumage conductance rather than coat thickness. The `bird_resistance` function combines boundary layer resistance with a plumage resistance estimated from body mass using an allometric scaling relationship, such that larger birds have lower mass-specific conductance and therefore greater insulation. Alternative values represent reduced and increased insulation, capturing warm and cold states in a simple way, rather than resolving the detailed structure of feathers or ptiloerection.
 
-These resistance terms are then used in the `Endothermstress` function, which calculates net energy balance at a single time step from animal traits, time and location, and local microclimate. As for ectotherms, solar position is first used together with body geometry and orientation to determine interception of direct solar radiation, from which absorbed shortwave and longwave radiation are calculated. Longwave emission is then calculated from body temperature, and sensible heat exchange is computed separately using the warm and cold resistance states. These correspond to lower and higher total resistances to heat loss (e.g. vasodilation vs vasoconstriction or reduced vs increased insulation), giving alternative estimates of heat exchange with the air and substrate. Basal metabolic heat production is added as an internal heat source, and energy balance is evaluated under both resistance states. The function then selects the appropriate state depending on whether the animal would otherwise gain or lose heat, and returns the resulting net energy balance for the whole animal.
+These resistance terms feed into two functions that summarise an animal's thermal environment in different, complementary ways. `EndothermPET` expresses these conditions as a physiologically equivalent temperature (PET): the air temperature, at a standard reference wind speed, that would produce the same combined effect of radiation, wind and insulation as the animal's actual environment. `Endothermstress` instead reports the animal's net energy balance directly, in watts, indicating whether conditions at a given moment amount to a net heat gain or loss.
 
-The interpretation of the function output differs from the ectotherm case. Rather than solving directly for body temperature, the function evaluates whether the animal is in positive or negative energy balance at its assumed body temperature. Positive values indicate a net heat gain and negative values a net heat loss. In this way, the model provides a simple index of thermal stress under different environmental conditions, while allowing for limited physiological buffering through changes in insulation and vascular resistance.
+Both functions start from the same calculation of radiation exchange. Solar position is used together with body geometry and orientation to determine interception of direct solar radiation, from which absorbed shortwave and longwave radiation are calculated, and longwave emission is calculated from body temperature. Sensible heat exchange is then computed separately using the warm and cold resistance states described above, giving alternative estimates of heat exchange with the air and substrate.
+
+`EndothermPET` takes this net radiative and convective exchange and asks: what air temperature, under the standard reference wind speed, would produce the same heat exchange? Recomputing the resistance terms at that reference wind speed, rather than the animal's actual wind speed, gives the equivalent temperature. As with the human PET index, this strips out the effect of the animal's actual wind and radiation environment and re-expresses it on a common temperature scale — but because this is a much simpler model than the human one, with no evaporative cooling and a fixed rather than solved body temperature, the comparison here is restricted to radiative and convective heat exchange rather than to core temperature and sweat rate.
+
+To illustrate `EndothermPET`, we consider a stationary human wearing a light outdoor jacket, exposed to varying levels of solar radiation. Rather than driving the model from a full microclimate time series, we hold air temperature, wind speed and humidity fixed and increment incident direct radiation from zero (full shade) to a high midday value (full sun), recalculating PET at each level. We treat the human as a mammal, approximating the body as an ellipsoid and fudging coat thickness to represent the insulation of a light jacket rather than fur.
+
+
+```{r eval=FALSE}
+{r eval=FALSE}
+# ----------------------- Create endotherm parameters (human) --------------- #
+endo_params <- list(height = 170,   # standing height (cm)
+                    width = 45,     # shoulder width (cm)
+                    len = 25,       # front-to-back body depth (cm)
+                    adir = 0,       # body azimuth
+                    atilt = 0,      # upright posture
+                    position = "fixed",
+                    Tbody = 37,     # core body temperature (deg C)
+                    confrac = 0,    # standing; negligible ground contact
+                    coatthick = 0.5,# fudged to represent a light jacket (cm)
+                    basmet = 90,    # resting metabolic rate (W)
+                    type = "mammal",
+                    refl = 0.3,     # reflectance of jacket/skin
+                    em = 0.97)      # emissivity
+
+# Fix time and location (midday, so the sun is high in the sky)
+tme <- as.POSIXlt("2025-06-21 12:00", tz = "UTC")
+lat <- 50
+long <- -5
+
+# ----------------------- Vary radiation load and compute PET ---------------- #
+sb <- 5.67e-8      # Stefan-Boltzmann constant
+Tair <- 20         # air temperature held constant (deg C)
+Rad <- seq(0, 800, 100) # direct radiation load (W m^-2), shade to full sun
+
+PET <- numeric(length(Rad))
+
+for (i in 1:length(Rad)) {
+  microcdata <- list(Tair = Tair,
+                     Tsurf = Tair,
+                     pk = 101.3,
+                     windspeed = 1,
+                     winddir = 0,
+                     Rdirdown = Rad[i],
+                     Rdifdown = 0.2 * Rad[i],
+                     Rswup = 0,
+                     Rlwdown = 0.8 * sb * (Tair + 273.15)^4,
+                     Rlwup = 0.95 * sb * (Tair + 273.15)^4)
+  PET[i] <- EndothermPET(endo_params, tme[1], microcdata, lat, long)
+}
+
+# ----------------------------- Plot results ---------------------------------- #
+plot(PET ~ Rad, type = "l", lwd = 2,
+     xlab = expression("Direct radiation load (W " * m^-2 * ")"),
+     ylab = expression("Temperature (" * degree * "C)"))
+abline(h = Tair, lty = 2, col = "red")
+legend("topleft", legend = c("PET", "Air temperature"),
+       col = c("black", "red"), lty = c(1, 2), lwd = 2, bty = "n")
+```
+![](images/img33a.png)
+
+`Endothermstress` instead adds basal metabolic heat production as an internal heat source and evaluates energy balance under both resistance states. The function then selects whichever state the animal would actually adopt — the one under which it would otherwise gain or lose the least heat — and returns the resulting net energy balance for the whole animal. The interpretation of this output differs from the ectotherm case: rather than solving directly for body temperature, the function evaluates whether the animal is in positive or negative energy balance at its assumed body temperature. Positive values indicate a net heat gain and negative values a net heat loss, providing a simple index of thermal stress under different environmental conditions while allowing for limited physiological buffering through changes in insulation and vascular resistance.
 
 To illustrate the use of `Endothermstress`, we consider a lion under a simple set of near-ground microclimatic conditions. Because the built-in weather dataset is from southwest England, we first modify it to be more representative of a warmer, sunnier African environment. This also provides an opportunity to demonstrate two additional utility functions included in the package: `clearskyrad`, which estimates clear-sky shortwave radiation, and `difprop`, which estimates the diffuse fraction of incoming shortwave radiation from total flux and solar geometry.
 
@@ -3032,7 +3218,9 @@ In the example below, we first subset the weather data to June. Air temperature 
 
 ```{r eval=FALSE}
 # -------------------------- Select June weather ---------------------------- #
-weather <- micropoint::climdata
+# Reload the weather dataset: the name climdata is reused for model driving variables
+climdata <- microclimlearn::climdata
+weather <- climdata
 # Extract time and subset to June
 tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
 sel <- which(tme$mon + 1 == 6)
@@ -3150,7 +3338,7 @@ for (hr in 1:720) {
     itr <- itr + 1     
   } 
   # ----- Calculate air temperature and relative humidity 6 cm above ground -- #
-  zm <- roughlength(vegp$h, vegp$pai, d, can$psih)
+  zm <- roughlength(vegp$h, vegp$pai, d)
   psih55 <- dpsih(zm / can$LL) - dpsim((0.55 - d) / can$LL)
   rHaz <- (log((0.55 - d) / (0.2 * zm)) + psih55) / (0.41 * can$uf)
   Tz <- weather_new$temp[hr] + (can$tcanopy - weather_new$temp[hr]) * 
@@ -3176,7 +3364,7 @@ for (hr in 1:720) {
   effwetarea <- 0.03 * surfaceArea
   la <- latvap(38.5)
   esa <- satvap(38.5)
-  rho <- rhohair(Tz, weather_new$pres[hr])
+  rho <- rhoair(Tz, weather_new$pres[hr])
   rHa <- animalrHa(Tz, abs(Tz - 38.5), uz, d)
   maxL[hr] <- ((la * rho) / (rHa * weather_new$pres[hr]))* 
     (esa - ez) *  effwetarea 
@@ -3306,7 +3494,6 @@ Together, these components provide a flexible framework for linking climate to p
 The package is extensively tested and documented and instructions detailed instructions for downloading, installing and using it are provided [here](https://mrke.github.io/).
 
 ### TrenchR
-### TrenchR
 
 The TrenchR package (Buckley *et al.* 2023) provides a set of functions for modelling thermal environments and organismal heat exchange, primarily aimed at teaching and exploratory analyses. It implements relatively simple and modular microclimate and biophysical calculations, allowing users to examine how environmental conditions influence body temperature and heat fluxes under different scenarios.
 
@@ -3325,9 +3512,12 @@ The package can also be installed from CRAN:
 ```{r eval=FALSE}
 install.packages("TrenchR")
 library(TrenchR)
+```
 
 ## References
 Buckley LB, Briones Ortiz BA, Caruso I, John A, Levy O, Meyer AV, Riddell EA, Sakairi Y and Simonis JL (2023) TrenchR: An R package for modular and accessible microclimate and biophysical ecology. *PLOS Climate* 2: e0000139.
+
+Calders K, Brede B, Newnham G, Culvenor D, Armston J, Bartholomeus H, Griebel A, Hayward J, Junttila S, Lau A, Levick S, Morrone R, Origo N, Pfeifer M, Verbesselt J and Herold M (2023) StrucNet: a global network for automated vegetation structure monitoring. *Remote Sensing in Ecology and Conservation* 9: 587–598.
 
 Kearney MR & Porter WP (2017) NicheMapR – an R package for biophysical modelling: the microclimate model. *Methods in Ecology and Evolution* 8: 664–674.
 

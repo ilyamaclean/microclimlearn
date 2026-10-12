@@ -4,10 +4,20 @@
 \alias{twostream}
 \title{Two-stream radiation model}
 \usage{
-twostream(vegp, groundp, paii, swdown, difrad, lat, long, solp, PAR = FALSE)
+twostream(
+  vegp,
+  groundp,
+  paii,
+  swdown,
+  difrad,
+  solp,
+  PAR = FALSE,
+  leafh = FALSE,
+  scattermethod = "Sellers"
+)
 }
 \arguments{
-\item{vegp}{a list of vegetation parameters - see e.g. example dataset micropoint::vegparams}
+\item{vegp}{a list of vegetation parameters as returned by [createplant_inputs()]}
 
 \item{groundp}{a list of ground parameters - see e.g. micropoint::groundparams}
 
@@ -19,26 +29,34 @@ radiation on a flat horizontal surface}
 
 \item{difrad}{a single numeric value of flux density of downward diffuse radiation}
 
-\item{lat}{latitude (decimal degrees), negative south of the equator}
+\item{solp}{a list of the solar zenith and azimuth angle}
 
-\item{long}{longitude (decimal degrees), negative west of the Greenwich meridian}
+\item{PAR}{optional logical indicating whether to use leaf reflectance and transmittance
+for photosynthetically active radiation (`vegp$lrefp`, `vegp$ltrap`) in place of those for
+shortwave radiation (`vegp$lref`, `vegp$ltra`), and a ground reflectance of 0.75 times
+`groundp$gref`}
 
-\item{solp}{a list of the solar zenith and azimith angle}
+\item{leafh}{optional logical indicating whether `paii` is the total one-side plant
+area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)}
+
+\item{scattermethod}{one of "Sellers" - leaf directionality factor approximated by
+calculating mean leaf angle or "Pinty" - leaf directionality factor calculated
+by integrating the inclination density distribution function.}
 }
 \value{
-a list of radiation fluxes in the same units as `swrad` and `difrad`
+a list of radiation fluxes in the same units as `swdown` and `difrad`
 \describe{
  \item{Rdirdown}{Flux density of downward direct radiation perpendicular to the solar beam}
  \item{Rdifdown}{Flux density of downward diffuse radiation}
  \item{Rswup}{Flux density of upward shortwave radiation - assumed entirely diffuse}
  \item{Rleafabs}{Flux density of shortwave radiation absorbed by leaves - averaged over both sides}
- \item{Rsun}{Flux density of shortwave radiation absorbed by sunlit leaves}
- \item{Rshade}{Flux density of shortwave radiation absorbed by shaded leaves}
+ \item{Rsun}{Flux density of shortwave radiation absorbed by sunlit leaves - averaged over both sides}
+ \item{Rshade}{Flux density of shortwave radiation absorbed by shaded leaves - averaged over both sides}
  \item{sunlitfrac}{Fraction of leaves that are sunlit}
  \item{Rgroundabs}{Flux density of shortwave radiation absorbed by ground surface}
 }
 }
 \description{
 Calculates upward and downward fluxes of shortwave radiation within canopies
-accomodating inclined surfaces and non-random canopy gaps
+accommodating inclined surfaces
 }

@@ -9,18 +9,16 @@ cank(solp, x, si)
 \arguments{
 \item{solp}{a list of solar zenith and azimuths as returned by [sunposition()]}
 
-\item{x}{ratio of vertical to horizontal projections of leaf foliage}
+\item{x}{ratio of horizontal to vertical projections of leaf foliage (1 = spherical, 0 =
+vertical, `Inf` = horizontal))}
 
-\item{si}{the fraction of direct ebam radiation incident on an inclined surface
+\item{si}{the fraction of direct beam radiation incident on an inclined surface
 as returned by [solarindex()]}
 }
 \value{
-a list of the following
-\describe{
- \item{k}{canopy extinction coefficient for vegetation above a flat surface}
- \item{k0}{canopy extinction coefficient when solar zenith = 0}
- \item{kd}{canopy extinction coefficient for vegetation above an inclined surface}
-}
+the canopy extinction coefficient for direct beam radiation, for vegetation above
+an inclined surface. Supplying the cosine of the solar zenith angle as `si` gives the
+coefficient for vegetation above a flat surface.
 }
 \description{
 Calculates the canopy extinction coefficient for inclined and flat canopies

@@ -2,37 +2,63 @@
 % Please edit documentation in R/latentheat.R
 \name{relhum_below}
 \alias{relhum_below}
-\title{Calculate relative humidity below canopy}
+\title{Calculate relative humidity within a canopy}
 \usage{
-relhum_below(hgt, paii, TL, uf, pk, Lz, rh, tair, tleaf, tground, soilrh)
+relhum_below(
+  Lz,
+  hgt,
+  pai,
+  uf,
+  rhtop,
+  ttop,
+  tground,
+  soilrh,
+  tair,
+  pk = 101.3,
+  LL = Inf,
+  z = NULL
+)
 }
 \arguments{
-\item{hgt}{height of canopy(m)}
+\item{Lz}{vector of the flux of latent heat from the foliage of each canopy
+layer, per unit ground area (W/m^2), ordered from canopy bottom to top}
 
-\item{paii}{vector of plant area index values per unit ground area ordered
-sequentially from canopy bottom to top.}
+\item{hgt}{height of canopy (m)}
 
-\item{TL}{Langrangian timescale as returned by [solve_wholecanopy()]}
+\item{pai}{plant area index of the canopy as a whole}
 
-\item{uf}{wind friction velocity as returned by [windfric()] (m/s)}
+\item{uf}{friction velocity (m/s) as returned by [windfric()] or [solve_wholecanopy()]}
+
+\item{rhtop}{relative humidity of the air at canopy top (percentage)}
+
+\item{ttop}{air temperature at canopy top (deg C)}
+
+\item{tground}{temperature of the ground surface (deg C)}
+
+\item{soilrh}{effective relative humidity of the soil surface (percentage)}
+
+\item{tair}{air temperature within the canopy (deg C), as returned by
+[temp_below()]. A single value or one for each height at which values are
+returned.}
 
 \item{pk}{atmospheric pressure (kPa)}
 
-\item{Lz}{vector of latent heat fluxes from each canopy layer (W/m^2)}
+\item{LL}{Obukhov length (m) as returned by [Obukhov()]. Infinite under neutral conditions.}
 
-\item{rh}{vector of initial estimates of relative humidity (percentage)}
-
-\item{tair}{vector of air temperatures (deg C)}
-
-\item{tleaf}{vector of leaf temperatures (deg C)}
-
-\item{tground}{ground surface temperature (deg C)}
-
-\item{soilrh}{soil effective relative humidity (percentage)}
+\item{z}{optional vector of heights above ground (m) at which values are
+returned, between the ground surface (0) and canopy top (`hgt`). The default
+is the middle of each canopy layer.}
 }
 \value{
-a vector of air temperatures (deg C)
+a vector of relative humidities (percentage) at each height `z`
 }
 \description{
-Calculate relative humidity below canopy
+Relative humidity at any height within a canopy, from the latent heat
+released by the foliage of each layer and the humidity of the air at canopy
+top and of the ground surface. Vapour pressure is calculated as the sum of
+the far field, as returned by [farfield()], and the near field, as returned by
+[nearfield()], and converted to relative humidity at the temperature of the air.
+}
+\seealso{
+[temp_below()] for air temperature
 }

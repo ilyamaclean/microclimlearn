@@ -142,46 +142,54 @@ chardim <- function(wdir, height, width, len,
 #' @param dT initial estimate of temperature difference between the animal surface and air
 #' (degrees C)
 #' @param uz wind speed at the animal scale (m s^-1)
-#' @param d characteristic dimension of the animal (m), typically defined as
-#' volume divided by projected area
+#' @param d characteristic dimension of the animal (m): volume divided by the
+#' area it presents to the wind, as returned by [chardim()]
 #' @param rHmax maximum allowed boundary layer resistance (s m^-1). Default is
 #' 300.
 #' @return a numeric value giving the boundary layer resistance to heat transfer
 #' (s m^-1)
 #' @details Thermal diffusivity and kinematic viscosity are calculated as
-#' functions of air temperature. The Nusselt number for forced convection is
-#' estimated using empirical relationships across Reynolds number regimes,
-#' while free convection is estimated from Grashof and Prandtl numbers. The two
+#' functions of air temperature. The animal is treated as a spheroid, the size
+#' of which is the length of its body along the wind (1.5 times `d`). The Nusselt
+#' number for forced convection is that of Whitaker (1972) for a sphere, while
+#' free convection is estimated from Grashof and Prandtl numbers. The two
 #' contributions are combined using a cubic mean to represent mixed convection.
+#' @references Whitaker S (1972) Forced convection heat transfer correlations for
+#' flow in pipes, past flat plates, single cylinders, single spheres, and for flow
+#' in packed beds and tube bundles. AIChE Journal 18: 361-371.
 #' @export
 animalrHa <- function(tair, dT, uz, d, rHmax = 300.0) {
   Tk <- tair + 273.15
-  # Thermal diffusivity
+  # Properties of air that set how readily it carries heat and how readily it
+  # flows: thermal diffusivity and kinematic viscosity (m^2/s)
   Kh <- (1.6667e-10 * Tk^2 + 2.9935e-8 * Tk - 1.7128e-6)
-  # Kinematic viscosity
-  v <- 1.326e-5 * (Tk / 273.15)^1.5 * (393.55 / (Tk + 120.0))
-  # Reynolds number
-  Re <- (uz * d) / v
-  # Prandtl number
-  Pr <- v / Kh
-  # Nusselt number (forced convection)
-  if (Re > 2e5) {
-    Nuf <- 0.37 * Re^0.6 * Pr^(1/3) + 9.08
-  } else if (Re > 1000) {
-    Nuf <- 2.0 + (0.48 * Re^0.6 - 11.31) * Pr^(1/3)
-  } else {
-    Nuf <- 2.0 + 0.6 * sqrt(Re) * Pr^(1/3)
-  }
-  # Grashof number (g = 9.81 m s^-2)
-  Gr <- (9.81 * d^3 * dT) / (Tk * v^2)
-  # Nusselt number (free convection)
+  v <- 1.326e-5 * (Tk / 273.15)^2.5 * (393.15 / (Tk + 120.0))
+  # Size of the animal as the wind meets it (m): the length of its body along
+  # the wind. For a spheroid this is 1.5 times its volume over the area it
+  # presents to the wind, and for a sphere it is the diameter
+  D <- 1.5 * d
+
+  # Heat carried away by the wind (forced convection). The Reynolds number
+  # measures the strength of the flow past the animal, and the Nusselt number how
+  # much faster heat is lost than through still air
+  Re <- (uz * D) / v
+  Pr <- v / Kh # Prandtl number: how readily air flows relative to how readily it carries heat
+  # Heat is lost by conduction into still air (the 2), to smooth flow over the
+  # front of the body (rising with the square root of the Reynolds number) and
+  # to the wake behind it (rising faster)
+  Nuf <- 2 + (0.4 * sqrt(Re) + 0.06 * Re^(2/3)) * Pr^0.4
+
+  # Heat carried away by air that rises or sinks because the animal warms or
+  # cools it (free convection), which matters when there is little wind. The
+  # Grashof number measures the strength of that buoyancy
+  Gr <- (9.81 * D^3 * dT) / (Tk * v^2)
   Nun <- (0.825 + (0.387 * (Gr * Pr)^(1/6)) /
             (1 + (0.492 / Pr)^(9/16))^(8/27))^2
-  # Mixed convection
+
+  # The two act together, the stronger dominating
   Nu <- (Nuf^3 + Nun^3)^(1/3)
-  # Boundary layer resistance
-  rHa <- d / (Kh * Nu)
-  if (rHa > rHmax) rHa <- rHmax
+  # Resistance of the layer of air around the animal to the loss of heat
+  rHa <- pmin(D / (Kh * Nu), rHmax)
   return(rHa)
 }
 
@@ -276,7 +284,7 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
               / area)
     # ----------------------- Re-compute body tmeperature -------------------- #
     cp <- cpair(microcdata$Tair)
-    ph <- rhohair(microcdata$Tair, microcdata$pk)
+    ph <- rhoair(microcdata$Tair, microcdata$pk)
     cd <- 1 - ecto_params$confrac
     ea <- satvap(microcdata$Tair)
     Da <- ea * (1 - microcdata$relhum / 100) # Vapour pressure deficit
@@ -505,7 +513,7 @@ Endothermstress <- function(endo_params, tme, microcdata, lat, long) {
     rHas <- with(endo_params, bird_resistance(height, width, len, rho,
             Tbody, tair, adir, atilt, position, windspeed, wdir))
   } else stop("Endotherm type not recognised")
-  ph <- rhohair(tair, microcdata$pk)
+  ph <- rhoair(tair, microcdata$pk)
   cp <- cpair(tair)
   H_warm <- (ph * cp / rHas$rHa_warm) * (endo_params$Tbody - tair)
   H_cold <- (ph * cp / rHas$rHa_cold) * (endo_params$Tbody - tair)
@@ -527,4 +535,122 @@ Endothermstress <- function(endo_params, tme, microcdata, lat, long) {
   }
   EB <- EB * sil$SurfArea
   return(EB)
+}
+#' Physiologically equivalent temperature for an endotherm
+#'
+#' @description Computes the physiologically equivalent temperature (PET) for
+#' an endotherm at a single time step: the air temperature in a standard
+#' reference environment (calm wind, no additional radiation) that would
+#' produce the same body temperature and heat loss as the animal has in the
+#' environment being considered.
+#'
+#' @param endo_params A list of endotherm parameters with the following entries:
+#'   \describe{
+#'     \item{height}{Body height (cm).}
+#'     \item{width}{Body width (cm).}
+#'     \item{len}{Body length (cm).}
+#'     \item{refl}{Shortwave reflectance of the body surface (unitless).}
+#'     \item{em}{Longwave emissivity of the body surface (unitless).}
+#'     \item{confrac}{Fraction of body surface in conductive contact with the substrate (unitless).}
+#'     \item{adir}{Body orientation relative to north (degrees).}
+#'     \item{atilt}{Body tilt angle relative to the horizontal (degrees).}
+#'     \item{position}{Descriptor of body position (character).}
+#'     \item{Tbody}{Body temperature (degrees C).}
+#'     \item{type}{Endotherm type; one of \code{"mammal"} or \code{"bird"}.}
+#'     \item{basmet}{Basal metabolic rate (W).}
+#'     \item{coatthick}{Coat thickness (cm; mammals only).}
+#'     \item{rho}{Body density (kg m^-3; birds only).}
+#'   }
+#' @param tme POSIXlt object indicating date and time in UTC.
+#' @param microcdata A list of microclimate variables with the following entries:
+#'   \describe{
+#'     \item{Tair}{Air temperature (degrees C).}
+#'     \item{Tsurf}{Surface temperature (degrees C).}
+#'     \item{Rdirdown}{Direct shortwave radiation flux perpendicular to the solar beam (W m^-2).}
+#'     \item{Rdifdown}{Diffuse downward shortwave radiation flux (W m^-2).}
+#'     \item{Rswup}{Upward shortwave radiation flux (W m^-2).}
+#'     \item{Rlwdown}{Downward longwave radiation flux (W m^-2).}
+#'     \item{Rlwup}{Upward longwave radiation flux (W m^-2).}
+#'     \item{winddir}{Wind direction (degrees from north).}
+#'     \item{windspeed}{Wind speed at animal height (m s^-1).}
+#'     \item{pk}{Atmospheric pressure (kPa).}
+#'   }
+#' @param lat Latitude (decimal degrees).
+#' @param long Longitude (decimal degrees).
+#' @param uref  reference (standardising) wind speed used to express the
+#' @param iters integer specifying how many times to iterate the equation (4 achieves near exact solution)
+#'
+#' @return Physiologically equivalent temperature (degrees C)
+#' @export
+EndothermPET <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, iters = 4) {
+  sb <- 5.67e-8
+  # ---------------- Absorbed and emitted radiation (as Endothermstress) ----- #
+  solp <- sunposition(tme, lat, long)
+  sil <- with(endo_params, silhouette(solp$zen, solp$azi, height, width, len,
+                                     adir, atilt, position))
+  sc <- with(sil, silA / SurfArea)
+  if (endo_params$confrac < 0.5) {
+    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown +
+                 0.5 * (1 - endo_params$confrac) * microcdata$Rswup) *
+      (1 - endo_params$refl)
+    Rlwabs <- 0.5 * (microcdata$Rlwdown + (1 - endo_params$confrac) *
+                       microcdata$Rlwup) * endo_params$em
+  } else {
+    upcon <- endo_params$confrac - 0.5
+    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown) *
+      (1 - endo_params$refl) * (1 - upcon)
+    Rlwabs <- (0.5 * microcdata$Rlwdown) * (1 - upcon) * endo_params$em
+  }
+  Rabs <- Rswabs + Rlwabs
+  Rem <- with(endo_params, em * sb * (Tbody + 273.15)^4)
+  # ---------------- Actual sensible + contact heat exchange ------------------ #
+  tair <- microcdata$Tair
+  windspeed <- microcdata$windspeed
+  wdir <- microcdata$winddir
+  if (endo_params$type == "mammal") {
+    rHas <- with(endo_params, mammal_resistance(height, width, len, coatthick,
+                                                Tbody, tair, adir, atilt, position, windspeed, wdir))
+    rHas_ref <- with(endo_params, mammal_resistance(height, width, len, coatthick,
+                                                    Tbody, tair, adir, atilt, position, uref, wdir))
+  } else if (endo_params$type == "bird") {
+    rHas <- with(endo_params, bird_resistance(height, width, len, rho,
+                                              Tbody, tair, adir, atilt, position, windspeed, wdir))
+    rHas_ref <- with(endo_params, bird_resistance(height, width, len, rho,
+                                                  Tbody, tair, adir, atilt, position, uref, wdir))
+  } else stop("Endotherm type not recognised")
+  ph <- rhoair(tair, microcdata$pk)
+  cp <- cpair(tair)
+  H_warm <- (ph * cp / rHas$rHa_warm) * (endo_params$Tbody - tair)
+  H_cold <- (ph * cp / rHas$rHa_cold) * (endo_params$Tbody - tair)
+  Hc_warm <- (ph * cp / (rHas$rHa_warm - rHas$rHa_bound)) *
+    (endo_params$Tbody - microcdata$Tsurf)
+  Hc_cold <- (ph * cp / (rHas$rHa_cold - rHas$rHa_bound)) *
+    (endo_params$Tbody - microcdata$Tsurf)
+  HH_warm <- (1 - endo_params$confrac) * H_warm + endo_params$confrac * Hc_warm
+  HH_cold <- (1 - endo_params$confrac) * H_cold + endo_params$confrac * Hc_cold
+  # ---------------- Pick regulatory state exactly as Endothermstress -------- #
+  M <- endo_params$basmet / sil$SurfArea
+  EB_warm <- Rabs - Rem - HH_warm + M
+  if (EB_warm > 0) {
+    Renv <- Rabs - Rem - HH_warm
+    rHa_ref <- rHas_ref$rHa_warm
+  } else {
+    Renv <- Rabs - Rem - HH_cold
+    rHa_ref <- rHas_ref$rHa_cold
+  }
+  # ---------- Solve for equivalent temperature (Penman-style linearisation) - #
+  # Reference environment = blackbody enclosure at Te with convective exchange
+  # at the reference wind speed; both must together reproduce Renv:
+  #   em*sb*((Te+273.15)^4-(Tbody+273.15)^4) + (ph*cp/rHa_ref)*(Te-Tbody) = Renv
+  # Solved by linearising the radiative term and iterating (cf. the "iters"
+  # argument on SolveEnergyBalance), rather than a general root solver.
+  gconv <- (ph * cp) / rHa_ref
+  Te <- endo_params$Tbody
+  for (i in 1:iters) {
+    grad <- 4 * endo_params$em * sb * (Te + 273.15)^3
+    resid <- endo_params$em * sb * ((Te + 273.15)^4 - (endo_params$Tbody + 273.15)^4) +
+      gconv * (Te - endo_params$Tbody) - Renv
+    Te <- Te - resid / (grad + gconv)
+  }
+  return(Te)
 }

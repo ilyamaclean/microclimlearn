@@ -7,7 +7,7 @@
 createsoilplist(
   soiltype = "Clay loam",
   nlayers = 15,
-  totalDepth = 2,
+  totalDepth = 3,
   slope = 0,
   aspect = 180,
   surface_organicmu = 3,
@@ -19,8 +19,8 @@ createsoilplist(
 
 \item{nlayers}{Integer. Number of soil layers.}
 
-\item{totalDepth}{Numeric. Total soil depth (m). Internally this is multiplied
-by 1.5 to allow for a boundary layer.}
+\item{totalDepth}{Numeric. Depth of the lower boundary of the soil profile (m),
+where the deepest node lies.}
 
 \item{slope}{Numeric. Surface slope (degrees).}
 
@@ -40,23 +40,26 @@ A list of soil parameters:
 \describe{
   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3), repeated for each soil layer}
   \item{Smin}{Residual volumetric soil water content (m^3 m^-3), repeated for each soil layer}
-  \item{n}{Pore size distribution parameter (unitless), repeated for each soil layer}
   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3), repeated for each soil layer}
   \item{Vq}{Quartz fraction by volume (m^3 m^-3), repeated for each soil layer}
   \item{Vm}{Mineral fraction by volume (m^3 m^-3), repeated for each soil layer}
   \item{Vo}{Organic fraction by volume (m^3 m^-3), repeated for each soil layer and adjusted with depth}
-  \item{Mc}{Coarse fragment or gravel fraction (m^3 m^-3), repeated for each soil layer}
-  \item{rho}{Bulk density (kg m^-3), repeated for each soil layer and adjusted with depth}
-  \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer}
-  \item{psi_e}{Air-entry water potential (m), repeated for each soil layer}
+  \item{Mc}{Mass fraction of clay (kg kg^-1), repeated for each soil layer}
+  \item{rho}{Bulk density (Mg m^-3), repeated for each soil layer and adjusted with depth}
+  \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer.
+    The Campbell hydraulic conductivity exponent used internally by the soil water solver
+    is derived from this as \code{2 * b + 3}; it is not a separate element of this list.}
+  \item{psi_e}{Air-entry water potential (J/kg, numerically equal to kPa), repeated for each soil layer}
   \item{gref}{Ground shortwave reflectance (unitless)}
   \item{groundem}{Ground longwave emissivity (unitless)}
   \item{grefPAR}{Ground reflectance for photosynthetically active radiation (unitless)}
   \item{slope}{Surface slope (degrees)}
   \item{aspect}{Surface aspect (degrees)}
   \item{nLayers}{Number of soil layers}
-  \item{totalDepth}{Total soil depth used internally (m), after multiplying input depth by 1.5}
-  \item{FreeDrain}{Logical indicating whether the deep boundary condition is saturated}
+  \item{totalDepth}{Depth of the lower boundary of the soil profile (m)}
+  \item{FreeDrain}{Logical indicating whether the lower boundary is free draining}
+  \item{psi_min}{Water potential of oven-dry soil (J/kg), the driest the soil is allowed to get, repeated for each soil layer}
+  \item{psie}{Air-entry water potential as a negative value (J/kg), repeated for each soil layer}
 }
 }
 \description{

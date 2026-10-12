@@ -16,11 +16,14 @@ solve_wholecanopy(
   theta,
   soilrh,
   Ca = 430,
-  maxiter = 20
+  maxiter = 20,
+  leafh = FALSE,
+  MOST = TRUE,
+  Lfrac
 )
 }
 \arguments{
-\item{weather}{a data.frame of weather variables matching the format of `micropoint::climdata`}
+\item{weather}{a data.frame of weather variables matching the format of `climdata`}
 
 \item{vegp}{a list of vegetation parameters as returned by [createplant_inputs()]}
 
@@ -43,6 +46,15 @@ solve_wholecanopy(
 \item{Ca}{Atmospheric CO2 concentration in ppm as returned by `micropoint::Cafromyear()`}
 
 \item{maxiter}{Maxiumum number of iterations to achieve convergence}
+
+\item{leafh}{optional logical indicating whether `vegp$pai` is the total one-side plant
+area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)}
+
+\item{MOST}{Logical. If `TRUE`, wind and temperature profiles above the canopy
+are taken to be logarithmic down to canopy top. If `FALSE`, a roughness
+sublayer is assumed above the canopy.}
+
+\item{Lfrac}{fraction of plant area that is living leaf}
 }
 \value{
 a list of of the following variables
@@ -60,7 +72,6 @@ a list of of the following variables
  \item{psim}{diabatic influencing factor for momentum}
  \item{psih}{diabatic influencing factor for heat}
  \item{LL}{Obukhov length}
- \item{TL}{Langrangian time-scale}
 }
 }
 \description{

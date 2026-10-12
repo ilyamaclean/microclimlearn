@@ -15,6 +15,7 @@ bulkstomatalresist_calc(
   pk,
   psi_r,
   plant_inputs,
+  Lfrac,
   C3 = TRUE
 )
 }
@@ -29,22 +30,22 @@ bulkstomatalresist_calc(
 
 \item{tair}{temperature of air (deg C)}
 
+\item{tcanopy}{temperature of canopy (deg C)}
+
 \item{rh}{relative humidity of air (percentage)}
 
 \item{pk}{atmospheric pressure (kPa)}
 
-\item{psi_r}{# mean water potential in root zone (MPa)}
+\item{psi_r}{mean water potential in root zone (MPa)}
 
-\item{plant_inputs}{a vector of vegetation parameters as returned by [createplant_inputs()]}
+\item{plant_inputs}{a list of vegetation parameters as returned by [createplant_inputs()]}
+
+\item{Lfrac}{fraction of plant area that is living leaf}
 
 \item{C3}{optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway}
-
-\item{PAI}{total one-sided plant area per unit ground area (m^2 / m^2)}
-
-\item{tleaf}{temperature of leaf (deg C)}
 }
 \value{
-bul surface stomatal resistance (s/m)
+bulk surface stomatal resistance (s/m)
 }
 \description{
 Calculate bulk surface stomatal resistance

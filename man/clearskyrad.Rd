@@ -4,7 +4,7 @@
 \alias{clearskyrad}
 \title{Clear-sky solar radiation}
 \usage{
-clearskyrad(climdata, lat, long)
+clearskyrad(climdata, lat, long, haze = TRUE, hourmean = FALSE)
 }
 \arguments{
 \item{climdata}{Data frame containing at least \code{obs_time},
@@ -13,11 +13,20 @@ clearskyrad(climdata, lat, long)
 \item{lat}{Latitude (decimal degrees)}
 
 \item{long}{Longitude (decimal degrees)}
+
+\item{haze}{Logical. If \code{TRUE}, radiation is reduced by a typical amount
+of haze and dust. If \code{FALSE}, the air is taken to be clean, giving the
+most radiation a cloudless sky can deliver.}
+
+\item{hourmean}{Logical. If \code{TRUE}, radiation is calculated every five
+minutes and averaged over the hour centred on each \code{obs_time}. If
+\code{FALSE}, it is calculated at each \code{obs_time}.}
 }
 \value{
 Numeric vector of clear-sky radiation (W m^-2)
 }
 \description{
-Calculates clear-sky direct solar radiation from time, location, air
-temperature, relative humidity and pressure.
+Calculates the shortwave radiation reaching a horizontal surface under a
+cloudless sky from time, location, air temperature, relative humidity and
+pressure.
 }

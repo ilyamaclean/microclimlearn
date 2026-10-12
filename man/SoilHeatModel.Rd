@@ -13,9 +13,8 @@ SoilHeatModel(
   atmPressure,
   rHa,
   dT = 3600,
-  Fact = 0.5,
   maxNrIterations = 100,
-  tolerance = 0.01
+  tolerance = 0.001
 )
 }
 \arguments{
@@ -37,31 +36,36 @@ as returned by [groundresistance()] (s m-1)}
 
 \item{dT}{time step (s)}
 
-\item{Fact}{weighting factor for the implicit solution scheme}
+\item{maxNrIterations}{maximum number of iterations}
 
-\item{maxNrIterations}{maximum number of nonlinear iterations}
-
-\item{tolerance}{convergence criterion for maximum change in layer temperature
+\item{tolerance}{convergence criterion for maximum change in node temperature
 between successive iterations (degrees C)}
 }
 \value{
 a list comprising
 \describe{
   \item{n}{number of soil layers}
-  \item{z}{depth of soil nodes (m)}
-  \item{dz}{soil layer thicknesses (m)}
-  \item{zCenter}{depth of layer centres (m)}
-  \item{vol}{soil layer volumes per unit ground area (m)}
-  \item{wc}{volumetric soil water content of each layer (m3 m-3)}
-  \item{Te}{updated soil layer temperature (degrees C)}
-  \item{oldTe}{soil layer temperature at previous time step (degrees C)}
-  \item{Gflux}{integrated soil heat storage flux over the profile (W m-2)}
+  \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+  \item{dz}{distance between each node and the node beneath it (m)}
+  \item{vol}{thickness of the soil for which each node stores heat (m)}
+  \item{wc}{volumetric water content of the soil at each node (m3 m-3)}
+  \item{Te}{temperature of the soil at each node at the end of the time step (degrees C)}
+  \item{oldTe}{temperature of the soil at each node at the start of the time step (degrees C)}
+  \item{Gflux}{heat flux into the soil at its surface (W m-2)}
   \item{iters}{number of iterations used to reach convergence}
 }
 }
 \description{
-Solves soil heat conduction through the soil profile over one time step,
-updating layer temperatures by combining surface energy balance from [soilsurfaceEB()],
-thermal conductivity from [thermalConductivity()], volumetric heat capacity from
-[heatCapacity()], and tridiagonal solution with [ThomasBoundaryCondition()].
+Solves heat conduction through the soil profile over one time step.
+The energy balance of the soil surface, from [soilsurfaceEB()], is the upper
+boundary, and the deepest node is held at a fixed temperature. Heat is
+conducted between nodes according to [thermalConductivity()] and stored
+according to [heatCapacity()], with temperatures at the end of the time step
+found using [ThomasBoundaryCondition()].
+}
+\details{
+The model steps forward from the temperatures in `oldTe`, which are
+those at the start of the time step, and returns those at its end in `Te`.
+`oldTe` is left as it is, so that the same time step can be solved again with
+different inputs. To move on to the next time step, set `oldTe` to `Te`.
 }

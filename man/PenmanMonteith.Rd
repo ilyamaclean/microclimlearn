@@ -4,7 +4,7 @@
 \alias{PenmanMonteith}
 \title{Calculate temperature of surface using Penman-Monteith equation}
 \usage{
-PenmanMonteith(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97, iters = 4)
+PenmanMonteith(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97, iters = 4)
 }
 \arguments{
 \item{Ta}{Air temperature (degrees C)}

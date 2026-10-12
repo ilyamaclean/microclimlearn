@@ -9,20 +9,20 @@ leafresistance(tair, dT, uz, len, wid, x, rHmax = 300)
 \arguments{
 \item{tair}{air temperature (deg C)}
 
-\item{dT}{difference between leaf and air temperature (deg C)}
+\item{dT}{difference between leaf and air temperature (deg C), as a positive value}
 
-\item{uz}{wind speed at height of leaf (m/S)}
+\item{uz}{wind speed at height of leaf (m/s)}
 
 \item{len}{leaf length (m)}
 
 \item{wid}{leaf width (m)}
 
-\item{x}{ratio of vertical to horizontal projections of leaf foliage}
+\item{x}{ratio of horizontal to vertical projections of leaf foliage}
 
 \item{rHmax}{maximum resistance (used to ensure stable convergence (s/m))}
 }
 \value{
-leaf boundary layer resistance
+leaf boundary layer resistance (s/m)
 }
 \description{
 Calculate resistance to sensible heat loss of individual canopy elements

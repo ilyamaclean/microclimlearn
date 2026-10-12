@@ -4,14 +4,18 @@
 \alias{roughlength}
 \title{Calculate roughness length for momentum}
 \usage{
-roughlength(h, pai, d, psih)
+roughlength(h, pai, d, MOST = TRUE)
 }
 \arguments{
 \item{h}{vegetation height (m)}
 
 \item{pai}{plant area index}
 
-\item{psi_h}{diabatic correction for heat}
+\item{d}{zero-plane displacement height as returned by [zeroplanedis()] (m)}
+
+\item{MOST}{Logical. If `TRUE`, the wind profile is taken to be logarithmic
+down to canopy top. If `FALSE`, a roughness sublayer is assumed above the
+canopy.}
 }
 \value{
 roughness length (m)

@@ -51,6 +51,7 @@ knitr::opts_chunk$set(
     text-align: center;
   }
 </style>
+* [Glossary of terms](#glossary)
 * [Note 1: The Penman-Monteith equation](#penman-note)
 * [Radiation fluxes](#radiation-note)
   + [Note 2.1: Direct radiation](#direct-radiation)
@@ -61,6 +62,7 @@ knitr::opts_chunk$set(
 * [Sensible heat fluxes](#sensible-heat-fluxes)
   + [Note 3.1: Conductance and resistance](#conductance-note)
   + [Note 3.2: Sensible heat exchange above canopy](#sensible-above-note)
+  + [Note 3.2b: Above-canopy diabatic correction, shape vs iteration forms](#diabatic-shape-note)
   + [Note 3.3: Sensible heat exchange below canopy](#sensible-below-note)
   + [Note 3.4: Sensible heat exchange by organisms](#sensible-organism-note)
 * [Latent heat fluxes](#latent-heat-fluxes)
@@ -75,7 +77,56 @@ knitr::opts_chunk$set(
   + [Note 7.1: Snow mass balance](#snow-mass-note)
   + [Note 7.2: Snow energy balance](#snow-energy-note)
 * [References](#references)
- 
+
+> **Editorial note (added 2026-08-04, TODO before release):** this vignette
+> has been updated to reflect the diabatic-correction/Obukhov-length work
+> described in [Note 3.2b](#diabatic-shape-note) below, but several further
+> equation changes arising from the same investigation are still pending
+> and have **not** yet been reflected here. This note is a placeholder
+> flag, not a complete list -- the outstanding items are to be identified
+> and worked through together (with the package maintainer) before
+> release; do not treat this vignette as fully reconciled with the code
+> until that pass is done. A fresh contributor picking this up should
+> cross-check every equation touching wind/temperature/humidity profiles
+> above canopy, aerodynamic resistances, and the Obukhov length against
+> the current `R/sensibleheat.R` and `R/energybalance.R` before relying on
+> this document alone.
+
+## Glossary of terms {#glossary}
+**Albedo.** The proportion of incoming solar radiation that a surface reflects back into the atmosphere. Albedo ranges from 0 to 1, where 0 means all radiation is absorbed and 1 means all radiation is reflected. Dark surfaces such as forests usually have low albedo, whereas snow and pale rock have high albedo.
+
+**Boundary layer.** A thin layer of relatively still air adjacent to a surface or organism through which heat, water vapour, and other gases must diffuse before mixing with the surrounding air. Boundary layer thickness depends mainly on wind speed and surface characteristics, and strongly influences rates of heat and mass exchange.
+
+**Diabatic correction coefficients.** Adjustment terms used in aerodynamic equations to account for the effects of atmospheric stability on turbulence and heat transfer. They modify wind and temperature profiles under stable or unstable conditions.
+
+**Emissivity.** A measure of how effectively a surface emits thermal (longwave infrared) radiation relative to an ideal emitter called a black body. Emissivity ranges from 0 to 1. Most natural surfaces, including vegetation and soil, have high emissivity values (typically >0.9).
+
+**Energy balance.** The balance between rates of energy gain, energy loss, and heat storage within a system. For organisms and surfaces, energy is exchanged through radiation, sensible heat exchange, latent heat exchange, metabolism, and heat storage. Under steady-state conditions the balance sums to zero at the temperature where energy gains equal energy losses.
+
+**Forced convection.** Heat transfer between a surface and the surrounding fluid driven by externally generated fluid movement, such as wind or flowing water. Stronger airflow generally increases the rate of heat exchange.
+
+**Free convection.** Heat transfer driven by buoyancy forces that arise because warm fluid is less dense than cold fluid. For example, air warmed by a hot surface rises and is replaced by cooler air.
+
+**Heat exchange surface.** A hypothetical surface representing the effective level at which a vegetation canopy or other surface exchanges heat, water vapour, and momentum with the atmosphere. It is typically located close to the top of the canopy rather than at the ground surface itself.
+
+**Latent heat.** Energy absorbed or released during a change in state of water, such as evaporation, condensation, freezing, or melting. In microclimate systems, evaporation removes heat from surfaces and organisms because energy is used to convert liquid water to vapour.
+
+**Latent heat of vaporisation.** The energy required per unit mass to convert water from liquid to vapour without changing its temperature.
+
+**Roughness length for heat.** A parameter describing the effective height above a surface at which air temperature is theoretically equal to the surface temperature when extrapolating the vertical temperature profile. It reflects the efficiency of heat transfer between the surface and the atmosphere.
+
+**Roughness length for momentum.** A parameter describing the effective height above a surface at which wind speed theoretically becomes zero when extrapolating the vertical wind profile. It reflects the aerodynamic roughness of the surface and depends on features such as vegetation height and structure.
+
+**Saturation vapour pressure.** The maximum water vapour pressure that air can hold at a given temperature. Saturation vapour pressure increases strongly with temperature, which is why warm air can hold more moisture than cold air.
+
+**Sensible heat.** Heat energy exchanged between a surface and the surrounding air that causes a change in temperature and can be measured directly with a thermometer. Sensible heat transfer occurs mainly through conduction and convection.
+
+**Specific heat capacity.** The amount of energy required to raise the temperature of a unit mass (typically kg) of a substance by 1 °C (or 1 K). It describes how much energy a material needs to warm up. Materials with high specific heat capacity, such as water, warm and cool more slowly than materials with low specific heat capacity.
+
+**Volumetric heat capacity.** The amount of energy required to raise the temperature of a unit volume (typically m³) of a material by 1 °C (or 1 K). Volumetric heat capacity equals specific heat capacity multiplied by density, and therefore describes how much heat can be stored within a given volume of soil, vegetation, water, or air.
+
+**Zero-plane displacement height.** The height above the ground at which wind flow effectively interacts with a vegetation canopy or rough surface. Within tall vegetation, airflow behaves as though the ground surface were displaced upward to this level.
+
 ## Note 1: The Penman-Monteith equation {#penman-note}
 
 From Penman (1948) and Monteith (1965), to make the energy balance equation analytically solvable, we linearize the emitted radiation term ($\small R_{em}$) using a first-order Taylor expansion. Thus
@@ -145,7 +196,7 @@ Campbell (1986) provided a convenient approximation for $\small K_b$ for an elli
 $$K_b \approx \frac{\sqrt{x^2+\tan^2 Z}}{x+1.774(x+1.182)^{-0.733}},
 \qquad 0.1 \le x \le 10$$
 
-where $\small x$ characterizes the leaf angle distribution as the average ratio of vertical to horizontal projections. Equivalently, the corresponding Ross projection function is
+where $\small x$ characterizes the leaf angle distribution as the average ratio of horizontal to vertical projections. Equivalently, the corresponding Ross projection function is
 
 $$G(Z) \approx\cos Z\,\frac{\sqrt{x^2+\tan^2 Z}}{x+1.774(x+1.182)^{-0.733}}$$
 
@@ -207,7 +258,7 @@ $$R_{\uparrow db}^{P_{AI}}=R_{\downarrow b}^0\left[\frac{p_5}{\sigma_p}\exp(-KP_
 
 $$R^{db\downarrow}=R_0^{b\downarrow}\left[\frac{p_8}{-\sigma_p}\exp(-KP)+p_9\exp(-hP)+p_{10}\exp(hP)\right]$$
 
-where $\small R^{d\uparrow}$ and $\small R^{d\downarrow}$ are the upward and downward diffuse fluxes under cumulative plant area $\small P$, $\small R_0^{d\uparrow}$ and $\small R_0^{d\downarrow}$ are the upward and downward diffuse fluxes at the top of the canopy and $\small R^{db\uparrow}$ and $\small R^{db\downarrow}$ are the contributions of direct radiation to the upward and downward diffuse streams respectively. The remaining terms are given by
+where $\small R^{d\uparrow}$ and $\small R^{d\downarrow}$ are the upward and downward diffuse fluxes under cumulative plant area $\small P$, $\small R_0^{d\uparrow}$ and $\small R_0^{d\downarrow}$ are the upward and downward diffuse fluxes at the top of the canopy and $\small R^{db\uparrow}$ and $\small R^{db\downarrow}$ are the contributions of direct radiation to the upward and downward diffuse streams respectively, and $\small R_0^{b\downarrow}$ is the direct radiation incident on the ground surface. The remaining terms are given by
 
 ::: col2
 $\small p_1=\frac{\gamma}{D_1S_1}(u_1-h)$<br>
@@ -223,19 +274,20 @@ $\small u_2=a+\gamma(1-\alpha_G)$<br>
 $\small h=\sqrt{a^2+2a\gamma}$<br>
 $\small \gamma=0.5\left(\omega+J\delta\right)$<br>
 $\small \omega=l_{\alpha}+l_{\tau}$<br>
-$\small a=l_{\alpha}-l_{\tau}$<br>
+$\small a=1-\omega$<br>
+$\small \delta=l_{\alpha}-l_{\tau}$<br>
 $\small J=\cos^2\phi$<br>
 $\small \phi=9.65(3+x)^{-1.65}$<br>
 $\small p_5=-s(a+\gamma-K)-\gamma s'$<br>
 $\small p_6=\frac{1}{D_1}\left[\frac{v_1}{S_1}(u_1-h)-S_2v_2(a+\gamma-h)\right]$<br>
 $\small p_7=-\frac{1}{D_1}\left[v_1S_1(u_1+h)-S_2v_2(a+\gamma+h)\right]$<br>
-$\small p_8=s'(a+\gamma+K)-\gamma s$<br>
+$\small p_8=s'(a+\gamma+K)+\gamma s$<br>
 $\small p_9=-\frac{1}{D_2}\left[\frac{p_8}{-\sigma_pS_1}(u_2+h)+v_3\right]$<br>
-$\small p_{10}=-\frac{1}{D_2}\left[\frac{p_8S_1}{-\sigma_p}(u_2-h)+v_3\right]$<br>
+$\small p_{10}=\frac{1}{D_2}\left[\frac{p_8S_1}{-\sigma_p}(u_2-h)+v_3\right]$<br>
 $\small v_1=s-\frac{p_5(a+\gamma+K)}{\sigma_p}$<br>
 $\small v_2=s-\gamma-\frac{p_5}{\sigma_p}(u_1+K)$<br>
-$\small v_3=S_2\left(s'+\gamma\alpha_G-\frac{p_8}{\sigma_p}(u_2-K)\right)$<br>
-$\small \sigma_p=K^2+a^2-(a+\gamma)^2$<br>
+$\small v_3=S_2\left(s'+\gamma\alpha_G-\frac{p_8}{-\sigma_p}(u_2-K)\right)$<br>
+$\small \sigma_p=K^2+\gamma^2-(a+\gamma)^2$<br>
 $\small s=0.5(\omega+J\delta/K)K$<br>
 $\small s'=\omega K-s$<br>
 :::
@@ -329,9 +381,9 @@ $$d=h\frac{1-(1-\exp(-\sqrt{7.5P_{AI}}))}{\sqrt{7.5P_{AI}}}$$
 
 and
 
-$$z_M=(h-d)\exp\left(\frac{-\kappa}{\beta}-\psi_H(z_R)\right)$$
+$$z_M=(h-d)\exp\left(\frac{-\kappa}{\beta}-0.193\right)$$
 
-where $\small h$ is the height of the canopy ($\small m$), $\small \beta$ is given by $\small \sqrt{0.003+0.1P_{AI}}$, where $\small P_{AI}$ is the total one-sided plant area (living + dead vegetation) per unit ground area and $\small \psi_H(z_R)$ is a diabatic correction factor for heat. Substituting the equation for thermal diffusivity into that for eddy transport of heat, and integrating the resulting equation from the canopy heat exchange surface to the height at which air temperature is measured, gives the equation for the bulk surface aerodynamic resistance:
+where $\small h$ is the height of the canopy ($\small m$), $\small \beta$ is given by $\small \sqrt{0.003+0.1P_{AI}}$, where $\small P_{AI}$ is the total one-sided plant area (living + dead vegetation) per unit ground area. Substituting the equation for thermal diffusivity into that for eddy transport of heat, and integrating the resulting equation from the canopy heat exchange surface to the height at which air temperature is measured, gives the equation for the bulk surface aerodynamic resistance:
 
 $$r_{Ha}=\frac{\ln\frac{z_R-d}{z_H}+\psi_H(z_R)}{\kappa u_*}$$
 
@@ -357,13 +409,38 @@ $$L_O=-\frac{\hat{\rho}c_pu_*^3T}{\kappa gH}$$
 
 where $\small g$ is the gravitational constant (~9.81). From Yasuda (1988), $\small \sqrt{\phi_H}=1/(1-16\zeta)^{1/4}$ under unstable conditions and $\small \phi_H=1+6\zeta/(1+\zeta)$ under stable conditions.
 
-Above canopy, the air temperature $\small T_z$ at any given height $\small z$ can then be derived as
+Alternatively, by expressing the aerodynamic resistance to heat transfer at height $z$ as
 
-$$T_z=T_s-\frac{H}{\kappa \hat{\rho}c_pu_*}\left(\ln\frac{z-d}{z_H}+\psi_H(z)\right)$$
+$$r_{Ha}(z)=\frac{1}{\kappa u_*}\left[\ln\left(\frac{z-d}{z_H}\right)+\psi_H(z)\right]$$
 
-Alternatively,
+the temperature profile can be written directly in terms of the surface and reference air temperatures as
 
-$$T_z=T_s-(T_s-T_a)\frac{r_{Ha}(z_R)-r_{Ha}(z)}{r_{Ha}(z_R)}$$
+$$T_z=T_s-(T_s-T_a)\frac{r_{Ha}(z)}{r_{Ha}(z_R)}$$
+
+where $T_a$ is the air temperature at the reference height $z_R$. This formulation is algebraically equivalent to the Monin–Obukhov temperature profile above, but avoids explicit calculation of the sensible heat flux.
+
+### Note 3.2b: Above-canopy diabatic correction, shape vs iteration forms {#diabatic-shape-note}
+
+*(Added 2026-08-04, alongside the grid-model above-canopy stability shortcut investigation -- see the project's `gridmodel-stability-shortcut-2026-08-03.md` note for the full derivation and numerical validation this summarises.)*
+
+**The sign convention for $H$, and why the Obukhov length must always be recomputed.** The Obukhov length given above, $L_O=-\hat{\rho}c_pu_*^3T/(\kappa gH)$, is defined for any $H\neq0$: unstable conditions ($H>0$) give $L_O<0$, stable conditions ($H<0$, dominant at night) give $L_O>0$, and only the degenerate neutral case $H=0$ has no finite $L_O$ (conventionally treated as $L_O\to\pm\infty$, i.e. no diabatic correction). An implementation that only recomputes $L_O$ when $H>0$ -- leaving it at its initial/neutral value otherwise -- silently discards the stability correction for every stable timestep, which is most of the night. This is a control-flow bug, not a formula error: it can only be diagnosed by checking whether $L_O$ (or the equivalent `LL` variable) is recomputed on *every* pass through a model's outer energy-balance iteration, for both signs of $H$, not by inspecting the diabatic-correction formulae themselves (which are correct in both variants). In this package, [`solve_wholecanopy()`](#sensible-above-note) (`R/energybalance.R`) calls [`Obukhov()`](#sensible-above-note) unconditionally on every iteration of its `while` loop regardless of the sign of `H` -- confirmed correct, this bug is **not** present here. It was, however, found and fixed in the companion `microclimfv2` package's `windmodelCpp` (C++ point model), which used exactly the `if (H > 0.0)` gate described above; the equivalent function in the companion `micropoint` package's `windmodelCpp` was checked and found to have its own internal convergence loop that recomputes `LL` unconditionally every pass, so the same textual pattern there does not translate into the same practical bug (only a minor, inconsequential asymmetry in the pre-loop seed value). A fresh contributor extending any of these three codebases should re-verify this control-flow property directly in the relevant source rather than assuming it from this note, since it depends on the exact shape of each function's iteration, not on a shared formula.
+
+**Shape vs iteration forms of the stable branch.** The stable branch given above, $\psi_M(\zeta)=-4.7\zeta$ (and its heat equivalent $\psi_H(\zeta)=-4.7\zeta/0.74$), is unbounded as $\zeta=z/L_O\to\infty$ (i.e. as conditions become very stable, or $L_O$ becomes very small). Both this package's [`dpsim()`/`dpsih()`](#sensible-above-note) and the companion C++ codebases guard against this with a numerical safety clamp restricting the result to $[-4,3]$ -- necessary for the stability of the outer convergence iteration (`solve_wholecanopy()`'s own `while` loop; `windmodelCpp`'s iteration in the companion packages), and this clamp must be kept exactly as-is for that purpose. It is not, however, safe to reuse for evaluating a *continuous* profile across many heights at one fixed, already-converged $L_O$ (e.g. wind/temperature at the top of canopy, or at an arbitrary requested height): because $\zeta=z/L_O$ varies continuously with height even though $L_O$ itself is fixed, the clamp switching on partway up the profile produces a hard slope discontinuity (a "kink") that has no physical basis -- it is an artefact of where the clamp happens to engage, not a feature of the profile.
+
+Simply removing the clamp for these one-shot uses does not fix this safely, since the plain linear form's slope, $d\psi/d\zeta=-4.7$, is constant regardless of how large $\zeta$ gets -- any imprecision in a recovered $L_O$ (expected in, e.g., the grid-model shortcut's fold-back regime) is then amplified without limit rather than damped. The fix used here instead replaces the stable branch's functional *form* with a smooth, bounded-growth one of the Holtslag & De Bruin (1988)/Beljaars & Holtslag (1991) type:
+
+$$\psi_{stable}(\zeta)=-\left(a\zeta+b\left(\zeta-\frac{c}{d}\right)e^{-d\zeta}+\frac{bc}{d}\right),\quad a=0.7,\ b=0.75,\ c=5.0,\ d=0.35$$
+
+for $\zeta\geq0$ (evaluated at $\zeta=0$, i.e. treated as clamped to 0, for any $\zeta<0$ passed in by mistake -- the unstable branch below never calls it). This closely matches the plain linear form for weak-to-moderate stability but flattens its growth at large $\zeta$ instead of being clamped dead, giving a globally smooth (C$^\infty$), monotonic profile in $\zeta$ with no discontinuity and no fold-back. The unstable branch ($\zeta<0$) of both $\psi_M$ and $\psi_H$ is unchanged from the $\psi_M(\zeta)$/$\psi_H(\zeta)$ formulae given above (Businger *et al.* 1971) -- it has never been observed to need clipping, growing only logarithmically as $\zeta\to-\infty$. **Sourcing caveat:** the $a,b,c,d$ coefficients above were reconstructed from a secondary source citing Holtslag & De Bruin (1988) -- the primary Beljaars & Holtslag (1991) paper was unreachable at the time this was derived, and should be checked directly if greater confidence is needed before release.
+
+This gives two variants of $\psi_M$/$\psi_H$, implemented in parallel across all three codebases in this project (`microclimlearn`'s `R/sensibleheat.R`; `microclimfv2`'s `src/utils.cpp`/`utils.h`; `micropoint`'s `src/micropoint_new2.cpp`), which must **not** be interchanged:
+
+* **Iteration form** (`dpsim()`/`dpsih()` in this package; `dpsimCpp`/`dpsihCpp` in `microclimfv2`; `dpsimCpp2`/`dpsihCpp2` in `micropoint`) -- the original clamped linear-stable-branch form. Required wherever the diabatic correction feeds back into the *same* convergence loop that is solving for $H$/$u_*$/$L_O$ (in this package, every call inside `solve_wholecanopy()`'s `while` loop, including via `roughlength()`, `windfric()`, `canopyresistance()` and `groundresistance()`). Swapping the smooth form in here has been verified, in the companion C++ codebases, to diverge to NaN under ordinary stable conditions -- the clamp is load-bearing for iteration stability, not merely a cosmetic bound on the reported profile.
+* **Shape form** (`dpsim_shape()`/`dpsih_shape()`/`psi_stable_smooth()` in this package; `dpsimShapeCpp`/`dpsihShapeCpp`/`psiStableSmoothCpp` in `microclimfv2`; `dpsimShapeCpp2`/`dpsihShapeCpp2`/`psiStableSmoothCpp2` in `micropoint`) -- the new smooth, unclamped form. Safe *only* for one-shot, already-converged, downstream profile evaluation, after the relevant iteration has finished -- e.g. this package's canopy-top wind/temperature calculation at the end of `solve_wholecanopy()` (computed once, after its `while` loop exits), or `microclimfv2`'s `aboveCanopyProfileCpp`/`micropoint`'s `Tabove`/`RHabove`/`Uabove` height-interpolation functions.
+
+A fresh contributor adding a new above-canopy profile calculation to any of these three codebases should classify it against this same iteration-vs-shape distinction before choosing which form to call, rather than assuming one is simply an "improved" drop-in replacement for the other -- both are correct, for different purposes.
+
+**Known outstanding issue (flagged, not yet fixed).** While implementing the above, an unrelated pre-existing inconsistency was found in this package: `groundresistance()`'s `psihh` (`R/sensibleheat.R`) and `solve_wholecanopy()`'s post-loop `psihh` (`R/energybalance.R`) both compute `dpsih(...) - dpsim(...)` -- mixing the heat correction function with the momentum correction function in the second (reference-height) term, rather than using `dpsih(...)`/`dpsih_shape(...)` throughout. This looks like a genuine bug (a heat-profile quantity should not be built from a momentum diabatic correction), but has been left as-is pending confirmation from the package maintainer, and the same pattern has been deliberately preserved (not silently "corrected") when introducing the shape-form functions above, so as not to conflate an unrelated fix with this change. See the corresponding code comments in `R/sensibleheat.R` and `R/energybalance.R` for the exact locations.
 
 ### Note 3.3: Sensible heat exchange below canopy {#sensible-below-note}
 
@@ -443,13 +520,15 @@ $$N_u=0.664{R_e}^{1/2}{P_r}^{1/3},\space R_e\le5\times10^5$$
 
 $$N_u=\left(0.037{R_e}^{4/5}-871.32\right){P_r}^{1/3},\space R_e>5\times10^5$$
 
-Alternatively, for a sphere with diameter $\small d$ (Bird *et al.*, 2007)
+Leaves lie within the first of these ranges. Outdoors, turbulence in the wind raises heat loss above that in smooth flow, by a factor of about 1.4 (Campbell & Norman 1998), so for leaves we use
 
-$$N_u=2+0.6{R_e}^{1/2}{P_r}^{1/3},\space R_e\le1000$$
+$$N_u=1.4\times0.664{R_e}^{1/2}{P_r}^{1/3}$$
 
-$$N_u=2+\left(0.48{R_e}^{0.6}-11.31\right){P_r}^{1/3},\space 1000\lt R_e\le2\times10^5$$
+Alternatively, for a sphere with diameter $\small d$ (Whitaker 1972)
 
-$$N_u=0.37{R_e}^{0.6}{P_r}^{1/3}+9.08,\space R_e\gt2\times10^5$$
+$$N_u=2+\left(0.4{R_e}^{1/2}+0.06{R_e}^{2/3}\right){P_r}^{0.4}$$
+
+Here the constant is the conduction of heat from a sphere into still air, the first term in brackets the heat lost to smooth flow over the front of the sphere and the second that lost to the wake behind it. The relationship holds for $\small 3.5\le R_e\le7.6\times10^4$.
 
 A more general approach, which derives from Churchill & Bernstein (1977), is to define $\small d$ as
 
@@ -465,19 +544,21 @@ The volume is then simply given by
 
 $$V=\frac{4}{3}\pi abc$$
 
+For an ellipsoid, $\small V/A_p$ is two-thirds of the length of the body through its centre in the direction of flow. For animals, the relationship for a sphere is therefore applied with a characteristic dimension of $\small 1.5V/A_p$, which is the length of the body in the direction of flow and, for a sphere, its diameter.
+
 For leaves with an azimuth direction, but non-random distributions of tilt angles, we use
 
-$$d=\sqrt{lw}G(y)$$
+$$d=\sqrt{lw}G(x)$$
 
-where $\small G(y)$ is the projected area of leaves perpendicular to the wind and $\small y=1/x$, where, as for solar radiation, $\small x$ characterizes the distribution of leaf angles and is defined as the average ratio of the vertical to horizontal projections and hence $\small y$ is the average ratio perpendicular to the horizontal wind. With a bit of manipulation, from Campbell (1986)
+where $\small G(x)$ is the fraction of leaf area that faces a horizontal wind and, as for solar radiation, $\small x$ characterizes the distribution of leaf angles and is defined as the average ratio of the horizontal to vertical projections. From Campbell (1986)
 
-$$G(y)\approx\frac{1}{y+1.774(y+1.182)^{-0.733}}$$
+$$G(x)\approx\frac{1}{x+1.774(x+1.182)^{-0.733}}$$
 
-and in the special case where $\small x=y=1,\space G=0.5$ and $\small x\to0,\space y\to\infty,\space G\to0$ and $\small x\to\infty,\space y\to0,\space G\to1$
+In the special case where $\small x=1,\space G=0.5$. For upright leaves $\small x\to0,\space G\to2/\pi$ and for flat leaves $\small x\to\infty,\space G\to0$.
 
-Under free laminar airflow, i.e. when wind speeds are low, the Nusselt number is expressed in terms of Grashof and Prandtl numbers (Churchill & Chu 1975)
+Under free convection, i.e. when wind speeds are low, the Nusselt number is expressed in terms of Grashof and Prandtl numbers (Churchill & Chu 1975)
 
-$$N_u=0.54\left(G_rP_r\right)^{1/4}$$
+$$N_u=\left(0.825+\frac{0.387\left(G_rP_r\right)^{1/6}}{\left(1+\left(0.492/P_r\right)^{9/16}\right)^{8/27}}\right)^2$$
 
 where $\small G_r$ is the Grashof number given by
 
@@ -642,7 +723,7 @@ where $\small h$ is maximum canopy height, $\small h_v$ is the ratio between act
 
 $$\chi_{tap}=\frac{\max\left(\left(4.3281\ln(1+6.4975h)\right)^{0.53},1\right)}{3.1516}$$
 
-Full derivation and further explanation of these equations is provided in Eller *et al.* (2020).
+Full derivation and further explanation of these equations is provided in Eller *et al.* (2020). One minor point to note is that the above formulation gives $\small g_s\rightarrow\infty$ as $\small D$, the leaf to air vapour pressure deficit, $\small\rightarrow0$. In general, therefore, $\small g_s$ is capped at some maximum value $\small g_s^{max}$, often derived as $\small g_s^{max}=V_{cmax}=V_{cmax,25}\times10^{-4}$ 
 
 ### Note 4.4: Latent heat exchange below canopy {#latent-below-note}
 
@@ -1026,6 +1107,8 @@ Allen R.G., Pereira L.S., Raes D. & Smith M. (1998) *Crop evapotranspiration: Gu
 
 Anderson E.A. (1976) *A point energy and mass balance model of a snow cover*. NOAA Technical Report NWS 19. National Oceanic and Atmospheric Administration, Silver Spring, Maryland.
 
+Beljaars A.C.M. & Holtslag A.A.M. (1991) Flux parameterization over land surfaces for atmospheric models. *Journal of Applied Meteorology* 30: 327–341. [NOTE, added 2026-08-04: cited here for the smooth stable-branch diabatic correction shape functions introduced in Note 3.2b -- the coefficients used were reconstructed from a secondary source citing this paper, which was unreachable at the time; check against this primary source directly before relying on it for release.]
+
 Bird R.B., Stewart W.E. & Lightfoot E.N. (2007) *Transport Phenomena* (2nd ed.). John Wiley & Sons.
 
 Bittelli M., Campbell G.S. & Tomei F. (2015) *Soil Physics with Python: Transport in the Soil-Plant-Atmosphere System*. Oxford University Press.
@@ -1057,6 +1140,8 @@ Eller C.B., Rowland L., Mencuccini M., Rosas T., Williams K., Harper A., Medlyn 
 Harman I.N. & Finnigan J.J. (2008) A simple unified theory for flow in the canopy and roughness sublayer. *Boundary-Layer Meteorology* 129: 323–351.
 
 Hedstrom N.R. & Pomeroy J.W. (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611–1625.
+
+Holtslag A.A.M. & De Bruin H.A.R. (1988) Applied modeling of the nighttime surface energy balance over land. *Journal of Applied Meteorology* 27: 689–704. [NOTE, added 2026-08-04: cited here for the smooth stable-branch diabatic correction shape functions introduced in Note 3.2b -- see that note and the Beljaars & Holtslag (1991) entry above for the sourcing caveat.]
 
 Incropera F.P., DeWitt D.P., Bergman T.L. & Lavine A.S. (2007) *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
 

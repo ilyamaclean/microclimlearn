@@ -6,7 +6,7 @@
 \title{Plant functional type parameter values}
 \format{
 ## `PFTtable`
-A data frame with 26 rows and 13 columns:
+A data frame with 23 rows and 13 columns:
 \describe{
   \item{varname}{Short-hand name of vegetation parameter}
   \item{Description}{Long-hand description of vegetation parameter}
@@ -18,14 +18,15 @@ A data frame with 26 rows and 13 columns:
   \item{NDT}{Parameter values for Needle-leaf deciduous trees}
   \item{C3}{Parameter values for C3 grasses}
   \item{C4}{Parameter values for C4 grasses}
-  \item{Esh}{Parameter values for Evergreen shrubs}
-  \item{Dsh}{Parameter values for Deciduous shrubs}
-  \item{multiplier}{Multiplier used to convert form values in table to values used in model}
+  \item{ESh}{Parameter values for Evergreen shrubs}
+  \item{DSh}{Parameter values for Deciduous shrubs}
+  \item{multiplier}{Multiplier used to convert from values in table to values used in model}
   ...
 }
 }
 \source{
-<https://gmd.copernicus.org/articles/11/2857/2018/gmd-11-2857-2018.pdf>
+Photosynthesis parameters are from Harper et al. (2016), Table 2; plant hydraulic parameters
+  are from Eller et al. (2020), Table 2; root depths are from Schenk & Jackson (2002), Table 4.
 }
 \usage{
 PFTtable

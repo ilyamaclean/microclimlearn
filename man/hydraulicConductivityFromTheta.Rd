@@ -14,13 +14,10 @@ hydraulicConductivityFromTheta(theta, b, Smax, Ksat)
 \item{Smax}{volumetric soil water content at saturation (m3 m-3)}
 
 \item{Ksat}{saturated hydraulic conductivity (kg s / m^3)}
-
-\item{psie}{air-entry water potential (J kg-1)}
-
-\item{n}{Campbell pore size distribution parameter}
 }
 \value{
-hydraulic conductivity (kg s / m^3)
+hydraulic conductivity (kg s / m^3). The Campbell hydraulic
+  conductivity exponent (2*b + 3) is derived from \code{b} internally.
 }
 \description{
 Calculates hydraulic conductivity from soil water content using Campbell method

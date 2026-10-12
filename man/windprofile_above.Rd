@@ -4,18 +4,23 @@
 \alias{windprofile_above}
 \title{Calculate wind profile above canopy}
 \usage{
-windprofile_above(z, uf, d, zm, psim)
+windprofile_above(z, uf, h, pai, LL = Inf, MOST = TRUE)
 }
 \arguments{
 \item{z}{height above ground for which wind speed desired (m)}
 
 \item{uf}{wind friction velocity as returned by [windfric()] (m/s)}
 
-\item{d}{zero-plane displacement height as returned by [zeroplanedis()] (m)}
+\item{h}{vegetation height (m)}
 
-\item{zm}{roughness length for momentum as returned by [roughlength()] (m)}
+\item{pai}{plant area index}
 
-\item{psim}{diabatic correction for momentum as returned by [dpsim()]}
+\item{LL}{Obukhov length as returned by [Obukhov()] (m). The default, `Inf`,
+is neutral air.}
+
+\item{MOST}{Logical. If `TRUE`, profiles above the canopy are taken to be
+logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
+above the canopy.}
 }
 \value{
 wind speed (m/s)

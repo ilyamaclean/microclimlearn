@@ -4,18 +4,23 @@
 \alias{windfric}
 \title{Calculate wind friction velocity}
 \usage{
-windfric(uref, zref, d, zm, psim)
+windfric(uref, zref, h, pai, LL = Inf, MOST = TRUE)
 }
 \arguments{
 \item{uref}{wind speed at reference height (m/s)}
 
 \item{zref}{height above ground of wind speed measurement (m)}
 
-\item{d}{zero-plane displacement height as returned by [zeroplanedis()] (m)}
+\item{h}{vegetation height (m)}
 
-\item{zm}{roughness length for momentum as returned by [roughlength()] (m)}
+\item{pai}{plant area index}
 
-\item{psim}{diabatic correction for momentum as returned by [dpsim()]}
+\item{LL}{Obukhov length as returned by [Obukhov()] (m). The default, `Inf`,
+is neutral air.}
+
+\item{MOST}{Logical. If `TRUE`, profiles above the canopy are taken to be
+logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
+above the canopy.}
 }
 \value{
 friction velocity (m/s)

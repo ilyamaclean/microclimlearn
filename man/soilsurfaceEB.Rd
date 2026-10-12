@@ -22,11 +22,13 @@ soilsurfaceEB(soilp, Rabs, Tref, Tsurface, pk, relhum, rHa, theta)
 \item{rHa}{aerodynamic resistance to heat from ground to reference height
 as returned by [groundresistance()] (s m-1)}
 
-\item{theta}{volumetric soil water content (m3 m-3)}
+\item{theta}{volumetric water content of the soil at its surface (m3 m-3)}
 }
 \value{
-soil surface energy balance (W m-2)
+heat flux into the soil (W m-2)
 }
 \description{
-Calculates the soil surface energy balance (W m-2)
+Calculates the energy available at the soil surface (W m-2):
+radiation absorbed, less that emitted and the sensible and latent heat given
+to the air. It is the heat flux into the soil.
 }

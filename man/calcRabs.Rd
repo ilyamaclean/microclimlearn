@@ -4,10 +4,10 @@
 \alias{calcRabs}
 \title{Calculates radiation absorbed by canopy}
 \usage{
-calcRabs(climdata, vegp, groundp, lat, long)
+calcRabs(climdata, vegp, groundp, lat, long, leafh = FALSE)
 }
 \arguments{
-\item{climdata}{a data.frame of weather variables - see e.g. example dataset micropoint::climdata}
+\item{climdata}{a data.frame of weather variables - see e.g. example dataset `climdata`}
 
 \item{vegp}{a list of vegetation parameters - see e.g. example dataset micropoint::vegparams}
 
@@ -16,6 +16,9 @@ calcRabs(climdata, vegp, groundp, lat, long)
 \item{lat}{latitude (decimal degrees), negative south of the equator}
 
 \item{long}{longitude (decimal degrees), negative west of the Greenwich meridian}
+
+\item{leafh}{optional logical indicating whether `vegp$pai` is the total one-side plant
+area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)}
 }
 \value{
 radiation absorption by canopy (W/m^2)

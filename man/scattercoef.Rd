@@ -4,12 +4,10 @@
 \alias{scattercoef}
 \title{Scattering directionality factor}
 \usage{
-scattercoef(lref, ltra, x, method = "Sellers")
+scattercoef(x, method = "Sellers")
 }
 \arguments{
-\item{lref}{leaf reflectance (0-1)}
-
-\item{ltra}{leaf transmittance. Note that `ltra + lref` must be < 1.}
+\item{x}{ratio of horizontal to vertical projections of leaf foliage}
 
 \item{method}{one of "Sellers" - leaf directionality factor approximated by
 calculating mean leaf angle or "Pinty" - leaf directionality factor calculated

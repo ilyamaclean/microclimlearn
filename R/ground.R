@@ -1,15 +1,16 @@
-#' Internal function for calculating geometric spacings
+# Depths of the soil nodes (m): thin layers near the surface, thickening with
+# depth. The deepest node, the lower boundary, is at the soil depth given, and one
+# further depth is returned below it
 .geometric <- function(n, totalDepth) {
-  i <- seq_len(n)
-  weightSum <- sum(i^2)
-  dz_unit <- totalDepth / weightSum
-  z <- numeric(n + 2)
-  z[1] <- 0
-  z[2] <- dz_unit
-  if (n > 1) z[3:(n + 1)] <- dz_unit + cumsum(dz_unit * i[-1]^2)
-  z
+  i <- seq_len(n + 1)
+  dz_unit <- totalDepth / sum(seq_len(n)^2)
+  # The top layer is one unit thick and each layer below it its number squared
+  thick <- dz_unit * c(1, i[-1]^2)
+  z <- c(0, cumsum(thick))
+  return(z)
 }
-#' Internal function for used my soil water model
+# Slope of the water retention curve: change in volumetric water content per
+# unit change in water potential. Zero in saturated soil
 .dTheta_dPsi <- function(psiw, psie, b, Smax) {
   psie <- -abs(psie)
   Se <- (psiw / psie)^(-1 / b)
@@ -18,30 +19,47 @@
   out[psiw >= psie] <- 0
   return(out)
 }
-#' Internal function for used my soil water model
+# Density of water vapour in saturated air (kg/m^3) at temperature Tk (K), from
+# saturated vapour pressure by the ideal gas law
+.satVapDensity <- function(Tk) {
+  tc <- Tk - 273.15
+  es_Pa <- 1000 * satvap(tc)  # kPa -> Pa
+  0.018015 * es_Pa / (8.314 * Tk)
+}
+# Change in the water vapour held in the air-filled pores per unit change in
+# water potential: drier soil has more pore air, but that air is less humid
 .dvapor_dPsi <- function(psiw, psie, theta, b, Smax, Tk) {
   humidity <- exp(0.018015 * psiw / (8.314 * Tk))
   dTdP <- .dTheta_dPsi(psiw, psie, b, Smax)
-  capacity_vapor <- (Smax - theta) * 0.017 * humidity *
-    (0.018015 / (8.314 * Tk)) - dTdP * 0.017 * humidity
+  vp <- .satVapDensity(Tk)
+  capacity_vapor <- (Smax - theta) * vp * humidity *
+    (0.018015 / (8.314 * Tk)) - dTdP * vp * humidity
   return(capacity_vapor)
 }
-#' Internal function used to distribute roots zone
-.root_distribute <- function(dz, totalDepth, skew) {
-  n <- length(dz)
-  if (skew == 0) skew <- 1e-12
-  i <- seq_len(n) - 1
-  z <- (i / n) * totalDepth
-  v <- exp(-z * skew) * dz
-  # fix last element (matches C++ behaviour)
-  if (n > 1) v[n] <- exp(-z[n] * skew) * dz[n - 1]
-  v / sum(v)
+# Fraction of roots in the soil held by each node, from the depths above which
+# half and 95 percent of roots lie
+.root_distribute <- function(z, root50, root95) {
+  n <- length(z) - 2
+  # Fraction of roots above a given depth rises along an S-shaped curve, which
+  # passes through a half at root50 and 0.95 at root95
+  p <- log(19) / log(root95 / root50)
+  zmid <- 0.5 * (z[1:n] + z[2:(n + 1)]) # depth of the base of the soil held by each node
+  x <- (zmid / root50)^p
+  above <- x / (1 + x)
+  above[n] <- 1 # the deepest rooted node holds all roots below it
+  # Fraction of roots in the soil held by each node, with none at the lower boundary
+  v <- c(diff(c(0, above)), 0)
+  return(v)
 }
-#' Internal function used to distribute transpiration in root zone
+# Shares transpiration among soil nodes by root fraction, reduced where the soil
+# is too wet or too dry for roots to take up water. Returns the rate at which
+# water is taken from each node (kg m^-2 s^-1)
 .transpiration_distribute <- function(soilp, rootfrac, totalTransp_mm, dT, psiw, p = 0.5) {
+  # Uptake in wet soil: none at saturation, rising to full once air enters the pores
   .alpha_wet <- function(psiw, psie) {
     ifelse(psiw >= 0, 0, ifelse(psiw <= psie, 1, abs(psiw) / abs(psie)))
   }
+  # Uptake in dry soil: full down to psi_dry, falling to none at the wilting point
   .alpha_dry <- function(psiw, psi_dry, psi_wilt) {
     ifelse(psiw <= psi_wilt, 0, ifelse(psiw >= psi_dry, 1,
                                        (psiw - psi_wilt) / (psi_dry - psi_wilt)))
@@ -50,32 +68,28 @@
   S <- numeric(n)
   if (totalTransp_mm > 0) {
     Trate <- totalTransp_mm / dT
-    theta_dry <- soilp$Smin[seq_len(n)] +
-      p * (soilp$Smax[seq_len(n)] - soilp$Smin[seq_len(n)])
-    psi_wilt <- PsiFromtheta(
-      theta = soilp$Smin[seq_len(n)],
-      psie = soilp$psie[seq_len(n)],
-      b = soilp$b[seq_len(n)],
-      Smax = soilp$Smax[seq_len(n)],
-      MPa = FALSE
-    )
+    idx <- seq_len(n)
+    # Roots can take up the water held between field capacity (-33 J/kg) and
+    # the wilting point (-1500 J/kg)
+    psi_fc <- -33
+    psi_wilt <- -1500
+    theta_fc <- thetaFromPsi(psi_fc, soilp$psie[idx], soilp$b[idx], soilp$Smax[idx])
+    theta_wilt <- thetaFromPsi(psi_wilt, soilp$psie[idx], soilp$b[idx], soilp$Smax[idx])
+    # Uptake starts to fall once the fraction p of that water has been used
+    theta_dry <- theta_fc - p * (theta_fc - theta_wilt)
     psi_dry <- PsiFromtheta(
       theta = theta_dry,
-      psie = soilp$psie[seq_len(n)],
-      b = soilp$b[seq_len(n)],
-      Smax = soilp$Smax[seq_len(n)],
+      psie = soilp$psie[idx],
+      b = soilp$b[idx],
+      Smax = soilp$Smax[idx],
       MPa = FALSE
     )
-    aw <- .alpha_wet(psiw, soilp$psie[seq_len(n)])
+    aw <- .alpha_wet(psiw, soilp$psie[idx])
     ad <- .alpha_dry(psiw, psi_dry, psi_wilt)
-    alpha <- aw * ad
-    w <- rootfrac * alpha
-    sumw <- sum(w)
-    if (sumw > 0) {
-      w <- w / sumw
-    } else {
-      w[] <- 0
-    }
+    w <- rootfrac * aw * ad
+    # If no rooted node can supply water, uptake is shared by root fraction alone
+    if (sum(w) <= 0) w <- rootfrac
+    if (sum(w) > 0) w <- w / sum(w)
     S <- w * Trate
   }
   return(S)
@@ -88,8 +102,8 @@
 #'
 #' @param soiltype Character string giving the soil type. See details. Default is \code{"Clay loam"}.
 #' @param nlayers Integer. Number of soil layers.
-#' @param totalDepth Numeric. Total soil depth (m). Internally this is multiplied
-#'   by 1.5 to allow for a boundary layer.
+#' @param totalDepth Numeric. Depth of the lower boundary of the soil profile (m),
+#'   where the deepest node lies.
 #' @param slope Numeric. Surface slope (degrees).
 #' @param aspect Numeric. Surface aspect (degrees).
 #' @param surface_organicmu Numeric. Multiplication factor controlling the
@@ -124,47 +138,57 @@
 #' \describe{
 #'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3), repeated for each soil layer}
 #'   \item{Smin}{Residual volumetric soil water content (m^3 m^-3), repeated for each soil layer}
-#'   \item{n}{Pore size distribution parameter (unitless), repeated for each soil layer}
 #'   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3), repeated for each soil layer}
 #'   \item{Vq}{Quartz fraction by volume (m^3 m^-3), repeated for each soil layer}
 #'   \item{Vm}{Mineral fraction by volume (m^3 m^-3), repeated for each soil layer}
 #'   \item{Vo}{Organic fraction by volume (m^3 m^-3), repeated for each soil layer and adjusted with depth}
-#'   \item{Mc}{Coarse fragment or gravel fraction (m^3 m^-3), repeated for each soil layer}
-#'   \item{rho}{Bulk density (kg m^-3), repeated for each soil layer and adjusted with depth}
-#'   \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer}
-#'   \item{psi_e}{Air-entry water potential (m), repeated for each soil layer}
+#'   \item{Mc}{Mass fraction of clay (kg kg^-1), repeated for each soil layer}
+#'   \item{rho}{Bulk density (Mg m^-3), repeated for each soil layer and adjusted with depth}
+#'   \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer.
+#'     The Campbell hydraulic conductivity exponent used internally by the soil water solver
+#'     is derived from this as \code{2 * b + 3}; it is not a separate element of this list.}
+#'   \item{psi_e}{Air-entry water potential (J/kg, numerically equal to kPa), repeated for each soil layer}
 #'   \item{gref}{Ground shortwave reflectance (unitless)}
 #'   \item{groundem}{Ground longwave emissivity (unitless)}
 #'   \item{grefPAR}{Ground reflectance for photosynthetically active radiation (unitless)}
 #'   \item{slope}{Surface slope (degrees)}
 #'   \item{aspect}{Surface aspect (degrees)}
 #'   \item{nLayers}{Number of soil layers}
-#'   \item{totalDepth}{Total soil depth used internally (m), after multiplying input depth by 1.5}
-#'   \item{FreeDrain}{Logical indicating whether the deep boundary condition is saturated}
+#'   \item{totalDepth}{Depth of the lower boundary of the soil profile (m)}
+#'   \item{FreeDrain}{Logical indicating whether the lower boundary is free draining}
+#'   \item{psi_min}{Water potential of oven-dry soil (J/kg), the driest the soil is allowed to get, repeated for each soil layer}
+#'   \item{psie}{Air-entry water potential as a negative value (J/kg), repeated for each soil layer}
 #' }
 #' @export
-createsoilplist <- function(soiltype = "Clay loam", nlayers = 15, totalDepth = 2, slope = 0, aspect = 180,
+createsoilplist <- function(soiltype = "Clay loam", nlayers = 15, totalDepth = 3, slope = 0, aspect = 180,
                             surface_organicmu = 3, FreeDrain = TRUE) {
+  # Typical physical and hydraulic properties of the soil type, the same at
+  # every node to begin with
   soilparams <- micropoint::newsoilparamstable
-  totalDepth <- 1.5 * totalDepth
   s <- which(soilparams$Soil.type == soiltype)
-  v <- as.numeric(soilparams[s, 2:13])
-  nms <- names(soilparams)[2:13]
+  campbellcols <- c("Smax", "Smin", "Ksat", "Vq", "Vm", "Vo", "Mc", "rho", "b", "psi_e")
+  v <- as.numeric(soilparams[s, campbellcols])
+  names(v) <- campbellcols
   soilc <- as.list(v)
-  for (i in 1:12) {
-    soilc[[i]] <- rep(v[i], nlayers + 1)
+  for (nm in campbellcols) {
+    soilc[[nm]] <- rep(v[[nm]], nlayers + 1)
   }
-  names(soilc) <- nms
+  # Organic matter is concentrated near the surface: its fraction is multiplied
+  # by surface_organicmu at the surface, falling to nothing at the lower boundary
   mu <- rev(.geometric(nlayers, surface_organicmu))[2:(nlayers + 2)]
   soilc$Vo <- soilc$Vo * mu
-  dif <- soilc$Vo - v[8]
-  sm <- v[6] + v[7]
+  # Quartz, other minerals and clay give way to the organic matter gained, or
+  # take the place of that lost
+  dif <- soilc$Vo - v[["Vo"]]
+  sm <- v[["Vq"]] + v[["Vm"]]
   mu <- (sm - dif) / sm
   soilc$Vm <- soilc$Vm * mu
   soilc$Vq <- soilc$Vq * mu
   soilc$Mc <- soilc$Mc * mu
+  # Bulk density increases slightly with depth
   mu <- seq(0.9, 1.1, length.out = nlayers + 1)
   soilc$rho <- soilc$rho * mu
+  # Radiative properties of the soil surface, and its slope and aspect
   soilc$gref <- 0.15
   soilc$groundem <- 0.97
   soilc$grefPAR <- 0.75 * soilc$gref
@@ -173,39 +197,47 @@ createsoilplist <- function(soiltype = "Clay loam", nlayers = 15, totalDepth = 2
   soilc$nLayers <- nlayers
   soilc$totalDepth <- totalDepth
   soilc$FreeDrain <- FreeDrain
-  soilc$alpha <- NULL
-  soilc$psi_min <- PsiFromtheta(soilc$Smin, soilc$psi_e, soilc$b, soilc$Smax, MPa = FALSE)
+  # Driest the soil is allowed to get: the water potential of oven-dry soil (J/kg)
+  soilc$psi_min <- rep(-1e6, nlayers + 1)
+  # Air-entry water potential as a negative value
   soilc$psie <- -abs(soilc$psi_e)
-  soilc$Psie <- NULL
   return(soilc)
 }
-#' @title Initalizes input for the soil heat model
-#' @description Creates the soil state object used by the soil heat model
+#' @title Initializes input for the soil heat model
+#' @description Creates the soil state object used by the soil heat model. The
+#' soil is represented by a column of nodes, closely spaced near the surface
+#' and further apart with depth. The first node is at the soil surface and the
+#' last, the lower boundary, is at the depth given to [createsoilplist()].
 #' @param soilp list of soil parameters as returned by [createsoilplist()]
-#' @param Te vector of soil layer temperatures (degrees C)
-#' @param wc vector of volumetric soil water contents (m3 m-3)
+#' @param Te vector of the temperatures of the soil nodes (degrees C), from the
+#' surface to the lower boundary: one more than the number of soil layers. The
+#' temperature of the lower boundary stays fixed.
+#' @param wc vector of the volumetric water contents of the soil nodes (m3 m-3),
+#' of the same length as `Te`
 #' @return a list comprising
 #' \describe{
 #'   \item{n}{number of soil layers}
-#'   \item{z}{depth of soil nodes (m)}
-#'   \item{dz}{soil layer thicknesses (m)}
-#'   \item{zCenter}{depth of layer centres (m)}
-#'   \item{vol}{soil layer volumes per unit ground area (m)}
-#'   \item{wc}{volumetric soil water content of each layer (m3 m-3)}
-#'   \item{Te}{soil layer temperature (degrees C)}
-#'   \item{oldTe}{soil layer temperature at previous time step (degrees C)}
-#'   \item{Gflux}{soil heat flux}
+#'   \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+#'   \item{dz}{distance between each node and the node beneath it (m)}
+#'   \item{vol}{thickness of the soil for which each node stores heat (m)}
+#'   \item{wc}{volumetric water content of the soil at each node (m3 m-3)}
+#'   \item{Te}{temperature of the soil at each node (degrees C)}
+#'   \item{oldTe}{temperature of the soil at each node at the start of the time step (degrees C)}
+#'   \item{Gflux}{heat flux into the soil at its surface (W m-2)}
 #'   \item{iters}{number of solver iterations}
 #' }
 #' @export
 InitSoilheatmod <- function(soilp, Te, wc) {
   n <- soilp$nLayers
-  totalDepth <- soilp$totalDepth
-  z <- .geometric(n, totalDepth)
+  # Depths of the nodes, and the distance from each node to the one beneath it
+  z <- .geometric(n, soilp$totalDepth)
   dz <- z[2:(n + 2)] - z[1:(n + 1)]
-  zCenter <- z[1:(n + 1)] + dz * 0.5
-  state <- list(n = n, z = z, dz = dz, zCenter = zCenter, vol = dz,
+  # Each node stores heat for the soil around it: from halfway to the node above
+  # to halfway to the node below. The surface node has only the soil beneath it
+  vol <- c(0.5 * dz[1], 0.5 * (z[3:(n + 2)] - z[1:n]))
+  state <- list(n = n, z = z, dz = dz, vol = vol,
                 wc = wc, oldTe = Te, Te = Te, Gflux = 0, iters = 0)
+  return(state)
 }
 
 #' @title Initializes input for the soil water model
@@ -213,64 +245,66 @@ InitSoilheatmod <- function(soilp, Te, wc) {
 #' an existing soil heat model state
 #' @param soilp list of soil parameters as returned by [createsoilplist()]
 #' @param soilheatmod soil heat model state as returned by [InitSoilheatmod()]
-#' @param rootskew parameter controlling vertical distribution of roots
+#' @param root50 depth above which half of all roots lie (m)
+#' @param root95 depth above which 95 percent of all roots lie (m)
 #' @return a list comprising
 #' \describe{
 #'   \item{n}{number of soil layers}
-#'   \item{z}{depth of soil nodes (m)}
-#'   \item{dz}{soil layer thicknesses (m)}
-#'   \item{zCenter}{depth of layer centres (m)}
-#'   \item{Tc}{soil temperature profile (degrees C)}
-#'   \item{theta}{volumetric soil water content (m3 m-3)}
-#'   \item{vol}{soil layer volumes per unit ground area (m)}
+#'   \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+#'   \item{dz}{distance between each node and the node beneath it (m)}
+#'   \item{Tc}{temperature of the soil at each node (degrees C)}
+#'   \item{oldTc}{temperature of the soil at each node at the start of the time step (degrees C)}
+#'   \item{theta}{volumetric water content of the soil at each node (m3 m-3)}
+#'   \item{vol}{thickness of the soil for which each node stores water (m)}
 #'   \item{psiw}{soil water potential (J kg-1)}
-#'   \item{k}{hydraulic conductivity (m s-1)}
-#'   \item{vapor}{soil vapour content}
-#'   \item{oldvapor}{soil vapour content at previous time step}
+#'   \item{k}{hydraulic conductivity (kg s m-3)}
+#'   \item{vapor}{water vapour held in the air-filled pores (kg m-3)}
+#'   \item{oldvapor}{water vapour held in the air-filled pores at the previous time step (kg m-3)}
 #'   \item{oldtheta}{soil water content at previous time step (m3 m-3)}
-#'   \item{rootfrac}{fraction of roots in each soil layer}
+#'   \item{rootfrac}{fraction of roots in the soil held by each node}
 #'   \item{success}{logical indicating convergence success - set to TRUE on initalization}
 #'   \item{iterations}{number of solver iterations - set to zero initially}
 #' }
 #' @export
-InitSoilwatermod <- function(soilp, soilheatmod, rootskew) {
+InitSoilwatermod <- function(soilp, soilheatmod, root50, root95) {
   out <- list()
   out$n = soilheatmod$n # number of layers
   out$z = soilheatmod$z # node depths
-  out$dz = soilheatmod$dz # layer thickness
-  out$zCenter = soilheatmod$zCenter # centre between nodes
+  out$dz = soilheatmod$dz # distance between each node and the one beneath
   out$Tc = soilheatmod$Te # temperature of soil profile
   out$oldTc = soilheatmod$oldTe # old temperature of soil profile
   out$theta = soilheatmod$wc # volumetric water content of soil profile
-  idx1 <- seq_len(out$n)
-  idx2 <- seq_len(out$n) + 2
-  out$vol <- c(0, (out$z[idx2] - out$z[idx1]) / 2)
+  # Each node stores water for the same soil as it stores heat for: half the
+  # distance to each neighbour, and for the surface node half the top layer
+  out$vol <- soilheatmod$vol
   out$psiw <- PsiFromtheta(out$theta, soilp$psie, soilp$b, soilp$Smax, MPa = FALSE)
-  out$k <- hydraulicConductivityFromTheta(out$theta, soilp$b, soilp$Smax, soilp$Ksat);
+  out$k <- hydraulicConductivityFromTheta(out$theta, soilp$b, soilp$Smax, soilp$Ksat)
   out$vapor <- vaporFromPsi(out$psiw, out$theta, out$Tc + 273.15, soilp$Smax)
   out$oldvapor <- out$vapor
   out$oldtheta <- soilheatmod$wc
-  totalDepth <- max(out$z)
-  out$rootfrac <- .root_distribute(out$dz, totalDepth, rootskew)
+  out$rootfrac <- .root_distribute(out$z, root50, root95)
   out$success <- TRUE
-  out$iterations <- 0
   out$iterations <- 0
   return(out)
 }
 #' @title Calculates soil surface relative humidity
+#' @description Calculates the relative humidity of the air in the pores of the
+#' soil, which falls as the soil dries and holds its water more tightly.
 #' @param theta volumetric soil water content (m^3 / m^3)
 #' @param tsoil soil temperature (degrees C)
-#' @param psie air-entry water potential
+#' @param psie air-entry water potential (J / kg)
 #' @param b Campbell soil water retention parameter
 #' @param Smax saturated volumetric water content (m^3 / m^3)
 #' @return relative humidity (Percentage)
 #' @export
 soilrelhum <- function(theta, tsoil, psie, b, Smax) {
+  # Water potential of the soil (J/kg), from the water retention curve
   psie <- -abs(psie)
   psiw <- psie * (theta / Smax)^-b
+  # Humidity of air in equilibrium with water held at that potential
   Tk <- tsoil + 273.15
   hr <- exp(0.018015 * psiw / (8.314 * Tk)) * 100
-  hr
+  return(hr)
 }
 #' @title Calculates soil thermal conductivity
 #' @description Calculates soil thermal conductivity (W m-1 K-1)
@@ -284,15 +318,23 @@ soilrelhum <- function(theta, tsoil, psie, b, Smax) {
 #' @return soil thermal conductivity (W m-1 K-1)
 #' @export
 thermalConductivity <- function(Vq, Vm, Vo, Vw, Mc, Tc, pk) {
-  # solids
+  # Conductivity of the solids (W/m/K): quartz conducts heat far better than
+  # other minerals (8.8 against 2.5), and organic matter poorly (0.25)
   Vsolid <- Vq + Vm + Vo
-  kSolid <- 2.5^(Vq / Vsolid) * 8.8^(Vm / Vsolid) * 0.25^(Vo / Vsolid)
-  # shape factor
+  kSolid <- 8.8^(Vq / Vsolid) * 2.5^(Vm / Vsolid) * 0.25^(Vo / Vsolid)
+  # Shape of the soil particles, which sets how readily heat passes between them
   Ga <- 0.088 * ((Vq + Vm) / Vsolid) + 0.5 * (Vo / Vsolid)
+  Gc <- 1 - 2 * Ga
+  # How wet the soil must be for water vapour to move freely through its pores,
+  # which depends on its clay content
   Q <- 7.25 * Mc + 2.52
   xwo <- 0.33 * Mc + 0.078
+  # Space between the solids, and the part of it that is filled with air
   porosity <- 1 - Vsolid
   gasPorosity <- pmax(porosity - Vw, 0)
+  # Conductivity of water, and of the air in the pores. In moist soil, water
+  # evaporates on the warm side of a pore and condenses on the cool side, which
+  # carries heat across it and adds to the conductivity of the air
   Tk <- Tc + 273.15
   Lv <- 45144 - 48 * Tc
   svp <- 0.611 * exp(17.502 * Tc / (Tc + 240.97))
@@ -304,7 +346,8 @@ thermalConductivity <- function(Vq, Vm, Vo, Vw, Mc, Tc, pk) {
   kWater <- 0.56 + 0.0018 * Tc
   wf <- ifelse(Vw < 0.01 * xwo, 0, 1 / (1 + (Vw / xwo)^(-Q)))
   kGas <- 0.0242 + 0.00007 * Tc + wf * Lv * rhoAir * Dv * slope / (pk * stcor)
-  Gc <- 1 - 2 * Ga
+  # Conductivity of the soil as a whole: that of water, air and solids, each
+  # weighted by its volume and by how it is arranged around the particles
   kFluid <- kGas + (kWater - kGas) * (Vw / porosity)^2
   ka <- (2 / (1 + (kGas / kFluid - 1) * Ga) +
            1 / (1 + (kGas / kFluid - 1) * Gc)) / 3
@@ -312,7 +355,6 @@ thermalConductivity <- function(Vq, Vm, Vo, Vw, Mc, Tc, pk) {
            1 / (1 + (kWater / kFluid - 1) * Gc)) / 3
   ks <- (2 / (1 + (kSolid / kFluid - 1) * Ga) +
            1 / (1 + (kSolid / kFluid - 1) * Gc)) / 3
-
   kout <- (kw * kWater * Vw + ka * kGas * gasPorosity + ks * kSolid * Vsolid) /
     (kw * Vw + ka * gasPorosity + ks * Vsolid)
   return(kout)
@@ -328,21 +370,27 @@ thermalConductivity <- function(Vq, Vm, Vo, Vw, Mc, Tc, pk) {
 #' @return soil volumetric heat capacity (J m-3 K-1)
 #' @export
 heatCapacity <- function(Vq, Vm, Vo, Vw, Tc, pk) {
+  # Air fills whatever volume the solids and water leave
   Vsum <- Vq + Vm + Vo + Vw
   Va <- ifelse(Vsum > 1, 0, 1 - Vsum)
   Vq <- ifelse(Vsum > 1, Vq / Vsum, Vq)
   Vm <- ifelse(Vsum > 1, Vm / Vsum, Vm)
   Vo <- ifelse(Vsum > 1, Vo / Vsum, Vo)
   Vw <- ifelse(Vsum > 1, Vw / Vsum, Vw)
-  CHa <- cpair(Tc) * rhohair(Tc, pk) / 1e6
+  # Heat capacity of each constituent (MJ m-3 K-1). Water below freezing is
+  # taken to be ice
+  CHa <- cpair(Tc) * rhoair(Tc, pk) / 1e6
   if (length(Tc) == 1L) Tc <- rep(Tc, length(Vw))
   ChW <- 1.93 + 0.0067 * Tc
   ChW[Tc >= 0] <- 4.18
+  # That of the soil is the sum of these, each weighted by its volume
   CH <- Vq * 2.13 + Vm * 2.31 + Vo * 2.50 + Va * CHa + Vw * ChW
-  CH * 1e6
+  return(CH * 1e6)
 }
 #' @title Calculates soil surface energy balance
-#' @description Calculates the soil surface energy balance (W m-2)
+#' @description Calculates the energy available at the soil surface (W m-2):
+#' radiation absorbed, less that emitted and the sensible and latent heat given
+#' to the air. It is the heat flux into the soil.
 #' @param soilp list of soil parameters as returned by [createsoilplist()]
 #' @param Rabs absorbed radiation at the surface (W m-2)
 #' @param Tref reference air temperature (degrees C)
@@ -351,8 +399,8 @@ heatCapacity <- function(Vq, Vm, Vo, Vw, Tc, pk) {
 #' @param relhum air relative humidity (Percentage)
 #' @param rHa aerodynamic resistance to heat from ground to reference height
 #' as returned by [groundresistance()] (s m-1)
-#' @param theta volumetric soil water content (m3 m-3)
-#' @return soil surface energy balance (W m-2)
+#' @param theta volumetric water content of the soil at its surface (m3 m-3)
+#' @return heat flux into the soil (W m-2)
 #' @export
 soilsurfaceEB <- function(soilp, Rabs, Tref, Tsurface, pk, relhum, rHa, theta) {
   # net radiation
@@ -360,7 +408,7 @@ soilsurfaceEB <- function(soilp, Rabs, Tref, Tsurface, pk, relhum, rHa, theta) {
   Rnet <- Rabs - soilp$groundem * sb * (Tsurface + 273.15)^4
   # sensible heat
   cp <- cpair(Tref)
-  ph <- rhohair(Tref, pk)
+  ph <- rhoair(Tref, pk)
   H <- (ph * cp / rHa) * (Tsurface - Tref)
   # latent heat
   hr <- soilrelhum(theta, Tsurface, soilp$psie[1], soilp$b[1], soilp$Smax[1])
@@ -368,7 +416,7 @@ soilsurfaceEB <- function(soilp, Rabs, Tref, Tsurface, pk, relhum, rHa, theta) {
   ea <- satvap(Tref) * (relhum / 100)
   la <- latvap(Tsurface)
   L <- (la * ph / (rHa * pk)) * (es - ea)
-  Rnet - H - L
+  return(Rnet - H - L)
 }
 #' @title Calculates soil evaporation flux
 #' @param theta volumetric soil surface water content (m3 m-3)
@@ -383,7 +431,7 @@ soilsurfaceEB <- function(soilp, Rabs, Tref, Tsurface, pk, relhum, rHa, theta) {
 #' @return soil evaporation (mm over timestep)
 #' @export
 evaporation_flux <- function(theta, Tsurface, Tair, relhum, rHa, psie, b, Smax, dT = 3600) {
-  psiw <- PsiFromtheta(theta, Smax, psie, b, MPa = FALSE)
+  psiw <- PsiFromtheta(theta, psie, b, Smax, MPa = FALSE) # water potential of the soil (J/kg)
   Tk <- Tair + 273.15 # Temperature deg C -> K
   hs <- exp(0.018015 * psiw / (8.314 * Tk)) #  dimensionless soil effective relative humidity (0 to 1 range)
   es <- 1000 * satvap(Tsurface) * hs # kPa -> Pa
@@ -409,25 +457,27 @@ evaporation_flux <- function(theta, Tsurface, Tair, relhum, rHa, psie, b, Smax, 
 #' }
 #' @export
 ThomasBoundaryCondition <- function(aa, bb, cc, dd, x, first = 1, last = length(x)) {
-  for (i in first:(last - 1)) {
+  # Working down the rows, remove from each the unknown it shares with the row above
+  for (i in seq(first, length.out = last - first)) {
     cc[i] <- cc[i] / bb[i]
     dd[i] <- dd[i] / bb[i]
     bb[i + 1] <- bb[i + 1] - aa[i + 1] * cc[i]
     dd[i + 1] <- dd[i + 1] - aa[i + 1] * dd[i]
   }
+  # The last row then holds one unknown. Working back up, each row gives the next
   x[last] <- dd[last] / bb[last]
-  if (last - 1 >= first) {
-    for (i in seq(last - 1, first, by = -1)) {
-      x[i] <- dd[i] - cc[i] * x[i + 1]
-    }
+  for (i in rev(seq(first, length.out = last - first))) {
+    x[i] <- dd[i] - cc[i] * x[i + 1]
   }
-  list(bb = bb, cc = cc, dd = dd, x = x)
+  return(list(bb = bb, cc = cc, dd = dd, x = x))
 }
 #' @title Updates soil temperatures using the soil heat model
-#' @description Solves soil heat conduction through the soil profile over one time step,
-#' updating layer temperatures by combining surface energy balance from [soilsurfaceEB()],
-#' thermal conductivity from [thermalConductivity()], volumetric heat capacity from
-#' [heatCapacity()], and tridiagonal solution with [ThomasBoundaryCondition()].
+#' @description Solves heat conduction through the soil profile over one time step.
+#' The energy balance of the soil surface, from [soilsurfaceEB()], is the upper
+#' boundary, and the deepest node is held at a fixed temperature. Heat is
+#' conducted between nodes according to [thermalConductivity()] and stored
+#' according to [heatCapacity()], with temperatures at the end of the time step
+#' found using [ThomasBoundaryCondition()].
 #' @param soilheatmod list of variables provided as input and updated by soil
 #' heat model as returned by [InitSoilheatmod()] on first step or by previous model run
 #' @param soilp list of soil parameters as returned by [createsoilplist()]
@@ -438,110 +488,81 @@ ThomasBoundaryCondition <- function(aa, bb, cc, dd, x, first = 1, last = length(
 #' @param rHa aerodynamic resistance to heat from ground to reference height
 #' as returned by [groundresistance()] (s m-1)
 #' @param dT time step (s)
-#' @param Fact weighting factor for the implicit solution scheme
-#' @param maxNrIterations maximum number of nonlinear iterations
-#' @param tolerance convergence criterion for maximum change in layer temperature
+#' @param maxNrIterations maximum number of iterations
+#' @param tolerance convergence criterion for maximum change in node temperature
 #' between successive iterations (degrees C)
+#' @details The model steps forward from the temperatures in `oldTe`, which are
+#' those at the start of the time step, and returns those at its end in `Te`.
+#' `oldTe` is left as it is, so that the same time step can be solved again with
+#' different inputs. To move on to the next time step, set `oldTe` to `Te`.
 #' @return a list comprising
 #' \describe{
 #'   \item{n}{number of soil layers}
-#'   \item{z}{depth of soil nodes (m)}
-#'   \item{dz}{soil layer thicknesses (m)}
-#'   \item{zCenter}{depth of layer centres (m)}
-#'   \item{vol}{soil layer volumes per unit ground area (m)}
-#'   \item{wc}{volumetric soil water content of each layer (m3 m-3)}
-#'   \item{Te}{updated soil layer temperature (degrees C)}
-#'   \item{oldTe}{soil layer temperature at previous time step (degrees C)}
-#'   \item{Gflux}{integrated soil heat storage flux over the profile (W m-2)}
+#'   \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+#'   \item{dz}{distance between each node and the node beneath it (m)}
+#'   \item{vol}{thickness of the soil for which each node stores heat (m)}
+#'   \item{wc}{volumetric water content of the soil at each node (m3 m-3)}
+#'   \item{Te}{temperature of the soil at each node at the end of the time step (degrees C)}
+#'   \item{oldTe}{temperature of the soil at each node at the start of the time step (degrees C)}
+#'   \item{Gflux}{heat flux into the soil at its surface (W m-2)}
 #'   \item{iters}{number of iterations used to reach convergence}
 #' }
 #' @export
-SoilHeatModel <- function(soilheatmod, soilp, Rabs, Tref, relhum, atmPressure, rHa, dT = 3600, Fact = 0.5,
-                          maxNrIterations = 100, tolerance = 1e-2) {
-
+SoilHeatModel <- function(soilheatmod, soilp, Rabs, Tref, relhum, atmPressure, rHa, dT = 3600,
+                          maxNrIterations = 100, tolerance = 1e-3) {
   n <- soilheatmod$n
-  gg <- 1 - Fact
-  boundaryT <- soilheatmod$oldTe[n + 1]
-  oldTe_fixed <- soilheatmod$oldTe
-  Te_new <- soilheatmod$Te
   wc <- soilheatmod$wc
   dz <- soilheatmod$dz
-  Vq <- soilp$Vq
-  Vm <- soilp$Vm
-  Vo <- soilp$Vo
-  Mc <- soilp$Mc
-  max_qsurface <- 0
+  oldTe <- soilheatmod$oldTe
+  # Temperatures at the end of the time step are found by iteration, starting
+  # from the latest estimate. The deepest node keeps its temperature
+  Te <- soilheatmod$Te
+  Te[n + 1] <- oldTe[n + 1]
+  idx <- seq_len(n) # the nodes solved
+
   nrIterations <- 0
   maxdT <- Inf
-  qsurface <- 0
-  qsurf1 <- NA_real_
-  qsurf2 <- NA_real_
   while (maxdT > tolerance && nrIterations < maxNrIterations) {
-    if (nrIterations < 10) {
-      Tav <- 0.5 * (oldTe_fixed[1] + Te_new[1])
-      qsurface <- soilsurfaceEB(soilp, Rabs, Tref, Tav, atmPressure, relhum, rHa, wc[1])
-      if (nrIterations < 2 && abs(qsurface) > abs(max_qsurface)) {
-        max_qsurface <- abs(qsurface)
-      }
-      if (nrIterations > 1 && abs(qsurface) > abs(max_qsurface)) {
-        qsurface <- sign(qsurface) * abs(max_qsurface)
-      }
-      if (nrIterations == 8) qsurf1 <- qsurface
-      if (nrIterations == 9) qsurf2 <- qsurface
-    } else if (nrIterations == 10) {
-      qsurface <- 0.5 * (qsurf1 + qsurf2)
+    # Thermal properties of the soil at its current temperature. C is the heat
+    # needed to warm the soil held by each node by one degree (J m-2 K-1)
+    lambda <- thermalConductivity(soilp$Vq, soilp$Vm, soilp$Vo, wc, soilp$Mc, Te, atmPressure)
+    C <- heatCapacity(soilp$Vq, soilp$Vm, soilp$Vo, wc, Te, atmPressure) * soilheatmod$vol
+
+    # Conductance between each node and the one beneath it (W m-2 K-1), from the
+    # conductivity of the upper node. Close to the surface conductivity changes
+    # quickly with depth, so the logarithmic mean of the top two nodes is used
+    ff <- lambda[idx] / dz[idx]
+    if (lambda[1] != lambda[2]) {
+      ff[1] <- ((lambda[1] - lambda[2]) / log(lambda[1] / lambda[2])) / dz[1]
     }
-    lambda <- thermalConductivity(soilp$Vq, soilp$Vm, soilp$Vo, wc, Mc, Te_new, atmPressure)
-    CT <- heatCapacity(Vq, Vm, Vo, wc, Te_new, atmPressure) * soilheatmod$vol
-    ff <- numeric(n + 1)
-    ff[1] <- if (lambda[1] == lambda[2]) {
-      lambda[1] / dz[1]
-    } else {
-      ((lambda[1] - lambda[2]) / log(lambda[1] / lambda[2])) / dz[1]
-    }
-    if (n > 1) {
-      ff[2:n] <- lambda[2:n] / dz[2:n]
-    }
-    aa <- numeric(n + 1)
-    bb <- numeric(n + 1)
-    cc <- numeric(n + 1)
-    dd <- numeric(n + 1)
-    if (n > 2) {
-      idx <- 2:(n - 1)
-      aa[idx] <- -ff[idx - 1] * Fact
-      bb[idx] <- CT[idx] / dT + (ff[idx - 1] + ff[idx]) * Fact
-      cc[idx] <- -ff[idx] * Fact
-      dd[idx] <- CT[idx] / dT * oldTe_fixed[idx] + gg * (ff[idx - 1] *
-                                                           oldTe_fixed[idx - 1] + ff[idx] * oldTe_fixed[idx + 1] -
-                                                           (ff[idx - 1] + ff[idx]) * oldTe_fixed[idx])
-    }
-    aa[1] <- 0
-    bb[1] <- CT[1] / dT + ff[1]
-    cc[1] <- -ff[1]
-    dd[1] <- CT[1] / dT * oldTe_fixed[1] + qsurface
-    aa[n] <- 0
-    bb[n] <- 1
+    above <- c(0, ff[-n]) # conductance between each node and the one above it
+
+    # Heat flux into the soil at its surface, and how it changes as the surface
+    # warms: a warmer surface emits more radiation and gives more heat to the air
+    qsurface <- soilsurfaceEB(soilp, Rabs, Tref, Te[1], atmPressure, relhum, rHa, wc[1])
+    dqsurface <- (soilsurfaceEB(soilp, Rabs, Tref, Te[1] + 0.01, atmPressure, relhum, rHa, wc[1]) - qsurface) / 0.01
+
+    # Energy balance of each node over the time step: the heat it stores equals
+    # the heat conducted to it from the nodes above and below, at the
+    # temperatures of the end of the time step
+    aa <- -above
+    cc <- -ff
+    bb <- C[idx] / dT + above + ff
+    dd <- C[idx] / dT * oldTe[idx]
+    # The surface node also gains the heat flux into the soil
+    bb[1] <- bb[1] - dqsurface
+    dd[1] <- dd[1] + qsurface - dqsurface * Te[1]
+    # The node above the lower boundary exchanges heat with a fixed temperature
     cc[n] <- 0
-    dd[n] <- boundaryT
-    Te_prev <- Te_new
-    TBC <- ThomasBoundaryCondition(aa, bb, cc, dd, Te_new, 1, n - 1)
-    Te_new <- TBC$x
-    if (n > 2) {
-      idx <- 2:(n - 1)
-      lo <- pmin(Te_new[idx - 1], Te_new[idx + 1])
-      hi <- pmax(Te_new[idx - 1], Te_new[idx + 1])
-      Te_new[idx] <- pmax(pmin(Te_new[idx], hi), lo)
-    }
-    maxdT <- max(abs(Te_new - Te_prev))
+    dd[n] <- dd[n] + ff[n] * Te[n + 1]
+
+    Tnew <- ThomasBoundaryCondition(aa, bb, cc, dd, numeric(n))$x
+    maxdT <- max(abs(Tnew - Te[idx]))
+    Te[idx] <- Tnew
     nrIterations <- nrIterations + 1
   }
-  G <- if (n > 1) {
-    sum(CT[2:n] * (Te_new[2:n] - oldTe_fixed[2:n]) / dT)
-  } else {
-    0
-  }
-  soilheatmod$Te <- Te_new
-  soilheatmod$Gflux <- G
+  soilheatmod$Te <- Te
+  soilheatmod$Gflux <- soilsurfaceEB(soilp, Rabs, Tref, Te[1], atmPressure, relhum, rHa, wc[1])
   soilheatmod$iters <- nrIterations
   return(soilheatmod)
 }
@@ -549,14 +570,13 @@ SoilHeatModel <- function(soilheatmod, soilp, Rabs, Tref, relhum, atmPressure, r
 #' @param soiltype Character string giving the soil type. See details
 #' @return A list of soil parameters:
 #' \describe{
-#'   \item{psie}{Air-entry water potential (m)}
-#'   \item{n}{Pore size distribution parameter (unitless)}
+#'   \item{psie}{Air-entry water potential (J/kg, numerically equal to kPa), given as a positive value}
 #'   \item{b}{Campbell soil water retention parameter (unitless)}
-#'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
 #'   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
+#'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
 #'   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3)}
 #' }
-#' @details:
+#' @details
 #' Available soil types (argument \code{soiltype}) are:
 #' \itemize{
 #'   \item Sand
@@ -578,7 +598,6 @@ Campbellparams <- function(soiltype) {
   s <- which(soilparams$Soil.type == soiltype)
   out <- list()
   out$psie <- soilparams$psi_e[s]
-  out$n <- soilparams$n[s]
   out$b <- soilparams$b[s]
   out$Smin <- soilparams$Smin[s]
   out$Smax <- soilparams$Smax[s]
@@ -589,14 +608,16 @@ Campbellparams <- function(soiltype) {
 #' @param soiltype Character string giving the soil type. See details
 #' @return A list of soil parameters:
 #' \describe{
-#'   \item{psie}{Air-entry water potential (m)}
-#'   \item{alpha}{Van Genuchten shapte parameter (unitless)}
+#'   \item{alpha}{Van Genuchten shape parameter (kg/J): the inverse of a water potential in J/kg}
 #'   \item{n}{Pore size distribution parameter (unitless)}
-#'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
 #'   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
+#'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
 #'   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3)}
 #' }
-#' @details:
+#' @references Bittelli M, Campbell GS, Tomei F (2015) Soil Physics with
+#' Python: Transport in the Soil-Plant-Atmosphere System. Oxford University
+#' Press. Table 5.4.
+#' @details
 #' Available soil types (argument \code{soiltype}) are:
 #' \itemize{
 #'   \item Sand
@@ -614,29 +635,36 @@ Campbellparams <- function(soiltype) {
 #' }
 #' @export
 VGparams <- function(soiltype) {
+  # Parameters of the water retention curve for each soil type
+  vg <- data.frame(
+    Soil.type = c("Sand", "Loamy sand", "Sandy loam", "Loam", "Silt loam", "Sandy clay loam",
+                  "Clay loam", "Silty clay loam", "Sandy clay", "Silty clay", "Clay", "Silt"),
+    alpha = c(0.68, 0.49, 0.39, 0.18, 0.14, 0.23, 0.19, 0.14, 0.22, 0.18, 0.17, 0.08),
+    n     = c(1.70, 1.50, 1.40, 1.21, 1.20, 1.22, 1.18, 1.20, 1.18, 1.16, 1.16, 1.24),
+    Smin  = c(0.02, 0.03, 0.05, 0.05, 0.05, 0.05, 0.06, 0.05, 0.07, 0.06, 0.07, 0.04),
+    Smax  = c(0.38, 0.39, 0.40, 0.42, 0.44, 0.41, 0.45, 0.46, 0.44, 0.50, 0.50, 0.44)
+  )
+  s <- which(vg$Soil.type == soiltype)
+  out <- as.list(vg[s, c("alpha", "n", "Smin", "Smax")])
+  # Saturated hydraulic conductivity is a property of the soil, whichever curve is used
   soilparams <- micropoint::newsoilparamstable
-  s <- which(soilparams$Soil.type == soiltype)
-  out <- list()
-  out$psie <- soilparams$VGpsie[s]
-  out$alpha <- soilparams$alpha[s]
-  out$n <- soilparams$VGn[s]
-  out$Smin <- soilparams$Smin[s]
-  out$Smax <- soilparams$Smax[s]
-  out$Ksat <- soilparams$Ksat[s]
+  out$Ksat <- soilparams$Ksat[soilparams$Soil.type == soiltype]
   return(out)
 }
 #' @title Derives soil water potential from volumetric water content using the Campbell method
 #' @param theta volumetric soil water fraction (m^3 / m^3)
-#' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
-#' @param psi_e air entry water potential (J/m^3)
+#' @param psie air entry water potential (J/kg)
 #' @param b Campbell soil water retention parameter
-#' @param MPa optional logical indicating whether to return outputs in Mpa (TRUE) or kPa (FALSE)
+#' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
+#' @param MPa optional logical indicating whether to return outputs in MPa (TRUE) or kPa (FALSE)
 #' @returns soil water potential (MPa or kPa ~ J/Kg)
 #' @export
 PsiFromtheta <- function(theta, psie, b, Smax, MPa = TRUE) {
   psie <- -abs(psie)
+  # Degree of saturation: the fraction of the pore space filled with water
   Se <- theta / Smax
   Se[Se > 1] <- 1
+  # Water is held more tightly as the soil dries, following a power law
   psiw <- psie * Se^(-b) # J/kg
   if (MPa) psiw <- psiw * 0.001 # Convert to MPa
   return(psiw)
@@ -645,43 +673,51 @@ PsiFromtheta <- function(theta, psie, b, Smax, MPa = TRUE) {
 #' @param theta volumetric soil water fraction (m^3 / m^3)
 #' @param Smin Residual volumetric soil water fraction (m^3 / m^3)
 #' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
-#' @param alpha Van Genuchten shape parameter
+#' @param alpha Van Genuchten shape parameter (kg/J)
 #' @param n Van Genuchten pore size distribution parameter
 #' @returns soil water potential (kPa ~ J/Kg)
 #' @export
 PsiFromthetaVG <- function(theta, Smin, Smax, alpha, n) {
-  # Calculate water saturation at the air-entry potential
   m <- 1 - (1 / n)
-  # Calculate degree of saturation
+  # Degree of saturation: the fraction of the water between residual and
+  # saturation that the soil holds
   Se <- (theta - Smin) / (Smax - Smin)
   Se <- pmin(1 - 1e-12, pmax(1e-12, Se))
+  # Water potential, which falls smoothly from zero as the soil dries
   psiw <- -(1 / alpha) * (Se^(-1 / m) - 1)^(1 / n)
   return(psiw)
 }
 #' @title Calculates soil vapour content from water potential
-#' @description Calculates soil vapour content from soil water potential using the Kelvin equation
+#' @description Calculates the water vapour held in the air-filled pores of
+#' the soil from soil water potential using the Kelvin equation
 #' @param psiw soil water potential (J kg-1)
 #' @param theta volumetric soil water content (m3 m-3)
 #' @param Tk soil temperature (K)
 #' @param Smax volumetric soil water content at saturation (m3 m-3)
-#' @return soil vapour content
+#' @return soil vapour content (kg of vapour per m3 of soil)
 #' @export
 vaporFromPsi <- function(psiw, theta, Tk, Smax) {
+  # Relative humidity of air in equilibrium with water held at that potential
   humidity <- exp(0.018015 * psiw / (8.314 * Tk))
-  vapor <- (Smax - theta) * 0.017 * humidity
+  # Vapour in the part of the pore space that is filled with air
+  vapor <- (Smax - theta) * .satVapDensity(Tk) * humidity
   return(vapor)
 }
 #' @title Calculates vapour conductivity from soil water potential
-#' @description Calculates soil vapour conductivity as a function of water potential and moisture content
+#' @description Calculates the conductivity of the soil for water vapour,
+#' which diffuses through its air-filled pores, as a function of water
+#' potential and water content
 #' @param psiw soil water potential (J kg-1)
 #' @param theta volumetric soil water content (m3 m-3)
 #' @param Tk soil temperature (K)
 #' @param Smax volumetric soil water content at saturation (m3 m-3)
-#' @return soil vapour conductivity (kg^2 m-1 s-1 J-1)
+#' @return soil vapour conductivity (kg s / m^3)
 #' @export
 vaporConductivityFromPsiTheta <- function(psiw, theta, Tk, Smax) {
   humidity <- exp(0.018015 * psiw / (8.314 * Tk))
-  k <- 0.66 * (Smax - theta) * 0.000024 * 0.017 * humidity * 0.018015 / (8.314 * Tk)
+  # Diffusivity of vapour in air (0.000024 m2/s), reduced to 0.66 of that by the
+  # winding path through the air-filled pores
+  k <- 0.66 * (Smax - theta) * 0.000024 * .satVapDensity(Tk) * humidity * 0.018015 / (8.314 * Tk)
   return(k)
 }
 #' @title Calculates volumetric soil water fraction from water potential using the Campbell method
@@ -693,7 +729,8 @@ vaporConductivityFromPsiTheta <- function(psiw, theta, Tk, Smax) {
 #' @export
 thetaFromPsi <- function(psiw, psie, b, Smax) {
   psie <- -abs(psie)
-  Se <- pmin((psiw / psie) ^ (-1 / b), 1)
+  # Degree of saturation. The soil is saturated at potentials above air entry
+  Se <- (pmin(psiw, psie) / psie)^(-1 / b)
   theta <- Se * Smax
   return(theta)
 }
@@ -701,65 +738,55 @@ thetaFromPsi <- function(psiw, psie, b, Smax) {
 #' @param psiw soil water potential (kPa ~ J/Kg)
 #' @param Smin Residual volumetric soil water fraction (m^3 / m^3)
 #' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
-#' @param psie air entry water potential (J/m^3)
-#' @param alpha Van Genuchten shape parameter
+#' @param alpha Van Genuchten shape parameter (kg/J)
 #' @param n Van Genuchten pore size distribution parameter
 #' @returns volumetric soil water content (m3 m-3)
 #' @export
-thetaFromPsiVG <- function(psiw, Smin, Smax, psie, alpha, n) {
-  psie <- -abs(psie)
-  # Calculate water saturation at the air-entry potential
+thetaFromPsiVG <- function(psiw, Smin, Smax, alpha, n) {
   m <- 1 - (1 / n)
-  Sc <- (1 + (alpha * abs(psie))^n)^(-m)
-  # Calculate degree of saturation
-  Se <- (1 / Sc) * (1 + (alpha * abs(psiw))^n)^(-m)
-  Se <- pmin(1, pmax(0, Se))
-  # Calculate theta
+  # Degree of saturation: the fraction of the water between residual and
+  # saturation that the soil holds
+  Se <- (1 + (alpha * abs(psiw))^n)^(-m)
   theta <- Se * (Smax - Smin) + Smin
   return(theta)
 }
 #' @title Calculates hydraulic conductivity from soil water content using Campbell method
 #' @param theta volumetric soil water content (m3 m-3)
-#' @param psie air-entry water potential (J kg-1)
 #' @param b Campbell soil water retention parameter
 #' @param Smax volumetric soil water content at saturation (m3 m-3)
 #' @param Ksat saturated hydraulic conductivity (kg s / m^3)
-#' @param n Campbell pore size distribution parameter
 #' @return hydraulic conductivity (kg s / m^3)
 #' @export
 hydraulicConductivityFromTheta <- function(theta, b, Smax, Ksat) {
-  n <- 2*b+3
+  # Conductivity falls steeply as the soil dries and water is left only in the
+  # smallest pores
+  n <- 2 * b + 3
   k <- Ksat * (theta / Smax)^n
   return(k)
 }
 #' @title Calculates hydraulic conductivity from soil water content using Van Genuchten method
 #' @param theta volumetric soil water content (m3 m-3)
-#' @param Smin Residual volumetric soil water fraction (m^3 / m^3)
+#' @param Smin residual volumetric soil water fraction (m^3 / m^3)
 #' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
-#' @param psie air-entry water potential (J kg-1)
-#' @param alpha van Genuchten shape parameter
 #' @param n van Genuchten pore size distribution parameter
 #' @param Ksat saturated hydraulic conductivity (kg s / m^3)
 #' @return hydraulic conductivity (kg s / m^3)
 #' @export
-hydraulicConductivityFromThetaVG <- function(theta, Smin, Smax, psie, alpha, n, Ksat) {
-  psie <- -abs(psie)
-  # Calculate degree of saturation
+hydraulicConductivityFromThetaVG <- function(theta, Smin, Smax, n, Ksat) {
   m <- 1 - (1 / n)
+  # Degree of saturation
   Se <- (theta - Smin) / (Smax - Smin)
   Se <- pmin(1, pmax(0, Se))
-  # Calculate water saturation at the air-entry potential
-  Sc <- (1 + (alpha * abs(psie))^n)^(-m)
-  # Calculate hydrualic conductivity
-  top <- 1 - (1 - (Se * Sc)^(1 / m))^m
-  btm <- 1 - (1 - Sc^(1/m))^m
-  k <- (Ksat * Se^0.5 * (top / btm)^2)
+  k <- Ksat * Se^0.5 * (1 - (1 - Se^(1/m))^m)^2
   return(k)
 }
 #' @title Updates soil water status using the soil water model
-#' @description Solves vertical soil water redistribution through the soil profile
-#' over one time step, updating soil water potential, volumetric water content,
-#' vapour content, and hydraulic conductivity.
+#' @description Solves the movement of water through the soil profile over one
+#' time step, updating soil water potential, volumetric water content, vapour
+#' content and conductivity. Liquid water moves between nodes along gradients in
+#' water potential and drains under gravity, and water vapour diffuses through
+#' the air-filled pores. Rain enters and water evaporates at the surface, roots
+#' take up the water transpired, and water drains from the base of the profile.
 #' @param soilwatermod list of variables provided as input and updated by the soil
 #' water model, as returned by [InitSoilwatermod()] on the first step or by a
 #' previous model run
@@ -769,146 +796,200 @@ hydraulicConductivityFromThetaVG <- function(theta, Smin, Smax, psie, alpha, n, 
 #'   \item{Tair}{air temperature (degrees C)}
 #'   \item{relhum}{air relative humidity (Percentage)}
 #'   \item{rHa}{aerodynamic resistance to heat from the ground surface to the
-#'   reference height (s m^-1)}
-#'   \item{precip}{precipitation over the time step, expressed as an equivalent
-#'   water flux (mm over timestep)}
-#'   \item{Et}{plant transpiration demand (mm over timestep)}
+#'   reference height (s m^-1). Evaporation from the soil surface is calculated
+#'   from this using [evaporation_flux()]; an infinite value gives none.}
+#'   \item{precip}{precipitation over the time step (mm)}
+#'   \item{Et}{plant transpiration over the time step (mm)}
 #' }
 #' @param dT time step (s)
-#' @param pTAW fraction of available water below saturation at which soil begins
-#' to limit transpiration in the root zone
+#' @param pTAW fraction of the water held between field capacity and the
+#' wilting point that roots can take up before uptake starts to fall
 #' @param maxNrIterations maximum number of iterations
-#' @param tolerance convergence criterion
+#' @param tolerance convergence criterion: the water unaccounted for, summed
+#' over nodes (kg m^-2 s^-1)
+#' @details The model steps forward from the water and vapour contents in
+#' `oldtheta` and `oldvapor`, which are those at the start of the time step.
+#' These are left as they are, so that the same time step can be solved again
+#' with different inputs. To move on to the next time step, set them to `theta`
+#' and `vapor`. Soil temperature (`Tc`) is taken from the soil heat model. Water
+#' at or below 0 degrees C is taken to be frozen: it does not flow as liquid and
+#' roots do not take it up.
 #' @return a list comprising
 #' \describe{
 #'   \item{n}{number of soil layers}
-#'   \item{z}{depth of soil nodes (m)}
-#'   \item{dz}{soil layer thicknesses (m)}
-#'   \item{zCenter}{depth of layer centres (m)}
-#'   \item{Tc}{soil temperature profile (degrees C)}
+#'   \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+#'   \item{dz}{distance between each node and the node beneath it (m)}
+#'   \item{Tc}{temperature of the soil at each node (degrees C)}
 #'   \item{theta}{updated volumetric soil water content (m^3 m^-3)}
-#'   \item{vol}{soil layer volumes per unit ground area (m)}
+#'   \item{vol}{thickness of the soil for which each node stores water (m)}
 #'   \item{psiw}{updated soil water potential (J kg^-1)}
-#'   \item{k}{total soil water conductivity including liquid and vapour components}
-#'   \item{vapor}{updated soil vapour content}
-#'   \item{oldvapor}{soil vapour content at previous time step}
-#'   \item{oldtheta}{soil water content at previous time step (m^3 m^-3)}
-#'   \item{rootfrac}{fraction of roots in each soil layer}
+#'   \item{k}{conductivity of the soil for liquid water and vapour together (kg s m^-3)}
+#'   \item{vapor}{updated water vapour held in the air-filled pores (kg m^-3)}
+#'   \item{oldvapor}{vapour held in the air-filled pores at the start of the time step (kg m^-3)}
+#'   \item{oldtheta}{soil water content at the start of the time step (m^3 m^-3)}
+#'   \item{rootfrac}{fraction of roots in the soil held by each node}
 #'   \item{success}{logical indicating whether the solver converged within the
 #'   specified tolerance}
 #'   \item{iterations}{number of iterations used}
-#'   \item{Evapmmhr}{soil evaporation over the timestep (mm)}
+#'   \item{Evapmmhr}{evaporation from the soil surface over the time step (mm)}
+#'   \item{surplus}{water that a saturated soil surface could not take in over
+#'   the time step, which runs off (mm)}
+#'   \item{drainage}{water leaving through the base of the profile over the time
+#'   step (mm). Negative where water enters.}
+#'   \item{error}{water unaccounted for when the solver stopped (kg m^-2 s^-1)}
 #' }
 #' @export
 SoilWaterModel <- function(soilwatermod, soilp, climdata, dT = 3600, pTAW = 0.5,
-                           maxNrIterations = 20, tolerance = 1e-4,
-                           useDamping = TRUE) {
-  g <- 9.80665
-  rho <- 1000
+                           maxNrIterations = 100, tolerance = 1e-6) {
+  g <- 9.80665     # gravity (m/s^2)
+  rho <- 1000      # density of water (kg/m^3)
+  MwR <- 0.018015 / 8.314 # molar mass of water over the gas constant
   n <- soilp$nLayers
-  oldtheta <- soilwatermod$oldtheta
-  oldvapor <- soilwatermod$oldvapor
-  psiw <- soilwatermod$psiw
-  theta <- soilwatermod$theta
-  vapor <- soilwatermod$vapor
-  k <- numeric(n + 1)
-  aa <- bb <- cc <- dd <- ff <- u <- du <- Ca <- dpsi <- numeric(n)
+  idx <- seq_len(n) # the nodes solved. Node n + 1 is the lower boundary
+  dz <- soilwatermod$dz[idx]
+  vol <- soilwatermod$vol[idx]
+  Tk <- soilwatermod$Tc[idx] + 273.15
+  frozen <- soilwatermod$Tc[idx] <= 0
+  psie <- soilp$psie[idx]
+  b <- soilp$b[idx]
+  Smax <- soilp$Smax[idx]
+  Ksat <- soilp$Ksat[idx]
+  psi_min <- soilp$psi_min[idx]
+  rootfrac <- soilwatermod$rootfrac[idx]
+  # Water and vapour held at the start of the time step
+  oldtheta <- soilwatermod$oldtheta[idx]
+  oldvapor <- soilwatermod$oldvapor[idx]
+  # Water potential at the end of the time step is found by iteration, starting
+  # from the latest estimate. Water content and vapour follow from it
+  psiw <- soilwatermod$psiw[idx]
+  theta <- soilwatermod$theta[idx]
+  vapor <- soilwatermod$vapor[idx]
+  # Exponent with which liquid conductivity falls as water potential falls
+  nPsi <- 2 + 3 / b
+  sh <- dz * (1 - nPsi)
+
   iter <- 1
-  massBalance <- 1
-  # keep surface flux external/fixed for this solve
-  surfaceFlux <- (climdata$Evapmmhr - climdata$precip) / dT
-  while (massBalance > tolerance && iter < maxNrIterations) {
-    # transpiration from current iterate
-    STr <- .transpiration_distribute(
-      soilp, soilwatermod$rootfrac, climdata$Et, dT, psiw, pTAW
-    )
-    # suppress root uptake from frozen layers
-    STr[soilwatermod$Tc <= 0] <- 0
-    # bottom boundary for psi/theta
-    if (soilp$FreeDrain == FALSE) {
-      psiw[n + 1] <- soilp$psie[n]
-      theta[n + 1] <- soilp$Smax[n]
-      k[n + 1] <- soilp$Ksat[n]
-    } else {
-      psiw[n + 1] <- psiw[n]
-      theta[n + 1] <- theta[n]
-    }
-    idx <- seq_len(n)
-    kh <- hydraulicConductivityFromTheta(
-      theta[idx], soilp$b[idx], soilp$Smax[idx], soilp$Ksat[idx]
-    )
-    kv <- vaporConductivityFromPsiTheta(
-      psiw[idx], theta[idx], soilwatermod$Tc[idx] + 273.15, soilp$Smax[idx]
-    )
-    # suppress liquid flow in frozen soil
-    frozen <- soilwatermod$Tc[idx] <= 0
+  haveStep <- FALSE
+  stepFraction <- 1
+  while (iter < maxNrIterations) {
+    # ---- Water leaving the soil: evaporation less rain, and root uptake ----
+    Evapmmhr <- evaporation_flux(theta[1], soilwatermod$Tc[1], climdata$Tair, climdata$relhum,
+                                 climdata$rHa, psie[1], b[1], Smax[1], dT)
+    surfaceFlux <- (Evapmmhr - climdata$precip) / dT
+    # A wetter surface evaporates more. How much more, per unit of water potential
+    hp <- max(1e-4 * abs(psiw[1]), 1)
+    Evprobe <- evaporation_flux(thetaFromPsi(psiw[1] + hp, psie[1], b[1], Smax[1]), soilwatermod$Tc[1],
+                                climdata$Tair, climdata$relhum, climdata$rHa, psie[1], b[1], Smax[1], dT)
+    dEvap <- max((Evprobe - Evapmmhr) / (hp * dT), 0)
+    STr <- .transpiration_distribute(soilp, rootfrac, climdata$Et, dT, psiw, pTAW)
+    STr[frozen] <- 0
+
+    # ---- Hydraulic properties of each node ----
+    # Conductivity for liquid water, which does not flow where frozen, and for vapour
+    kh <- hydraulicConductivityFromTheta(theta, b, Smax, Ksat)
     kh[frozen] <- 0
-    k[idx] <- kh + kv
-    # free drainage ghost conductivity must use CURRENT bottom-layer k
-    if (!soilp$FreeDrain == FALSE) {
-      k[n + 1] <- k[n]
-    }
-    u[idx] <- g * k[idx]
-    du[idx] <- -u[idx] * soilp$n[idx] / psiw[idx]
-    Cw <- .dTheta_dPsi(
-      psiw[idx], soilp$psie[idx], soilp$b[idx], soilp$Smax[idx]
-    )
-    Cv <- .dvapor_dPsi(
-      psiw[idx], soilp$psie[idx], theta[idx], soilp$b[idx],
-      soilp$Smax[idx], soilwatermod$Tc[idx] + 273.15
-    )
-    Ca[idx] <- soilwatermod$vol[idx] * (rho * Cw + Cv) / dT
-    ff[idx] <- ((psiw[idx + 1] * k[idx + 1] - psiw[idx] * k[idx]) /
-                  (soilwatermod$dz[idx] * (1 - soilp$n[idx]))) - u[idx]
-    massBalance <- 0
-    # top layer
-    aa[1] <- 0
-    cc[1] <- -k[2] / soilwatermod$dz[1]
-    bb[1] <- k[1] / soilwatermod$dz[1] + Ca[1] + du[1]
-    dd[1] <- surfaceFlux + STr[1] - ff[1] +
-      soilwatermod$vol[1] * (rho * (theta[1] - oldtheta[1]) +
-                               (vapor[1] - oldvapor[1])) / dT
-    massBalance <- massBalance + abs(dd[1])
-    # remaining layers
-    if (n > 1) {
-      idx2 <- 2:n
-      aa[idx2] <- -k[idx2 - 1] / soilwatermod$dz[idx2 - 1] - du[idx2 - 1]
-      cc[idx2] <- -k[idx2 + 1] / soilwatermod$dz[idx2]
-      bb[idx2] <- k[idx2] / soilwatermod$dz[idx2 - 1] +
-        k[idx2] / soilwatermod$dz[idx2] + Ca[idx2] + du[idx2]
-      dd[idx2] <- ff[idx2 - 1] + STr[idx2] - ff[idx2] +
-        soilwatermod$vol[idx2] *
-        (rho * (theta[idx2] - oldtheta[idx2]) +
-           (vapor[idx2] - oldvapor[idx2])) / dT
-      massBalance <- massBalance + sum(abs(dd[idx2]))
-    }
-    TBC <- ThomasBoundaryCondition(aa, bb, cc, dd, dpsi, 1, n)
-    dpsi <- TBC$x
-    if (useDamping) {
-      dryness <- (psiw[idx] - soilp$psie[idx]) /
-        (soilp$psi_min[idx] - soilp$psie[idx])
-      dryness <- pmax(0, pmin(1, dryness))
-      lambda <- 0.2 + 0.8 * dryness
+    kv <- vaporConductivityFromPsiTheta(psiw, theta, Tk, Smax)
+    # Water and vapour that each node gains per unit rise in its water potential
+    Cw <- .dTheta_dPsi(psiw, psie, b, Smax)
+    Cv <- .dvapor_dPsi(psiw, psie, theta, b, Smax, Tk)
+    Ca <- vol * (rho * Cw + Cv) / dT
+    # Change in each conductivity per unit rise in water potential
+    dkh <- -nPsi * kh / psiw
+    airFilled <- Smax - theta
+    dkv <- kv * MwR / Tk - ifelse(airFilled > 0, kv / airFilled * Cw, 0)
+
+    # ---- Lower boundary ----
+    # Free drainage: the soil beneath is as wet as the deepest node, so water
+    # leaves under gravity alone. Otherwise the soil beneath is saturated
+    if (soilp$FreeDrain) {
+      psiB <- psiw[n]
+      khB <- kh[n]
+      kvB <- kv[n]
     } else {
-      lambda <- rep(1, n)
+      psiB <- psie[n]
+      khB <- Ksat[n]
+      kvB <- 0
     }
-    psiw[idx] <- psiw[idx] - lambda * dpsi[idx]
-    psiw[idx] <- pmin(psiw[idx], soilp$psie[idx] - 1e-8)
-    psiw[idx] <- pmax(psiw[idx], soilp$psi_min[idx])
-    theta[idx] <- thetaFromPsi(
-      psiw[idx], soilp$psie[idx], soilp$b[idx], soilp$Smax[idx]
-    )
-    vapor[idx] <- vaporFromPsi(
-      psiw[idx], theta[idx], soilwatermod$Tc[idx] + 273.15, soilp$Smax[idx]
-    )
+    # Values at the node beneath each node
+    psib <- c(psiw[-1], psiB)
+    khb <- c(kh[-1], khB)
+    kvb <- c(kv[-1], kvB)
+    dkhb <- c(dkh[-1], 0)
+    dkvb <- c(dkv[-1], 0)
+
+    # ---- Upward flow of water between each node and the one beneath (kg m^-2 s^-1) ----
+    # Liquid water moves towards lower water potential. Because conductivity
+    # changes steeply between two nodes, the flow is found by integrating it
+    # between them. Gravity adds a downward flow
+    liquid <- (psib * khb - psiw * kh) / sh - g * kh
+    # Vapour diffuses towards lower water potential
+    dpsiFace <- psib - psiw
+    kvFace <- 0.5 * (kv + kvb)
+    ff <- liquid + kvFace * dpsiFace / dz
+    # Change in that flow per unit rise in the water potential of the upper node
+    # (A) and of the lower node (B)
+    dFaceA <- -(kh + psiw * dkh) / sh - g * dkh - kvFace / dz + 0.5 * dkv * dpsiFace / dz
+    dFaceB <- (khb + psib * dkhb) / sh + kvFace / dz + 0.5 * dkvb * dpsiFace / dz
+    dFaceB[n] <- 0
+    if (soilp$FreeDrain) dFaceA[n] <- -g * dkh[n]
+
+    # ---- Water balance of each node ----
+    # Water arriving from below, less water leaving upwards and taken up by
+    # roots, should equal the change in water and vapour stored. What is left
+    # over is the imbalance
+    ffabove <- c(0, ff[-n]) # flow across the top of each node
+    dd <- ffabove + STr - ff + vol * (rho * (theta - oldtheta) + (vapor - oldvapor)) / dT
+    dd[1] <- dd[1] + surfaceFlux
+    # How the imbalance of each node changes with its own water potential (bb)
+    # and with that of the nodes above (aa) and below (cc)
+    aa <- c(0, dFaceA[-n])
+    bb <- c(0, dFaceB[-n]) - dFaceA + Ca
+    bb[1] <- bb[1] + dEvap
+    cc <- -dFaceB
+    massBalance <- sum(abs(dd))
+    # A saturated surface can take in no more water. Its water potential is
+    # held and the excess runs off
+    surplusRate <- 0
+    if (psiw[1] >= psie[1] - 2e-8 && dd[1] < 0) {
+      surplusRate <- -dd[1]
+      massBalance <- massBalance - abs(dd[1])
+      aa[1] <- 0
+      bb[1] <- 1
+      cc[1] <- 0
+      dd[1] <- 0
+    }
+    if (massBalance <= tolerance) break
+
+    # ---- Step towards balance ----
+    if (haveStep && massBalance > originResidual && stepFraction > 1 / 128) {
+      # The last step made the imbalance worse, so it is retaken at half its length
+      stepFraction <- 0.5 * stepFraction
+      psiw <- stepOrigin - stepFraction * stepTaken
+    } else {
+      # Change in water potential that would bring every node into balance if
+      # the imbalance changed in proportion (Newton's method)
+      stepOrigin <- psiw
+      stepTaken <- ThomasBoundaryCondition(aa, bb, cc, dd, numeric(n))$x
+      psiw <- psiw - stepTaken
+      originResidual <- massBalance
+      stepFraction <- 1
+      haveStep <- TRUE
+    }
+    # Water potential stays between oven dryness and air entry
+    psiw <- pmax(pmin(psiw, psie - 1e-8), psi_min)
+    theta <- thetaFromPsi(psiw, psie, b, Smax)
+    vapor <- vaporFromPsi(psiw, theta, Tk, Smax)
     iter <- iter + 1
   }
-  soilwatermod$psiw <- psiw
-  soilwatermod$theta <- theta
-  soilwatermod$vapor <- vapor
-  soilwatermod$k <- k
-  soilwatermod$Evapmmhr <- climdata$Evapmmhr
-  soilwatermod$success <- (massBalance < tolerance)
+  # State of the soil at the end of the time step, with the lower boundary
+  soilwatermod$psiw <- c(psiw, psiB)
+  soilwatermod$theta <- c(theta, if (soilp$FreeDrain) theta[n] else Smax[n])
+  soilwatermod$vapor[idx] <- vapor
+  soilwatermod$k <- c(kh + kv, khB + kvB)
+  soilwatermod$Evapmmhr <- Evapmmhr
+  soilwatermod$surplus <- surplusRate * dT
+  soilwatermod$drainage <- -ff[n] * dT
+  soilwatermod$success <- (massBalance <= tolerance)
   soilwatermod$iterations <- iter
   soilwatermod$error <- massBalance
   return(soilwatermod)

@@ -2,32 +2,37 @@
 % Please edit documentation in R/ground.R
 \name{InitSoilheatmod}
 \alias{InitSoilheatmod}
-\title{Initalizes input for the soil heat model}
+\title{Initializes input for the soil heat model}
 \usage{
 InitSoilheatmod(soilp, Te, wc)
 }
 \arguments{
 \item{soilp}{list of soil parameters as returned by [createsoilplist()]}
 
-\item{Te}{vector of soil layer temperatures (degrees C)}
+\item{Te}{vector of the temperatures of the soil nodes (degrees C), from the
+surface to the lower boundary: one more than the number of soil layers. The
+temperature of the lower boundary stays fixed.}
 
-\item{wc}{vector of volumetric soil water contents (m3 m-3)}
+\item{wc}{vector of the volumetric water contents of the soil nodes (m3 m-3),
+of the same length as `Te`}
 }
 \value{
 a list comprising
 \describe{
   \item{n}{number of soil layers}
-  \item{z}{depth of soil nodes (m)}
-  \item{dz}{soil layer thicknesses (m)}
-  \item{zCenter}{depth of layer centres (m)}
-  \item{vol}{soil layer volumes per unit ground area (m)}
-  \item{wc}{volumetric soil water content of each layer (m3 m-3)}
-  \item{Te}{soil layer temperature (degrees C)}
-  \item{oldTe}{soil layer temperature at previous time step (degrees C)}
-  \item{Gflux}{soil heat flux}
+  \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+  \item{dz}{distance between each node and the node beneath it (m)}
+  \item{vol}{thickness of the soil for which each node stores heat (m)}
+  \item{wc}{volumetric water content of the soil at each node (m3 m-3)}
+  \item{Te}{temperature of the soil at each node (degrees C)}
+  \item{oldTe}{temperature of the soil at each node at the start of the time step (degrees C)}
+  \item{Gflux}{heat flux into the soil at its surface (W m-2)}
   \item{iters}{number of solver iterations}
 }
 }
 \description{
-Creates the soil state object used by the soil heat model
+Creates the soil state object used by the soil heat model. The
+soil is represented by a column of nodes, closely spaced near the surface
+and further apart with depth. The first node is at the soil surface and the
+last, the lower boundary, is at the depth given to [createsoilplist()].
 }

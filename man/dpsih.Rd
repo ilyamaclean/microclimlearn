@@ -7,7 +7,7 @@
 dpsih(ze)
 }
 \arguments{
-\item{ze}{atmospheric stability parameter}
+\item{ze}{atmospheric stability parameter (height divided by Obukhov length)}
 }
 \value{
 diabatic correction coefficient for heat

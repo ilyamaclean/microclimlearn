@@ -4,18 +4,14 @@
 \alias{hydraulicConductivityFromThetaVG}
 \title{Calculates hydraulic conductivity from soil water content using Van Genuchten method}
 \usage{
-hydraulicConductivityFromThetaVG(theta, Smin, Smax, psie, alpha, n, Ksat)
+hydraulicConductivityFromThetaVG(theta, Smin, Smax, n, Ksat)
 }
 \arguments{
 \item{theta}{volumetric soil water content (m3 m-3)}
 
-\item{Smin}{Residual volumetric soil water fraction (m^3 / m^3)}
+\item{Smin}{residual volumetric soil water fraction (m^3 / m^3)}
 
 \item{Smax}{volumetric soil water fraction at saturation (m^3 / m^3)}
-
-\item{psie}{air-entry water potential (J kg-1)}
-
-\item{alpha}{van Genuchten shape parameter}
 
 \item{n}{van Genuchten pore size distribution parameter}
 

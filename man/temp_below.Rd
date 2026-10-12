@@ -2,33 +2,56 @@
 % Please edit documentation in R/sensibleheat.R
 \name{temp_below}
 \alias{temp_below}
-\title{Calculate air temperature below canopy}
+\title{Calculate air temperature within a canopy}
 \usage{
-temp_below(hgt, paii, TL, uf, pk, Hz, tair, tleaf, tground)
+temp_below(
+  Hz,
+  hgt,
+  pai,
+  uf,
+  ttop,
+  tground,
+  tair,
+  pk = 101.3,
+  LL = Inf,
+  z = NULL
+)
 }
 \arguments{
-\item{hgt}{height of canopy(m)}
+\item{Hz}{vector of the flux of sensible heat from the foliage of each canopy
+layer, per unit ground area (W/m^2), ordered from canopy bottom to top}
 
-\item{paii}{vector of plant area index values per unit ground area ordered
-sequentially from canopy bottom to top.}
+\item{hgt}{height of canopy (m)}
 
-\item{TL}{Langrangian timescale as returned by [solve_wholecanopy()]}
+\item{pai}{plant area index of the canopy as a whole}
 
-\item{uf}{wind friction velocity as returned by [solve_wholecanopy()]}
+\item{uf}{friction velocity (m/s) as returned by [windfric()] or [solve_wholecanopy()]}
+
+\item{ttop}{air temperature at canopy top (deg C)}
+
+\item{tground}{temperature of the ground surface (deg C)}
+
+\item{tair}{estimate of air temperature within the canopy (deg C), from which
+the density and heat capacity of air are calculated. A single value or one
+for each height at which values are returned.}
 
 \item{pk}{atmospheric pressure (kPa)}
 
-\item{Hz}{vector of sensible heat fluxes from each canopy layer (W/m^2)}
+\item{LL}{Obukhov length (m) as returned by [Obukhov()]. Infinite under neutral conditions.}
 
-\item{tair}{vector of initial estimates of air temperatures (deg C).}
-
-\item{tleaf}{vector of leaf temperatures (deg C)}
-
-\item{tground}{ground surface temperature (deg C)}
+\item{z}{optional vector of heights above ground (m) at which values are
+returned, between the ground surface (0) and canopy top (`hgt`). The default
+is the middle of each canopy layer.}
 }
 \value{
-a vector of air temperatures (deg C)
+a vector of air temperatures (deg C) at each height `z`
 }
 \description{
-Calculate air temperature below canopy
+Air temperature at any height within a canopy, from the heat released by the
+foliage of each layer and the temperatures of the air at canopy top and of
+the ground surface. It is the sum of the far field, as returned by
+[farfield()], and the near field, as returned by [nearfield()].
+}
+\seealso{
+[relhum_below()] for humidity
 }

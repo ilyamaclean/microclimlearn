@@ -48,7 +48,6 @@ a list comprising
   \item{n}{number of soil layers}
   \item{z}{depth of soil nodes (m)}
   \item{dz}{soil layer thicknesses (m)}
-  \item{zCenter}{depth of layer centres (m)}
   \item{Tc}{soil temperature profile (degrees C)}
   \item{theta}{updated volumetric soil water content (m^3 m^-3)}
   \item{vol}{soil layer volumes per unit ground area (m)}

@@ -6,7 +6,7 @@
 #' @param rh relative humidity (percentage)
 #' @param Rabs flux density of absorbed radiation (W/m^2)
 #' @param rHa resistance to heat loss (s/m)
-#' @param rS stomatal resistance (s/m)
+#' @param rS bulk surface stomatal resistance (s/m)
 #' @param G rate of heat storage (W/m^2)
 #' @param em emissivity of surface (unitless)
 #' @returns energy balance (W/m^2).
@@ -17,13 +17,13 @@ energybalance <- function(Ta, Ts, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97) {
   Rem <- em * sb * (Ts + 273.15) ^ 4 # W/m^2
   # Calculate sensible heat flux
   cp <- cpair(Ta)  # specific heat of air
-  ph <- rhohair(Ta, pk)   # molar density fo air
+  ph <- rhoair(Ta, pk)   # molar density of air
   H <- ((ph * cp) / rHa) * (Ts - Ta)
   # Calculate latent heat flux
   la <- latvap(Ts) # Latent heat of vapourization
   rV <- rS + rHa   # total resistance to vapour loss
   es <- satvap(Ts) # vapour pressure of leaf (kPa)
-  ea <- satvap(Ta) * (rh / 100) # vapour pressur eof air (kPa)
+  ea <- satvap(Ta) * (rh / 100) # vapour pressure of air (kPa)
   L <- ((la * ph) / (rV * pk)) * (es - ea)
   # Calculate energy balance
   Ba <- Rabs - Rem - H - L - G
@@ -42,12 +42,12 @@ energybalance <- function(Ta, Ts, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97) {
 #' @param iters integer specifying how many times to iterate the equation (4 achieves near exact solution)
 #' @returns temperature of surface (deg C)
 #' @export
-PenmanMonteith <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97, iters = 4) {
+PenmanMonteith <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97, iters = 4) {
   # Initially set surface temperature to air temperature
   Ts <- Ta
   sb = 5.67e-8 # Stefan-Boltzmann constant
   cp <- cpair(Ta)  # specific heat of air
-  ph <- rhohair(Ta, pk)   # molar density fo air
+  ph <- rhoair(Ta, pk)   # molar density of air
   Rema <- em * sb * (Ta + 273.15)^4
   rV = rHa + rS
   for (i in 1:iters) {
@@ -89,17 +89,19 @@ PenmanMonteith <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97, iters = 4) {
 #' @returns A numeric vector of surface temperatures (in degrees Celsius) corresponding to each input
 #'          air temperature (`Ta`).
 #' @export
-SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97,
+SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97,
                                method = c("uniroot", "Penman"), iters = 1) {
   method <- match.arg(method)
   if (method == "uniroot") {
+    # Ensure length of G matches Ta
+    if (length(G) == 1) G <- rep(G, length(Ta))
     Ts <- 0
     # One search interval that’s wide enough for all Ta
     mn <- min(Ta) - 30
     mx <- max(Ta) + 50
     for (hr in 1:length(Ta)) {
         Ts[hr] <- uniroot(
-          function(Ts_est) energybalance(Ta[hr], Ts_est, pk[hr], rh[hr], Rabs[hr], rHa[hr], rS[hr], G[hr]),
+          function(Ts_est) energybalance(Ta[hr], Ts_est, pk[hr], rh[hr], Rabs[hr], rHa[hr], rS[hr], G[hr], em),
           interval = c(mn, mx)
         )$root
     }
@@ -109,7 +111,7 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97,
   return(Ts)
 }
 #' Solve energy balance equation for entire canopy returning associated variables
-#' @param weather a data.frame of weather variables matching the format of `micropoint::climdata`
+#' @param weather a data.frame of weather variables matching the format of `climdata`
 #' @param vegp a list of vegetation parameters as returned by [createplant_inputs()]
 #' @param groundp a list of ground parameters matching the format of `micropoint::groundparams`
 #' @param hr hour in weather for energy balance is to be solved
@@ -121,6 +123,12 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97,
 #' @param soilrh effective soil relative humidity (percentage)
 #' @param Ca  Atmospheric CO2 concentration in ppm as returned by `micropoint::Cafromyear()`
 #' @param maxiter  Maxiumum number of iterations to achieve convergence
+#' @param leafh optional logical indicating whether `vegp$pai` is the total one-side plant
+#' area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)
+#' @param MOST Logical. If `TRUE`, wind and temperature profiles above the canopy
+#' are taken to be logarithmic down to canopy top. If `FALSE`, a roughness
+#' sublayer is assumed above the canopy.
+#' @param Lfrac fraction of plant area that is living leaf
 #' @details Meteorological inputs must represent above-canopy conditions,
 #' whereas forcing data are often measured 1–2 m above the ground, below the
 #' height of surrounding vegetation (e.g. forest canopy). The function
@@ -138,19 +146,21 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G, em = 0.97,
 #'  \item{uh}{wind speed at top of canopy (m/s)}
 #'  \item{th}{temperature at top of canopy (deg C)}
 #'  \item{rHa}{bulk surface aerodynamic resistance (s/m)}
+#'  \item{rHg}{resistance to heat transfer of the air between the ground surface and `zref` (s/m)}
 #'  \item{rSl}{bulk surface stomatal resistance (s/m)}
 #'  \item{rS}{bulk surface resistance to vapour including from ground surface (s/m)}
 #'  \item{psim}{diabatic influencing factor for momentum}
 #'  \item{psih}{diabatic influencing factor for heat}
 #'  \item{LL}{Obukhov length}
-#'  \item{TL}{Langrangian time-scale}
 #' }
 #' @rdname solve_wholecanopy
 #' @export
-solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, theta, soilrh, Ca = 430, maxiter = 20) {
+solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, theta, soilrh, Ca = 430, maxiter = 20, leafh = FALSE, MOST = TRUE, Lfrac) {
   if (zref < vegp$h) stop("zref must be above canopy\n")
+  # Bare ground has no canopy to form a roughness sublayer
+  if (vegp$h == 0) MOST <- TRUE
   # Calculate radiation absorbed by canopy
-  Rabs <- calcRabs(weather, vegp, groundp,  lat, long)[hr]
+  Rabs <- calcRabs(weather, vegp, groundp,  lat, long, leafh)[hr]
   # Calculate solar position
   tme <- as.POSIXlt(weather$obs_time[hr], tz = "UTC")
   solp <- sunposition(tme, lat, long)
@@ -169,27 +179,37 @@ solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, th
   # Calculate zero-plane displacement height
   d <- zeroplanedis(vegp$h, vegp$pai)
   # Calculate soil water potential in root zone
-  psi_r <- PsiFromtheta(theta, groundp$Smax, groundp$Psie, groundp$b)
+  psi_r <- PsiFromtheta(theta, groundp$Psie, groundp$b, groundp$Smax)
   error <- 1e99
   itr <- 1
   while (error > 1e-3 && itr < maxiter) {
     # Calculate bulk surface aerodynamic resistance
-    zm <- roughlength(vegp$h, vegp$pai, d, psih)  # roughness length for momentum
-    uf <- windfric(uref, zref, d, zm, psim) # friction velocity
-    rHa <- canopyresistance(zref, d, zm, uf, psih) # resistance to heat loss
-    # Calculate bulk surface stomatal resistance
-    rSl <- bulkstomatalresist_calc(solp, Ca, Rsw, Rdif, Ta, tcanopy, rh,
-                                   pk, psi_r, vegp)
-    rSl[rSl > 1e10] <- 1e10
-    # Include the ground component  and scale by LAIfrac
-    rG <- (groundresistance(vegp$h, vegp$pai, uf, LL, psih, zref) * 100) / soilrh
-    rS <- 1 / (vegp$LAIfrac / rSl + 1/rG)
+    zm <- roughlength(vegp$h, vegp$pai, d, MOST)  # roughness length for momentum
+    uf <- windfric(uref, zref, vegp$h, vegp$pai, LL, MOST) # friction velocity
+    rHa <- canopyresistance(zref, uf, vegp$h, vegp$pai, LL, MOST) # resistance to heat loss
+    # Calculate bulk surface stomatal resistance. With no foliage there are no
+    # stomata, so no vapour leaves by that route
+    rSl <- 1e10
+    if (vegp$pai > 0) {
+      rSl <- bulkstomatalresist_calc(solp, Ca, Rsw, Rdif, Ta, tcanopy, rh,
+                                     pk, psi_r, vegp, Lfrac)
+      rSl[rSl > 1e10] <- 1e10
+    }
+    # Resistance of the air between the ground surface and zref
+    rHg <- .groundtoheight(zref, uf, vegp$h, vegp$pai, LL, MOST)
+    # Vapour leaves through the stomata and from the ground side by side, so the
+    # two resistances combine in parallel. Vapour from the ground meets the
+    # resistance of the air above it, which rises as the soil surface dries. The
+    # aerodynamic resistance is added to the surface resistance later, so the
+    # ground's share is what remains: nothing over saturated bare ground
+    rG <- max((rHg * 100) / soilrh - rHa, 0)
+    rS <- 1 / (1/rSl + 1/rG)
     tcanopy <- PenmanMonteith(Ta, pk, rh, Rabs, rHa, rS, G, vegp$em)
     # cap at dewpoint
     tdew <- dewpoint(Ta, rh)
     if (tcanopy < tdew) tcanopy <- tdew
     # Calculate H
-    phcp <- rhohair(Ta, pk)  * cpair(Ta) # Specific heat and density of air
+    phcp <- rhoair(Ta, pk)  * cpair(Ta) # Specific heat and density of air
     oldH <- H
     H <-  (phcp / rHa) * (tcanopy - Ta) # Sensible heat flux
     error <- abs(H - oldH)
@@ -204,25 +224,22 @@ solve_wholecanopy <- function(weather, vegp, groundp, hr, lat, long, zref, G, th
   rV <- rS + rHa
   es <- satvap(tcanopy)
   ea <- satvap(Ta) * (rh / 100)
-  L <- ((la * rhohair(Ta, pk)) / (rV * pk)) * (es - ea)
+  L <- ((la * rhoair(Ta, pk)) / (rV * pk)) * (es - ea)
   # Calculate wind speed and temperature at top of canopy
   if (zref == vegp$h) {
     uh <- uref
     th <- weather$temp[hr]
+  } else if (vegp$h == 0) {
+    # Bare ground: canopy top is the ground surface, where the air is still
+    uh <- 0
+    th <- tcanopy
   } else {
-    psimh <- dpsim(zm / LL) - dpsim((vegp$h - d) / LL)
-    psihh <- dpsih(zm / LL) - dpsim((vegp$h - d) / LL)
-    uh <- (uf / 0.41) * (log((vegp$h - d)/ zm) + psimh)
-    th <- tcanopy - (H / (0.41 *phcp)) * (log((vegp$h - d)/(0.2 * zm)) + psihh)
+    uh <- windprofile_above(vegp$h, uf, vegp$h, vegp$pai, LL, MOST)
+    # Canopy-top air differs from the canopy by the heat flux times the resistance between them
+    th <- tcanopy - (H / phcp) * canopyresistance(vegp$h, uf, vegp$h, vegp$pai, LL, MOST)
   }
-  # Calculate diabatic influencing factor
-  phih <- dphih((zref - d) / LL)
-  # Calculate Langrangian timescale
-  a2 <- (phih * 0.41 * (1 - d / vegp$h)) / 1.5625
-  TL <- a2 * vegp$h / uf
-  # Calculate temperature at top of canopy
   return(list(tcanopy = tcanopy, Rabs = Rabs, H = H, L = L, uf = uf, uh = uh,
-              th = th, rHa = rHa, rSl = rSl, rS = rS, psim = psim, psih = psih, LL = LL, TL = TL))
+              th = th, rHa = rHa, rHg = rHg, rSl = rSl, rS = rS, psim = psim, psih = psih, LL = LL))
 }
 
 
