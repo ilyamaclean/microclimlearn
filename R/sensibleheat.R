@@ -45,9 +45,11 @@ zeroplanedis <- function(h, pai) {
 #' @param MOST Logical. If `TRUE`, the wind profile is taken to be logarithmic
 #' down to canopy top. If `FALSE`, a roughness sublayer is assumed above the
 #' canopy.
+#' @param z0 roughness length of the surface beneath the vegetation (m). The
+#' default is that of bare ground.
 #' @returns roughness length (m)
 #' @export
-roughlength <- function(h, pai, d, MOST = TRUE) {
+roughlength <- function(h, pai, d, MOST = TRUE, z0 = 0.004) {
   # Ratio of friction velocity to wind speed at canopy top. It rises with plant
   # area until the canopy is closed, when more foliage adds no more drag
   Be <- pmin(sqrt(0.003 + 0.15 * pai), 0.3)
@@ -61,9 +63,9 @@ roughlength <- function(h, pai, d, MOST = TRUE) {
     zm <- zm * exp(log(cw) - 1 + 1 / cw)
   }
   # A canopy is no rougher than its height above the displacement height allows,
-  # and no smoother than the ground beneath it, which is all that is left when
+  # and no smoother than the surface beneath it, which is all that is left when
   # there is no vegetation
-  zm <- pmax(pmin(zm, 0.9 * (h - d)), 0.004)
+  zm <- pmax(pmin(zm, 0.9 * (h - d)), z0)
   return(zm)
 }
 #' Calculate integrated diabatic correction coefficient for momentum
@@ -180,16 +182,18 @@ effectivewind <- function(uref, H, tc, pk, zi = 1000) {
 #' @param MOST Logical. If `TRUE`, profiles above the canopy are taken to be
 #' logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
 #' above the canopy.
+#' @param z0 roughness length of the surface beneath the vegetation (m). The
+#' default is that of bare ground.
 #' @returns friction velocity (m/s)
 #' @export
-windfric <- function(uref, zref, h, pai, LL = Inf, MOST = TRUE) {
+windfric <- function(uref, zref, h, pai, LL = Inf, MOST = TRUE, z0 = 0.004) {
   # Bare ground has no canopy to form a roughness sublayer
   if (!MOST && h == 0) {
     warning("No roughness sublayer over bare ground (h = 0): using MOST = TRUE")
     MOST <- TRUE
   }
   d <- zeroplanedis(h, pai)
-  zm <- roughlength(h, pai, d, MOST)
+  zm <- roughlength(h, pai, d, MOST, z0)
   # Diabatic correction for momentum between the surface and the reference height
   psim <- dpsim(zm / LL) - dpsim((zref - d) / LL)
   psis <- 0
@@ -327,15 +331,15 @@ canopyresistance <- function(z, uf, h, pai, LL = Inf, MOST = TRUE) {
 }
 # Resistance to heat transfer between the ground surface and a height above the
 # canopy: the integral of one over thermal diffusivity between them
-.groundtoheight <- function(z, uf, h, pai, LL, MOST) {
+.groundtoheight <- function(z, uf, h, pai, LL, MOST, z0 = 0.004) {
   cf <- 1
   if (!MOST) cf <- .sublayerfactor(pai)
   # The integral starts at the height below which heat leaves the ground by
-  # conduction through still air: a fifth of the ground's roughness length or,
+  # conduction through still air: a fifth of the surface's roughness length or,
   # where little turbulence reaches the ground, the height at which turbulent
   # mixing matches molecular diffusion
   ug <- .floorgust(uf, pai) # speed of the air movements that mix the air next to the ground
-  zh <- max(0.2 * 0.004, 2.1e-5 / (0.41 * ug))
+  zh <- max(0.2 * z0, 2.1e-5 / (0.41 * ug))
   invK <- function(zz) 1 / .diffusivityprofile(zz, uf, h, pai, LL, cf)
   # Through the canopy, where there is one, and then through the air above it
   rH <- 0

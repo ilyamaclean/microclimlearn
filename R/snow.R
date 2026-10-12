@@ -2,7 +2,7 @@
 #' @description Returns empirical parameter values for a snow density evolution
 #' function, based on different climatic snow regimes.
 #'
-#' These parameterisations are intended for use with [snowdenfun()] to estimate
+#' These parameterisations are intended for use with [SnowDensFun()] to estimate
 #' bulk snow density as a function of snow depth and age.
 #'
 #' @param snowenv Character string specifying the snow environment. Options are:
@@ -12,7 +12,7 @@
 #' \describe{
 #'   \item{densfun[1]}{Upper asymptotic snow density (g cm^-3)}
 #'   \item{densfun[2]}{Initial / minimum snow density (g cm^-3)}
-#'   \item{densfun[3]}{Depth-dependent densification coefficient (m^-1)}
+#'   \item{densfun[3]}{Depth-dependent densification coefficient (cm^-1)}
 #'   \item{densfun[4]}{Age-dependent densification coefficient (day^-1)}
 #' }
 #' @export
@@ -43,8 +43,11 @@ SnowDensParams <- function(snowenv = "Maritime") {
 #' @return Numeric value of bulk snow density (kg m^-3).
 #' @export
 SnowDensFun <- function(densfun, snowdepth, snowage) {
+  # Snow is densest where most snow lies above it and where it has had longest
+  # to settle. Density rises from that of new snow towards an upper limit with
+  # depth (in cm) and age (in days)
   snowdensity <- ((densfun[1] - densfun[2]) *
-                    (1 - exp(-densfun[3] * snowdepth -
+                    (1 - exp(-densfun[3] * snowdepth * 100 -
                                densfun[4] * snowage / 24)) +
                     densfun[2]) * 1000
   return(snowdensity)
@@ -80,15 +83,23 @@ SnowDensFun <- function(densfun, snowdepth, snowage) {
 #' @export
 InitSnowModel <- function(snowdepth, snowage, snowtemp, snowenv = "Maritime") {
   if (snowdepth > 0) {
-    dz <- pmin(0.01 * 1.6^(0:100), 0.03)
+    # Layers are ordered from the snow surface downwards. They are 1 cm thick at
+    # the surface, where temperature changes fastest, and thicken to 3 cm below
+    dz <- pmin(0.01 * 1.6^(seq_len(ceiling(snowdepth / 0.01)) - 1), 0.03)
     dz <- dz[cumsum(dz) <= snowdepth]
-    dz <- c(dz, snowdepth - sum(dz))
-    # cumulative depth to layer bottoms
+    # The snow left over forms the lowest layer, or is added to the layer above
+    # it when there is too little of it to make a layer of its own
+    rest <- snowdepth - sum(dz)
+    if (length(dz) > 0 && rest < 0.005) {
+      dz[length(dz)] <- dz[length(dz)] + rest
+    } else {
+      dz <- c(dz, rest)
+    }
+    # Snow is denser the deeper it lies beneath the surface
     cdz <- cumsum(dz)
-    # density profile
     sdp <- SnowDensParams(snowenv)
     rho <- SnowDensFun(sdp, cdz, snowage)
-    # layer SWE (mm)
+    # Water held by each layer as snow (kg m-2, the same as mm of water)
     SWE <- rho * dz
     # layer temperature
     if (length(snowtemp) == 1) {
@@ -126,53 +137,61 @@ InitSnowModel <- function(snowdepth, snowage, snowtemp, snowenv = "Maritime") {
 #' @return Numeric value (or vector) of snow albedo (dimensionless, 0 to 1).
 #' @export
 SnowAlbedo <- function(snowage) {
+  # Snow darkens as it ages: its grains grow and its surface collects dirt.
+  # Albedo falls with the logarithm of the days since the snow fell
   alb <- (-9.8740 * log(snowage / 24) + 78.3434) / 100
+  # Bounded by the albedo of fresh snow and that of very old, dirty snow
   alb[alb < 0.1] <- 0.1
-  alb[alb > 0.97] <- 0.97
+  alb[alb > 0.85] <- 0.85
   return(alb)
 }
 
 #' @title Aerodynamic resistance above snow
-#' @description Computes aerodynamic resistance to heat transfer between a snow
-#' surface and the reference height, accounting for partial burial of vegetation
-#' by snow where relevant.
+#' @description Calculates the resistance to heat transfer between a snow
+#' surface and the reference height, and the friction velocity of the wind above
+#' the snow. Vegetation is taken to be buried by the snow up to the snow depth,
+#' so that only the part standing above the snow surface affects the wind.
 #' @param snowdepth Snow depth (m).
-#' @param hgt Vegetation height (m).
-#' @param pai Plant area index (m^2 m^-2).
+#' @param hgt Vegetation height above the ground (m). Zero if there is none.
+#' @param pai Plant area index of the vegetation (m^2 m^-2).
 #' @param uref Wind speed at the reference height (m s^-1).
-#' @param psim Stability correction term for momentum (dimensionless).
-#' @param psih Stability correction term for heat (dimensionless).
-#' @param zref Reference height above the ground surface (m).
-#'
-#' @return Aerodynamic resistance to heat transfer (\eqn{s m^{-1}}).
-#'
+#' @param zref Reference height above the ground surface (m). Must be above
+#' both the snow and the vegetation.
+#' @param LL Obukhov length as returned by [Obukhov()] (m). The default, `Inf`,
+#' is neutral air.
+#' @param MOST Logical. If `TRUE`, profiles above the vegetation are taken to
+#' be logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
+#' above it. Has no effect when the vegetation is buried.
+#' @param z0 roughness length of the snow surface (m)
+#' @return a list of the following:
+#' \describe{
+#'  \item{rHa}{resistance to heat transfer between the snow surface and `zref` (s m^-1)}
+#'  \item{uf}{friction velocity (m s^-1)}
+#' }
 #' @details
-#' If snow partially buries the vegetation canopy, vegetation height and plant
-#' area index are reduced in proportion to the exposed canopy above the snow
-#' surface. Zero-plane displacement height and roughness length for momentum are
-#' then recalculated for the reduced canopy using [zeroplanedis()] and
-#' [roughlength()].
+#' Plant area is taken to be spread evenly with height, so the plant area
+#' standing above the snow is in proportion to the height standing above it.
+#' Where the snow buries the vegetation completely, the surface is treated as
+#' bare.
 #' @export
-SnowResistance <- function(snowdepth, hgt, pai, uref, psim, psih, zref) {
-  if (snowdepth >= zref) {
-    stop("zref must be greater than snow depth")
-  } else if (hgt > snowdepth) {
-    # Adjust veg parameters for presence of snow
-    pai <- pai * (hgt - snowdepth) / hgt
-    hgt <- hgt - snowdepth
-    d <- zeroplanedis(hgt, pai)
-    zm <- roughlength(hgt, pai, d)
-    zh <- 0.2 * zm # roughness length for heat
-    uf <- (0.41 * uref)  / (log((zref - d) / zm) + psim)
-    rHa <- (log((zref - d) / zh) + psih) / (0.41 * uf)
-  } else {
-    # Bare snow surface
-    zm <- 0.002 * exp(psih)
-    zh <- 0.2 * zm # roughness length for heat
-    uf <- (0.41 * uref)  / (log((zref - snowdepth) / zm) + psim)
-    rHa <- (log((zref - snowdepth) / zh) + psih) / (0.41 * uf)
-  }
-  return(rHa)
+SnowResistance <- function(snowdepth, hgt, pai, uref, zref, LL = Inf, MOST = TRUE, z0 = 0.002) {
+  if (snowdepth >= zref) stop("zref must be greater than snow depth")
+  if (zref < hgt) stop("zref must be above the vegetation")
+  # Snow buries the lower part of the vegetation. Only what stands above the
+  # snow slows the wind, and the snow surface is the level from which heights
+  # are measured
+  hexp <- max(hgt - snowdepth, 0)
+  paiexp <- 0
+  if (hgt > 0) paiexp <- pai * hexp / hgt
+  zs <- zref - snowdepth
+  # Vegetation that is wholly buried leaves a bare surface, with no canopy to
+  # form a roughness sublayer
+  if (hexp == 0) MOST <- TRUE
+  # Friction velocity above the snow and what stands above it, and the
+  # resistance of the air between the snow surface and the reference height
+  uf <- windfric(uref, zs, hexp, paiexp, LL, MOST, z0)
+  rHa <- .groundtoheight(zs, uf, hexp, paiexp, LL, MOST, z0)
+  return(list(rHa = rHa, uf = uf))
 }
 
 #' @title One-step multilayer snow mass balance
