@@ -14,10 +14,8 @@ SnowSoilHeatModel(
   atmPressure,
   rHa,
   dT = 3600,
-  Fact = 0.5,
   maxNrIterations = 100,
-  tolerance = 0.01,
-  relax = 0.3
+  tolerance = 0.001
 )
 }
 \arguments{
@@ -38,31 +36,48 @@ heat model as returned by [InitSoilheatmod()] on first step or by previous model
 \item{atmPressure}{air pressure (kPa)}
 
 \item{rHa}{aerodynamic resistance to heat from the surface to reference height
-as returned by [SnowResistance()] or [groundresistance()] (s m-1)}
+as returned by [SnowResistance()] (s m-1)}
 
 \item{dT}{time step (s)}
 
-\item{Fact}{weighting factor for the implicit solution scheme}
+\item{maxNrIterations}{maximum number of iterations}
 
-\item{maxNrIterations}{maximum number of nonlinear iterations}
-
-\item{tolerance}{convergence criterion for maximum change in layer temperature
+\item{tolerance}{convergence criterion for maximum change in temperature
 between successive iterations (degrees C)}
-
-\item{relax}{under-relaxation factor applied to temperature updates}
 }
 \value{
 a list comprising
 \describe{
-  \item{snowmod}{updated snow model state}
-  \item{soilheatmod}{updated soil heat model state}
+  \item{snowmod}{updated snow model state. `temp` holds the temperature of
+  each layer at the end of the time step and `Gflux` the heat flux into the
+  snow at its surface (W m-2)}
+  \item{soilheatmod}{updated soil heat model state. `Te` holds the
+  temperature of each node at the end of the time step, `Gflux` the heat
+  flux into the soil at its surface (W m-2) and `iters` the number of
+  iterations used}
 }
 }
 \description{
-Solves heat conduction through the combined snow and soil profile over one
-time step, updating layer temperatures by combining surface energy balance from
-[snowsurfaceEB()] or [soilsurfaceEB()], thermal conductivity from
-[SnowThermalConductivity()] and [thermalConductivity()], volumetric heat capacity from
-[SnowHeatCapacity()] and [heatCapacity()], and tridiagonal solution with
-[ThomasBoundaryCondition()].
+Solves heat conduction through the snow and the soil beneath it
+as one column over one time step. The energy balance of the surface, from
+[snowsurfaceEB()] where there is snow and [soilsurfaceEB()] where there is
+none, is the upper boundary, and the deepest soil node is held at a fixed
+temperature. Heat is conducted according to [SnowThermalConductivity()] and
+[thermalConductivity()] and stored according to [SnowHeatCapacity()] and
+[heatCapacity()], with temperatures at the end of the time step found using
+[ThomasBoundaryCondition()]. With no snow it is [SoilHeatModel()].
+}
+\details{
+The model steps forward from the temperatures in `snowmod$oldtemp`
+and `soilheatmod$oldTe`, which are those at the start of the time step, and
+returns those at its end in `snowmod$temp` and `soilheatmod$Te`. The old
+temperatures are left as they are; to move on to the next time step, set them
+to the new ones.
+
+Snow that reaches 0 degrees C is held there while heat is conducted through
+the column, and the heat it gains beyond that is set aside for melting. That
+heat is returned as a temperature above 0 degrees C: the temperature the
+layer would have reached had it not melted. Pass the result to
+[SnowMassBalance()], which melts snow with the heat held above 0 degrees C
+and returns the snow to 0 degrees C.
 }

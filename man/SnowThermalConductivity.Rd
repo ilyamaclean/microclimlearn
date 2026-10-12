@@ -15,4 +15,5 @@ Snow thermal conductivity (W m-1 K-1).
 \description{
 Calculates snow thermal conductivity from bulk snow density
 using an exponential relationship following Djachkova (after Anderson, 2006).
+It is no greater than the thermal conductivity of solid ice.
 }

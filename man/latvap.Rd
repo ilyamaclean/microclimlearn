@@ -13,5 +13,8 @@ latvap(Ts)
 latent heat of vapourisation (J / mol)
 }
 \description{
-Calculate latent heat of vapourisation
+Above freezing this is the energy needed to evaporate liquid water. Below
+freezing, water vapour comes from ice, which takes the energy of melting as
+well. Between 0 and -1 degrees C the value passes gradually from one to the
+other.
 }

@@ -21,8 +21,15 @@ snowsurfaceEB(Rabs, Tref, Tsurface, pk, relhum, rHa)
 (s m-1), e.g. as returned by [SnowResistance()]}
 }
 \value{
-snow surface energy balance (W m-2)
+heat flux into the snow (W m-2)
 }
 \description{
-Calculates the snow surface energy balance (W m-2)
+Calculates the energy available at the snow surface (W m-2):
+radiation absorbed, less that emitted and the sensible and latent heat given
+to the air. It is the heat flux into the snow.
+}
+\details{
+A snow surface is no warmer than 0 degrees C. If a higher
+`Tsurface` is given, the heat and radiation leaving the surface are those of
+a surface at 0 degrees C.
 }

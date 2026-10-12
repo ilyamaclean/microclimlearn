@@ -10,9 +10,8 @@ SoilWaterModel(
   climdata,
   dT = 3600,
   pTAW = 0.5,
-  maxNrIterations = 20,
-  tolerance = 1e-04,
-  useDamping = TRUE
+  maxNrIterations = 100,
+  tolerance = 1e-06
 )
 }
 \arguments{
@@ -27,44 +26,62 @@ previous model run}
   \item{Tair}{air temperature (degrees C)}
   \item{relhum}{air relative humidity (Percentage)}
   \item{rHa}{aerodynamic resistance to heat from the ground surface to the
-  reference height (s m^-1)}
-  \item{precip}{precipitation over the time step, expressed as an equivalent
-  water flux (mm over timestep)}
-  \item{Et}{plant transpiration demand (mm over timestep)}
+  reference height (s m^-1). Evaporation from the soil surface is calculated
+  from this using [evaporation_flux()]; an infinite value gives none.}
+  \item{precip}{precipitation over the time step (mm)}
+  \item{Et}{plant transpiration over the time step (mm)}
 }}
 
 \item{dT}{time step (s)}
 
-\item{pTAW}{fraction of available water below saturation at which soil begins
-to limit transpiration in the root zone}
+\item{pTAW}{fraction of the water held between field capacity and the
+wilting point that roots can take up before uptake starts to fall}
 
 \item{maxNrIterations}{maximum number of iterations}
 
-\item{tolerance}{convergence criterion}
+\item{tolerance}{convergence criterion: the water unaccounted for, summed
+over nodes (kg m^-2 s^-1)}
 }
 \value{
 a list comprising
 \describe{
   \item{n}{number of soil layers}
-  \item{z}{depth of soil nodes (m)}
-  \item{dz}{soil layer thicknesses (m)}
-  \item{Tc}{soil temperature profile (degrees C)}
+  \item{z}{depth of soil nodes (m), with one further depth below the lower boundary}
+  \item{dz}{distance between each node and the node beneath it (m)}
+  \item{Tc}{temperature of the soil at each node (degrees C)}
   \item{theta}{updated volumetric soil water content (m^3 m^-3)}
-  \item{vol}{soil layer volumes per unit ground area (m)}
+  \item{vol}{thickness of the soil for which each node stores water (m)}
   \item{psiw}{updated soil water potential (J kg^-1)}
-  \item{k}{total soil water conductivity including liquid and vapour components}
-  \item{vapor}{updated soil vapour content}
-  \item{oldvapor}{soil vapour content at previous time step}
-  \item{oldtheta}{soil water content at previous time step (m^3 m^-3)}
-  \item{rootfrac}{fraction of roots in each soil layer}
+  \item{k}{conductivity of the soil for liquid water and vapour together (kg s m^-3)}
+  \item{vapor}{updated water vapour held in the air-filled pores (kg m^-3)}
+  \item{oldvapor}{vapour held in the air-filled pores at the start of the time step (kg m^-3)}
+  \item{oldtheta}{soil water content at the start of the time step (m^3 m^-3)}
+  \item{rootfrac}{fraction of roots in the soil held by each node}
   \item{success}{logical indicating whether the solver converged within the
   specified tolerance}
   \item{iterations}{number of iterations used}
-  \item{Evapmmhr}{soil evaporation over the timestep (mm)}
+  \item{Evapmmhr}{evaporation from the soil surface over the time step (mm)}
+  \item{surplus}{water that a saturated soil surface could not take in over
+  the time step, which runs off (mm)}
+  \item{drainage}{water leaving through the base of the profile over the time
+  step (mm). Negative where water enters.}
+  \item{error}{water unaccounted for when the solver stopped (kg m^-2 s^-1)}
 }
 }
 \description{
-Solves vertical soil water redistribution through the soil profile
-over one time step, updating soil water potential, volumetric water content,
-vapour content, and hydraulic conductivity.
+Solves the movement of water through the soil profile over one
+time step, updating soil water potential, volumetric water content, vapour
+content and conductivity. Liquid water moves between nodes along gradients in
+water potential and drains under gravity, and water vapour diffuses through
+the air-filled pores. Rain enters and water evaporates at the surface, roots
+take up the water transpired, and water drains from the base of the profile.
+}
+\details{
+The model steps forward from the water and vapour contents in
+`oldtheta` and `oldvapor`, which are those at the start of the time step.
+These are left as they are, so that the same time step can be solved again
+with different inputs. To move on to the next time step, set them to `theta`
+and `vapor`. Soil temperature (`Tc`) is taken from the soil heat model. Water
+at or below 0 degrees C is taken to be frozen: it does not flow as liquid and
+roots do not take it up.
 }

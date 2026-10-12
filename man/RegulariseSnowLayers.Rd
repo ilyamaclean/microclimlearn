@@ -4,17 +4,23 @@
 \alias{RegulariseSnowLayers}
 \title{Regularises snow layer thickness}
 \usage{
-RegulariseSnowLayers(snowmod, snowenv = "Maritime")
+RegulariseSnowLayers(snowmod)
 }
 \arguments{
 \item{snowmod}{snow model state as returned by [InitSnowModel()] or updated by model steps}
-
-\item{snowenv}{snow environment passed to [SnowDensParams()]}
 }
 \value{
 updated \code{snowmod} with adjusted layer structure
 }
 \description{
-Merges overly thin layers and splits overly thick layers to maintain
-a numerically sensible snow discretisation for the heat model.
+Merges layers that have become too thin, as happens when snow
+melts or falls lightly, and splits layers that have become too thick, so that
+the heat model has layers of sensible thickness to work with. Layers thinner
+than 5 mm are merged with a neighbour and layers thicker than 5 cm are split.
+}
+\details{
+The water, depth and heat held by the snowpack are unchanged. A
+merged layer has the density given by the water and depth of the two layers
+it is made from, and their mean temperature weighted by the water they hold.
+A snowpack thinner than 5 mm in all is left as a single layer.
 }

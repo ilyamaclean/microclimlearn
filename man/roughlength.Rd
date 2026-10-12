@@ -4,7 +4,7 @@
 \alias{roughlength}
 \title{Calculate roughness length for momentum}
 \usage{
-roughlength(h, pai, d, MOST = TRUE)
+roughlength(h, pai, d, MOST = TRUE, z0 = 0.004)
 }
 \arguments{
 \item{h}{vegetation height (m)}
@@ -16,6 +16,9 @@ roughlength(h, pai, d, MOST = TRUE)
 \item{MOST}{Logical. If `TRUE`, the wind profile is taken to be logarithmic
 down to canopy top. If `FALSE`, a roughness sublayer is assumed above the
 canopy.}
+
+\item{z0}{roughness length of the surface beneath the vegetation (m). The
+default is that of bare ground.}
 }
 \value{
 roughness length (m)

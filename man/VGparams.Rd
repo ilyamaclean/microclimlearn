@@ -12,11 +12,10 @@ VGparams(soiltype)
 \value{
 A list of soil parameters:
 \describe{
-  \item{psie}{Air-entry water potential (m)}
-  \item{alpha}{Van Genuchten shapte parameter (unitless)}
+  \item{alpha}{Van Genuchten shape parameter (kg/J): the inverse of a water potential in J/kg}
   \item{n}{Pore size distribution parameter (unitless)}
-  \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
+  \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3)}
 }
 }
@@ -24,7 +23,6 @@ A list of soil parameters:
 Create list of Van Genuchten soil hydraulic parameters
 }
 \details{
-:
 Available soil types (argument \code{soiltype}) are:
 \itemize{
   \item Sand
@@ -40,4 +38,9 @@ Available soil types (argument \code{soiltype}) are:
   \item Clay
   \item Silt
 }
+}
+\references{
+Bittelli M, Campbell GS, Tomei F (2015) Soil Physics with
+Python: Transport in the Soil-Plant-Atmosphere System. Oxford University
+Press. Table 5.4.
 }

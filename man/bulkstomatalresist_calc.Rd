@@ -15,7 +15,7 @@ bulkstomatalresist_calc(
   pk,
   psi_r,
   plant_inputs,
-  Lfrac,
+  Lfrac = 0.8,
   C3 = TRUE
 )
 }
@@ -40,7 +40,7 @@ bulkstomatalresist_calc(
 
 \item{plant_inputs}{a list of vegetation parameters as returned by [createplant_inputs()]}
 
-\item{Lfrac}{fraction of plant area that is living leaf}
+\item{Lfrac}{fraction of plant area that is living leaf (default 0.8)}
 
 \item{C3}{optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway}
 }

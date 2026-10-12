@@ -15,9 +15,19 @@ SnowMassBalance(
 )
 }
 \arguments{
-\item{snowmod}{snow model state as returned by [InitSnowModel()]}
+\item{snowmod}{snow model state as returned by [InitSnowModel()], with layer
+temperatures as updated by [SnowSoilHeatModel()]}
 
-\item{climdata}{list of climate inputs}
+\item{climdata}{list of driving variables for the time step. Must contain:
+\describe{
+  \item{Tair}{air temperature (degrees C)}
+  \item{relhum}{air relative humidity (Percentage)}
+  \item{pk}{air pressure (kPa)}
+  \item{rHa}{resistance to heat transfer between the snow surface and the
+  reference height as returned by [SnowResistance()] (s m^-1). An infinite
+  value gives no sublimation or deposition.}
+  \item{precip}{precipitation over the time step (mm)}
+}}
 
 \item{dT}{timestep (s)}
 
@@ -33,10 +43,33 @@ fraction of remaining solid snow water equivalent}
 \item{snowenv}{snow environment passed to [SnowDensParams()] and [SnowDensFun()]}
 }
 \value{
-Updated snow model state, including layer SWE, depth, density,
-temperature, age, melt, snowfall, rainfall, throughfall, surface water,
-sublimation, deposition and layer melt.
+Updated snow model state. As well as the state of each layer (`SWE`,
+`depth`, `rho`, `temp`, `oldtemp`, `age`) it holds, for the time step:
+\describe{
+  \item{melt}{snow melted by heat held above 0 degrees C (mm)}
+  \item{layermelt}{the same for each layer present at the start of the step (mm)}
+  \item{rainmelt}{snow melted by the heat of rain (mm)}
+  \item{refrozen}{liquid water frozen within the pack (mm)}
+  \item{snowfall}{snow added (mm)}
+  \item{rainfall}{rain added (mm)}
+  \item{sublimation}{snow lost as vapour (mm)}
+  \item{deposition}{vapour deposited as snow (mm)}
+  \item{surfaceWater}{liquid water held within the pack at the end of the step (mm)}
+  \item{throughfall}{liquid water leaving the base of the pack (mm)}
+  \item{heattoground}{heat left over after all the snow has melted, which
+  passes to the ground beneath (W m^-2)}
+}
 }
 \description{
-Updates a multilayer snowpack over one timestep using climate forcing.
+Updates the water held by a multilayer snowpack over one time
+step: snow that falls, snow that melts, snow lost or gained as vapour, and
+liquid water held in the pack or draining from its base.
+}
+\details{
+The heat model has no melting, so it can leave snow warmer than 0
+degrees C. Here the heat a layer holds above 0 degrees C melts snow, and the
+layer is returned to 0 degrees C. Heat left over once the whole pack has
+melted is returned as `heattoground`. Liquid water passing down through snow
+colder than 0 degrees C freezes, which warms the snow. `oldtemp` is left as
+it is; to move on to the next time step, set `oldtemp` to `temp`.
 }

@@ -2334,105 +2334,79 @@ In this bare-soil example, water is lost through evaporation and drainage. Where
 
 ## Snow
 
+Snow cover affects microclimate in three main ways: it reflects much of the incoming sunlight, insulates the soil beneath from the air above, and stores water that is released when it melts. Modelling snow therefore requires us to track both heat and water within the snowpack.
+
+As with soil, the snowpack is divided into vertical layers, ordered from the surface downwards. Each layer has its own thickness, density, temperature, age and snow water equivalent (SWE), the amount of water it contains expressed as an equivalent depth in mm. `InitSnowModel` creates a snowpack with layers 1 cm thick near the surface, where temperature changes fastest, increasing to 3 cm below. Snow density is calculated using `SnowDensFun`. Fresh snow is relatively light but becomes denser as it ages and as additional snow accumulates above it. The rate of densification depends on the kind of snow, which varies with climate. Following Sturm et al. (2010), five snow environments are recognised, and `SnowDensParams` returns the parameters for each: `Maritime`, the deep, relatively warm and wet snow of mild coastal mountains, which becomes dense quickly; `Alpine`, the deep, cold snow of high mountains; `Prairie`, the thin, wind-blown snow of open grassland; `Tundra`, the thin, cold, wind-packed snow of treeless country at high latitudes; and `Taiga`, the cold snow of sheltered boreal forest, which stays light and loose. The examples below use `Maritime`.
+
 ### Snow energy balance
-The principles of snow energy balance are broadly similar to those for other surfaces, but there are several important differences worth noting. On bare ground, the absorption of direct solar radiation depends strongly on the angle between the incoming radiation and the surface, and this can be calculated using slope and aspect. Snow surfaces, however, behave differently. At the scale relevant for energy exchange, snow is not a smooth plane but a collection of small, irregular facets created by grain structure, wind redistribution, and melt processes. This roughness reduces the directional dependence of radiation absorption, so snow behaves more like a near-Lambertian surface.
 
-Snow surfaces are rough at small scales, so they do not behave like a single smooth plane. As a result, applying a full slope–aspect correction can exaggerate contrasts between sun-facing and shaded slopes. In practice, it is often better to dampen the slope correction rather than remove it entirely. In the package this can be done with `rossindex`, which returns a modified slope correction for direct radiation. Setting y = 0 gives the standard planar correction, while increasing y progressively reduces the influence of slope; y = 1 removes it entirely. A value around y = 0.7 is a reasonable compromise for snow in many applications. The effects of altering `y` are shown in the example below
+The energy balance of a snow surface broadly follows the same principles as that of any other surface: it absorbs and emits radiation, exchanges sensible and latent heat with the air, and conducts heat into the material below. Where vegetation stands above the snow, the radiation reaching it is that which passes through the canopy, as described for the ground beneath a canopy. Three features distinguish snow.
 
-```{r eval=FALSE}
-# Create sun position object with fixed solar geometry
-solp <- list(zen = rep(40, 100), # solar zenith angle (degrees)
-             azi = rep(180, 100)) # solar azimuth angle (degrees)
-
-# Slope facing the sun
-slope <- 30 # slope angle (degrees)
-aspect <- 180 # slope aspect (degrees)
-
-# Vary y parameter
-yvals <- seq(0, 1, length.out = 100)
-
-# Compute solar index as function of y
-si <- rossindex(solp,
-                y = yvals, # leaf angle distribution parameter
-                slope = slope,
-                aspect = aspect)
-
-# ----------------------------- Plot results ------------------------------ #
-par(mfrow = c(1, 1))
-plot(si ~ yvals, type = "l",
-     lwd = 2,
-     col = "red",
-     xlab = "y parameter",
-     ylab = "Solar index")
-```
-![](images/img26.png)
-
-To calculate snow albedo, we use the `SnowAlbedo` function as in the example below
+The first is its **albedo**. Fresh snow reflects around 85% of incoming shortwave radiation, far more than soil or vegetation. Albedo declines as snow ages: fine ice crystals grow into larger, rounder grains, impurities accumulate, and surface roughness increases, all tending to increase absorption. `SnowAlbedo` represents these effects as a decline with the logarithm of snow age. The example below shows how albedo changes over 60 days.
 
 ```{r eval=FALSE}
-snowage <- seq(0, 365 * 24, length.out = 365) # age in hours
+snowage <- seq(0, 60 * 24, length.out = 500) # age of the snow (hours)
 alb <- SnowAlbedo(snowage)
 par(mfrow = c(1, 1))
-plot(alb ~ snowage, type = "l",
+plot(alb ~ I(snowage / 24), type = "l",
      col = "blue",
      lwd = 2,
-     xlab = "Snow age (hours)",
+     ylim = c(0, 1),
+     xlab = "Snow age (days)",
      ylab = "Albedo")
 ```
+
 ![](images/img26a.png)
 
-Two additional considerations are important. First, resistance to heat loss from the snow surface must account for the presence of a snowpack. This has two effects: (i) it reduces the distance between the snow surface and the reference height at which climate forcing variables are measured, and (ii) it decreases surface roughness due to the partial or complete burial of vegetation. These effects are represented using the SnowResistance function, as illustrated in the extended example below.
+The second is its effect on **aerodynamic resistance**, which determines how readily heat and water vapour are exchanged with the air. Snow is smoother than bare ground, raises the surface towards the height at which weather is measured, and progressively buries vegetation. This changes both the roughness of the surface and the extent to which vegetation shelters it from the wind. `SnowResistance` accounts for these effects and returns the resistance to heat transfer and friction velocity.
 
-The second consideration is latent heat exchange. When the ground is frozen, plants cannot access water from the frozen soil, so stomatal conductance and transpiration are reduced. In contrast, the snow surface can freely evaporate or sublimate and, unlike soil evaporation, is not limited by soil water availability.
+The third is that **snow containing ice cannot warm above 0 °C**. `snowsurfaceEB` calculates the exchange of radiation, sensible and latent heat in much the same way as `soilsurfaceEB`, but assumes that the air immediately above the snow is saturated and limits its temperature to 0 °C. Once snow reaches this temperature, additional energy goes into melting rather than further warming.
 
-Resolving the full energy balance of the snowpack also requires accounting for heat storage. This is implemented analogously to the soil heat model described above. The snowpack is discretised into multiple layers and appended to the soil profile, such that heat exchange within snow layers, between snow and soil, and within the soil is solved as a single coupled system using the same tridiagonal solution scheme. Surface fluxes are applied at the top boundary, while a fixed temperature is imposed at depth, and layer-specific thermal properties are updated at each iteration. This coupled approach is implemented in the `SnowSoilHeatModel` function, which integrates the snow surface energy balance with the soil heat model and solves the combined system over each time step, as illustrated in the extended example below.
+Heat storage within the snowpack is handled by `SnowSoilHeatModel`. This combines the snow layers and underlying soil into a single column, solving heat conduction between adjacent layers using the same approach described for the soil temperature model. Snow is a poor conductor of heat, particularly when its density is low, as calculated by `SnowThermalConductivity`. Consequently, even a relatively shallow snowpack can insulate the soil from large fluctuations in air temperature. When a snow layer reaches 0 °C, its temperature is held there and any additional energy is made available for melting.
 
 ### Snow mass balance
-To accommodate snow, we also need to track snow depth and snow water equivalent through time. This is handled using the SnowMassBalance function, which updates the snowpack at each time step by adding freshly fallen snow as a new surface layer and removing mass according to melt and phase-change processes.
 
-Precipitation is partitioned into snow and rain based on air temperature. Snowfall is added to the top of the pack, while rainfall can induce melt when air temperatures are above freezing. Additional mass changes arise from sublimation or deposition at the surface, and from internal melt when snow layers exceed 0 °C. The snowpack can retain a limited amount of liquid water, with any excess draining to the underlying snow layer as throughfall. After these updates, layer densities and thicknesses are recalculated to maintain a physically consistent snow profile.
+Alongside heat exchange, we need to account for snow accumulation, melting and water movement. `SnowMassBalance` updates the snowpack at each timestep through five processes:
 
-Conversion between snow water equivalent and snow depth requires an estimate of bulk snow density. This is calculated using the SnowDensParams and SnowDensFun functions, which parameterise snow densification as a function of snow depth and age for different snow environments, allowing the model to update both snow depth and density consistently through time.
+1. **Snowfall and rainfall.** Precipitation falls as snow when air temperature is at or below 0 °C, rain at or above 2 °C, and a mixture between. New snow forms a layer at the surface.
+2. **Melting.** Energy available for melting from the heat model reduces the amount of snow held in each layer.
+3. **Rain-induced melting.** Rain falling on snow can cause additional melting as it cools to 0 °C.
+4. **Sublimation and deposition.** Water vapour exchange removes snow by sublimation when the air is dry, or adds frost when conditions favour deposition.
+5. **Liquid water movement.** Rain and meltwater percolate downwards through the snowpack. Water entering layers below 0 °C can refreeze, releasing heat and warming the snow. The snowpack can retain liquid water up to 5% of its snow water equivalent, with any excess draining from its base.
 
-In the extended example below, we illustrate how the snow and soil components are coupled within a simple hourly simulation. We begin by loading the example weather, ground and vegetation datasets, then modify the air temperature series to create conditions cold enough for sustained snow cover. For simplicity, vegetation is set to be short and sparse (and is later assumed to be entirely snow-covered), and the lower boundary condition for the soil heat model is taken as the mean air temperature over the full period. We then subset the forcing data to a single month and use these inputs to define the soil profile, including its hydraulic and thermal properties.
+Snow depth and density change as these processes operate. To keep the numerical representation manageable, `RegulariseSnowLayers` merges layers thinner than 5 mm and splits those thicker than 5 cm. This maintains relatively fine layers without allowing their number or thickness to become impractical.
 
-The soil heat and soil water models are then initialised, together with a snowpack of specified initial depth, age and temperature. The snowpack is represented as a set of layers, and the soil profile is treated in the same layered way, allowing the two to be solved as a coupled system. Empty vectors are also created to store diagnostic outputs such as snow depth, snow surface temperature, mean snow temperature and ground surface temperature through time.
+### Snow model
 
-The model is then run at an hourly time step. At each step, absorbed radiation is first calculated for the snow surface using incoming shortwave and longwave radiation together with a snow albedo estimated from the age of the surface snow layer. Aerodynamic resistance is then calculated with `SnowResistance`, taking account of the current snow depth and atmospheric stability corrections. These inputs are passed to `SnowSoilHeatModel`, which updates the coupled snow-soil temperature profile by solving conductive heat exchange through the snowpack and soil layers.
+We can now combine the energy and mass balance calculations to simulate the development of a snowpack over a month. Snow is rare at the location represented by our weather data, so we take January weather, reduce air temperature by 9 °C and adjust downward longwave radiation to reflect the colder conditions. We start with bare ground and no snow, allowing the snowpack to accumulate and melt in response to the modified weather.
 
-The updated snowpack then determines the water reaching the soil. Specifically, throughfall from the snow model is used as precipitation input to the soil water model, while evaporation and transpiration are set to zero here for simplicity. The soil water model is used to update soil moisture, and the resulting water contents are passed back to the soil heat model so that soil thermal properties remain consistent with moisture conditions.
+The code runs the model in hourly steps:
 
-Next, the full precipitation input is supplied to `SnowMassBalance`, which updates snow water equivalent, snow depth and liquid water storage within the snowpack. This step accounts for snowfall, rainfall, melt, sublimation, deposition and drainage, and recalculates snow layer density and thickness accordingly. Because snow density changes through time, the depth of the pack is not determined by snow water equivalent alone, but also by the evolving bulk density of the snow.
+1. **Surface properties and radiation.** When snow is present, the surface takes the albedo, emissivity and roughness of snow; otherwise, it retains those of bare soil. These properties determine how much radiation is absorbed.
+2. **Aerodynamic resistance.** `SnowResistance` calculates resistance to heat transfer and friction velocity, accounting for snow depth, surface roughness and atmospheric stability.
+3. **Heat transfer.** `SnowSoilHeatModel` calculates temperatures throughout the snowpack and underlying soil, together with the energy available for melting.
+4. **Atmospheric stability.** The sensible heat flux is calculated from the difference between surface and air temperature. This is used to update the Obukhov length, which affects aerodynamic resistance in the following hour.
+5. **Snow accumulation and loss.** `SnowMassBalance` updates snowfall, sublimation, melting, refreezing and drainage. `RegulariseSnowLayers` then adjusts the thickness and number of snow layers.
+6. **Advance the model.** Snow depth, temperatures and water fluxes are stored, and the updated snow and soil temperatures become the starting conditions for the next hour.
 
-After each hourly update, key state variables are extracted and stored, including snow surface temperature, mean snow temperature, ground surface temperature and total snow depth. The example then updates the diabatic stability corrections used in the aerodynamic resistance calculation by estimating sensible heat flux and the Obukhov length from the current surface state. Finally, the snow layers are regularised where necessary so that the discretisation remains numerically well behaved as the pack deepens, compacts or melts.
-
-To maintain numerical stability, the snowpack is periodically re-discretised using RegulariseSnowLayers. As snow accumulates, compacts, or melts, individual layers can become unrealistically thin or thick, which can degrade the performance of the heat solver. This function merges overly thin layers and splits overly thick ones, while conserving mass and maintaining consistent temperature and age profiles. After restructuring, snow density is recalculated from depth and age to ensure the layer configuration remains physically consistent.
-
-For computational expedience, the snow–soil heat model, soil water model, snow mass balance, and diabatic stability corrections are applied sequentially at each time step, rather than being solved as a fully coupled iterative system. In contrast to the soil-only example above, where canopy and soil heat fluxes are iterated to convergence within each time step, each component here is updated once using the most recent state. A fully coupled solution would be relatively straightforward to implement, but would increase computational cost.
-
-The final plots show the simulated evolution of snow depth and the corresponding temperature dynamics of the snow surface, the mean snowpack and the underlying ground surface over the course of the month.
+For simplicity, soil moisture is held constant in this example. In a fully coupled model, water draining from the base of the snowpack would enter `SoilWaterModel`, allowing snowmelt to influence soil moisture and subsequent evaporation and transpiration.
 
 ```{r eval=FALSE}
-# ---------------- Load example forcing and parameter datasets ------------ #
-# Reload the weather dataset: the name climdata is reused for model driving variables
-climdata <- microclimlearn::climdata
+# ---------------- Load example forcing data ------------------------------ #
 weather <- climdata # meteorological forcing data
 
-# Reduce air temperatures to create persistent snow conditions
-weather$temp <- weather$temp - 11 # air temperature offset (°C)
-
-groundp <- micropoint::groundparams # ground surface parameters
-
-vegp <- createplant_inputs("C3") # vegetation parameters for C3 grass
-vegp$h <- 0.1 # canopy height (m)
-vegp$pai <- 0.15 # plant area index
-
-boundaryT <- mean(weather$temp) # lower soil boundary temperature (°C)
-
-# -------------------- Select forcing data for May ----------------------- #
+# ------------------------ Select data for January ----------------------- #
 tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
-sel <- which(tme$mon + 1 == 5)
+sel <- which(tme$mon + 1 == 1)
 weather <- weather[sel,]
+tme <- tme[sel]
+
+# Reduce air temperature by 9 °C to give snow, and reduce longwave
+# radiation from the sky to that of air colder by the same amount
+temp_new <- weather$temp - 9
+weather$lwdown <- weather$lwdown *
+  ((temp_new + 273.15) / (weather$temp + 273.15))^4
+weather$temp <- temp_new
 
 # ---------------------- Create soil parameter set ----------------------- #
 soilp <- createsoilplist(soiltype = "Clay loam",
@@ -2442,48 +2416,48 @@ soilp <- createsoilplist(soiltype = "Clay loam",
                          aspect = 180, # aspect (degrees)
                          surface_organicmu = 1, # surface organic matter depth
                          FreeDrain = TRUE) # free drainage lower boundary
-n <- length(soilp$b) # number of soil nodes
-
-# ---------------------- Initialise soil profiles ------------------------ #
-Te <- seq(weather$temp[1],
-          boundaryT,
-          length.out = n) # initial temperature profile (°C)
-theta <- seq(0.4,
-             soilp$Smax[n],
-             length.out = n) # initial volumetric water content profile
+n <- length(soilp$b) # number of depths: one more than the number of layers
 
 # --------------------------- Initialise models -------------------------- #
-snowdepth <- 0.15 # initial snow depth (m)
-soilheat <- InitSoilheatmod(soilp,
-                            Te,
-                            theta) # initialise soil heat model
-soilwater <- InitSoilwatermod(soilp,
-                              soilheat,
-                              rootskew = vegp$rootskew) # initialise soil water model
-snowmod <- InitSnowModel(snowdepth,
-                         snowage = 1500, # snow age (hours)
-                         snowtemp = Te[1], # snow temperature (°C)
-                         snowenv = "Maritime") # snow environment type
+Te <- seq(0, 4, length.out = n) # initial soil temperature profile (°C)
+theta <- rep(0.3, n) # volumetric soil water content
+soilheat <- InitSoilheatmod(soilp, Te, theta) # initialise soil heat model
+snowmod <- InitSnowModel(snowdepth = 0, # no snow to begin with
+                         snowage = 0,
+                         snowtemp = 0)
 
-# ---------------- Initialise output and stability variables ------------- #
-snowsurftemp <- groundsurftemp <- meansnowtemp <- snowdepthall <- 0
-psih <- psim <- G <- 0 # atmospheric stability coefficients and ground flux
+# ------------------------- Initialise outputs --------------------------- #
+nhrs <- nrow(weather)
+snowdepth <- surfacetemp <- soiltemp <- snowfall <- melt <- drainage <- rep(0, nhrs)
+LL <- Inf # Obukhov length (m): neutral air to begin with
 
 # --------------------- Run model in hourly timesteps -------------------- #
-for (hr in 1:744) {
-  # ---------------- Compute absorbed snowpack radiation ---------------- #
-  alb <- SnowAlbedo(snowmod$age[1]) # snow albedo
-  Rabs <- (1 - alb) * weather$swdown[hr] +
-          0.99 * weather$lwdown[hr] # absorbed radiation (W m^-2)
+for (hr in 1:nhrs) {
+  depth <- sum(snowmod$depth) # snow depth (m)
 
-  # -------------- Compute aerodynamic resistance of snowpack ---------- #
-  rHa <- SnowResistance(snowdepth,
+  # ---------------- Properties of the surface: snow or soil ------------- #
+  if (depth > 0) {
+    alb <- SnowAlbedo(snowmod$age[1]) # albedo, from the age of the surface snow
+    em <- 0.99 # emissivity of snow
+    z0 <- 0.002 # roughness length of snow (m)
+  } else {
+    alb <- soilp$gref # albedo of the soil
+    em <- soilp$groundem # emissivity of the soil
+    z0 <- 0.004 # roughness length of bare ground (m)
+  }
+
+  # ------------------------ Absorbed radiation ------------------------- #
+  Rabs <- (1 - alb) * weather$swdown[hr] +
+          em * weather$lwdown[hr] # absorbed radiation (W m^-2)
+
+  # ----------- Resistance to heat transfer and friction velocity ------- #
+  res <- SnowResistance(depth,
                         hgt = 0, # vegetation height (m)
                         pai = 0, # plant area index
                         uref = weather$windspeed[hr], # wind speed (m s^-1)
-                        psim,
-                        psih,
-                        zref = 2) # reference height (m)
+                        zref = 2, # reference height (m)
+                        LL = LL, # Obukhov length (m)
+                        z0 = z0)
 
   # ------------- Solve coupled snow-soil heat transfer ---------------- #
   snowsoil <- SnowSoilHeatModel(snowmod,
@@ -2493,132 +2467,121 @@ for (hr in 1:744) {
                                 Tref = weather$temp[hr], # air temperature (°C)
                                 relhum = weather$relhum[hr], # relative humidity (%)
                                 atmPressure = weather$pres[hr], # pressure (kPa)
-                                rHa)
+                                rHa = res$rHa)
   snowmod <- snowsoil$snowmod
   soilheat <- snowsoil$soilheatmod
 
-  # ---------------- Assemble forcing data for soil water model -------- #
-  climdata <- list(Tair = weather$temp[hr], # air temperature (°C)
-                   relhum = weather$relhum[hr], # relative humidity (%)
-                   rHa = rHa, # aerodynamic resistance (s m^-1)
-                   precip = snowmod$throughfall, # throughfall precipitation
-                   Et = 0, # transpiration (mm h^-1)
-                   Evapmmhr = 0) # evaporation (mm h^-1)
-
-  # ----------------------- Run soil water model ----------------------- #
-  soilwater$Tc <- soilheat$Te
-  soilwater$oldTc <- soilheat$oldTe
-  soilwater <- SoilWaterModel(soilwater,
-                              soilp,
-                              climdata,
-                              pTAW = vegp$pTAW) # plant available water fraction
-  soilheat$wc <- soilwater$theta # update soil thermal properties
-
-  # ----------------------- Run snow mass balance ---------------------- #
-  climdata$precip <- weather$precip[hr]
-  climdata$pk <- weather$pres[hr]
-  snowmod <- SnowMassBalance(snowmod,
-                             climdata,
-                             snowenv = "Maritime")
-
-  # ------------------------ Extract time-series outputs --------------- #
-  snowsurftemp[hr] <- snowmod$temp[1] # snow surface temperature (°C)
-  meansnowtemp[hr] <- mean(snowmod$temp) # mean snowpack temperature (°C)
-  groundsurftemp[hr] <- soilheat$Te[1] # soil surface temperature (°C)
-  snowdepth <- snowdepthall[hr] <- sum(snowmod$depth) # snow depth (m)
+  # Surface temperature: that of the soil, or of snow no warmer than 0 °C
+  if (depth > 0) {
+    Tsurface <- min(snowmod$temp[1], 0)
+  } else {
+    Tsurface <- soilheat$Te[1]
+  }
 
   # --------------------- Compute atmospheric stability ---------------- #
   ph <- rhoair(weather$temp[hr],
-                weather$pres[hr]) # air density (mol m^-3)
+               weather$pres[hr]) # air density (mol m^-3)
   cp <- cpair(weather$temp[hr]) # heat capacity of air
-  H <- (ph * cp / rHa) *
-       (snowsurftemp[hr] - weather$temp[hr]) # sensible heat flux
-
-  zm <- 0.002 * exp(psih) # roughness length (m)
-  uf <- (0.41 * weather$windspeed[hr]) /
-        (log((2 - snowdepth) / zm) + psim) # friction velocity
-
+  H <- (ph * cp / res$rHa) *
+       (Tsurface - weather$temp[hr]) # sensible heat flux (W m^-2)
   LL <- Obukhov(weather$temp[hr],
                 weather$pres[hr],
-                uf,
-                H) # Obukhov length
-  psim <- dpsim(zm / LL) -
-           dpsim((2 - snowdepth) / LL) # momentum correction
-  psih <- dpsih((0.2 * zm) / LL) -
-           dpsih((2 - snowdepth) / LL) # heat correction
+                res$uf,
+                H) # Obukhov length, used in the next hour
+
+  # ----------------------- Run snow mass balance ---------------------- #
+  forcing <- list(Tair = weather$temp[hr], # air temperature (°C)
+                  relhum = weather$relhum[hr], # relative humidity (%)
+                  pk = weather$pres[hr], # pressure (kPa)
+                  rHa = res$rHa, # resistance to heat transfer (s m^-1)
+                  precip = weather$precip[hr]) # precipitation (mm h^-1)
+  snowmod <- SnowMassBalance(snowmod,
+                             forcing,
+                             snowenv = "Maritime")
 
   # -------------------- Regularise snow layer structure ---------------- #
-  snowmod <- RegulariseSnowLayers(snowmod,
-                                  snowenv = "Maritime")
+  snowmod <- RegulariseSnowLayers(snowmod)
+
+  # ---------------------------- Store outputs -------------------------- #
+  snowdepth[hr] <- sum(snowmod$depth) # snow depth (m)
+  surfacetemp[hr] <- Tsurface # temperature of the snow or soil surface (°C)
+  soiltemp[hr] <- soilheat$Te[1] # temperature of the soil surface (°C)
+  snowfall[hr] <- snowmod$snowfall # snow added (mm)
+  melt[hr] <- snowmod$melt + snowmod$rainmelt # snow melted (mm)
+  drainage[hr] <- snowmod$throughfall # water leaving the base of the snow (mm)
+
+  # State at the end of the hour becomes that at the start of the next
+  snowmod$oldtemp <- snowmod$temp
+  soilheat$oldTe <- soilheat$Te
 }
 
-# ----------------------------- Plot snow depth -------------------------- #
-tmec <- as.POSIXct(tme[sel], tz = "UTC")
-par(mfrow = c(2, 1))
-plot(snowdepthall ~ tmec, type = "l",
+# ----------------------------- Plot results ------------------------------ #
+par(mfrow = c(3, 1))
+tmec <- as.POSIXct(tme, tz = "UTC")
+
+# Snow depth
+plot(I(snowdepth * 100) ~ tmec, type = "l",
      col = "blue",
-     ylim = c(0, 0.21),
+     lwd = 2,
      xlab = "Date",
-     ylab = "Snow depth (m)",
-     lwd = 2)
+     ylab = "Snow depth (cm)")
 
-abline(h = 0, lty = 2)
-
-# ---------------------- Plot temperature time series ------------------- #
-# Snow surface temperature
-plot(snowsurftemp ~ tmec, type = "l",
-     col = "blue",
-     ylim = c(-15, 5),
+# Temperature of the air, the surface and the soil surface
+plot(weather$temp ~ tmec, type = "l",
+     col = "grey",
+     ylim = c(-16, 6),
      xlab = "Date",
      ylab = expression("Temperature (" * degree * "C)"))
-
-par(new = TRUE)
-# Mean snowpack temperature
-plot(meansnowtemp ~ tmec, type = "l",
-     col = "black",
-     ylim = c(-15, 5),
-     xlab = "",
-     ylab = "",
-     lwd = 2)
-
-par(new = TRUE)
-# Soil surface temperature beneath snowpack
-plot(groundsurftemp ~ tmec, type = "l",
-     col = "red",
-     ylim = c(-15, 5),
-     xlab = "",
-     ylab = "",
-     lwd = 2)
+lines(surfacetemp ~ tmec, col = "blue")
+lines(soiltemp ~ tmec, col = "red", lwd = 2)
 legend("bottomright",
-       legend = c("Snow surface",
-                  "Mean snowpack",
-                  "Soil surface"),
-       col = c("blue", "black", "red"),
+       legend = c("Air", "Surface", "Soil surface"),
+       col = c("grey", "blue", "red"),
+       lwd = c(1, 1, 2),
+       bty = "n")
+
+# Water added as snow, melted, and leaving the base of the snow
+plot(cumsum(snowfall) ~ tmec, type = "l",
+     col = "blue",
+     lwd = 2,
+     ylim = c(0, 65),
+     xlab = "Date",
+     ylab = "Cumulative water (mm)")
+lines(cumsum(melt) ~ tmec, col = "red", lwd = 2)
+lines(cumsum(drainage) ~ tmec, col = "black", lwd = 2, lty = 2)
+legend("topleft",
+       legend = c("Snowfall", "Melt", "Drainage"),
+       col = c("blue", "red", "black"),
+       lty = c(1, 1, 2),
        lwd = 2,
        bty = "n")
 ```
+
 ![](images/img27.png)
 
-The simulation shows a persistent snowpack through early May, with depth initially increasing slightly due to intermittent snowfall before reaching a maximum of around 0.16–0.17 m. Thereafter, the snowpack gradually declines, with a more rapid melt phase occurring in the latter part of the month, leading to near-complete disappearance by the end of May. Temperature dynamics reflect strong coupling between the snowpack and atmosphere: the snow surface temperature (blue) remains highly variable and frequently drops well below 0 °C, closely tracking cold air incursions, while the mean snowpack temperature (black) is more buffered and remains closer to freezing. In contrast, the underlying ground surface temperature (red) is strongly damped and remains near 0 °C throughout, illustrating the insulating effect of the snowpack and its role in decoupling soil temperatures from short-term atmospheric variability.
+The simulation produces two periods of snow cover. A light snowfall on 1 January leaves less than 2 cm, which gradually disappears by the 8th. A heavier fall on 12 January produces around 7 cm, which persists through a cold spell and is topped up by further snowfall on the 27th and 28th. The snowpack then melts rapidly at the end of the month as air temperatures rise above freezing and rain falls on the snow.
+
+The insulating effect is particularly clear in the middle panel. The temperature of the snow surface is determined by its energy balance. On cold nights the snow emits more longwave radiation than it receives, and its surface falls several degrees below air temperature, reaching around -10 °C. By day it reflects most of the incoming sunlight, and its temperature cannot rise above 0 °C. Beneath the thin snow of early January, the soil surface is almost as cold. Under 6–7 cm of snow, however, soil temperature remains relatively stable at around -2 to -4 °C, despite fluctuations of around 10 °C at the snow surface. The lower panel shows that little snow melts until the final thaw, when meltwater and rain drain rapidly from the base of the snowpack.
 
 ### Canopy snow interception
-In forested environments, a substantial fraction of snowfall can be intercepted by vegetation before it reaches the ground. This intercepted snow is temporarily stored on branches and needles, where it may subsequently sublimate, melt, or be unloaded to the ground. As canopy storage fills, interception efficiency declines, reflecting the limited capacity of the canopy to hold snow.
 
-Canopy snow interception can be calculated following Hedstrom & Pomeroy (1998) using function `CanopySnowInterception`, in which interception is governed by canopy structure, wind conditions, and the current canopy snow load relative to a maximum storage capacity. This capacity is determined by the parameter `Sh`, which represents the snow load per unit branch area and controls the overall interception potential of the canopy per unit 'pai'.
+In forests, not all snowfall reaches the ground. Some is intercepted by branches and foliage, where it may subsequently sublimate directly into the atmosphere, melt or fall to the ground. This can substantially reduce the amount of snow accumulating beneath the canopy, affecting both the insulating effect of snow cover and the amount of water entering the soil when it melts.
 
-In the example below, the `CanopySnowInterception` function is used to calculate fractional interception across a range of pai values under fixed environmental conditions.
+To model this, we need to calculate how much snow the canopy intercepts and how much it subsequently releases. The function `CanopySnowInterception`, based on Hedstrom & Pomeroy (1998), accounts for the amount of vegetation available to catch snow, wind speed (which affects the angle at which snow falls through the canopy), and the amount already stored. As snow accumulates, the canopy's remaining storage capacity declines. The maximum load is controlled by Sh, the amount of snow that can be held per unit branch area. The function returns the snow intercepted during each timestep, the amount falling from the canopy to the ground, and the snow remaining in the canopy.
+
+Below, we use `CanopySnowInterception` to show how the fraction of a 5 mm snowfall intercepted by an initially snow-free canopy varies with plant area index.
 
 ```{r eval=FALSE}
 # Vary canopy plant area index
 pai_seq <- seq(0.1, 6, length.out = 100) # plant area index
 
-# Compute canopy snow interception (mm SWE)
+# Compute snow caught by the canopy (mm SWE)
 interception <- CanopySnowInterception(hgt = 8, # canopy height (m)
                                        pai = pai_seq,
                                        uf = 0.3, # friction velocity (m s^-1)
                                        prec = 5, # snowfall amount (mm SWE)
                                        tc = -5, # air temperature (°C)
-                                       Li = 0) # initial intercepted snow (mm SWE)
+                                       Li = 0)$intercepted # no snow held to begin with
 
 # Convert to fraction of snowfall intercepted
 frac_intercepted <- interception / 5
@@ -2633,6 +2596,8 @@ plot(pai_seq, frac_intercepted,
      ylab = "Interception fraction")
 ```
 ![](images/img28.png)
+
+Interception increases rapidly with plant area index, then begins to level off once most of the falling snow meets the canopy. Sparse canopies intercept little snow, whereas dense canopies can retain a large fraction of a snowfall event before unloading or throughfall return it to the ground.
 
 ## Animal energy budgets
 In this section we present some simple approaches for computing the body temperature of ectotherms and the energy budget of endotherms. The animal is represented geometrically as a triaxial ellipsoid defined by its length, width, and height, providing a flexible but tractable approximation that allows key physical properties such as volume, surface area, and directional exposure to be calculated.
@@ -3458,6 +3423,8 @@ Buckley LB, Briones Ortiz BA, Caruso I, John A, Levy O, Meyer AV, Riddell EA, Sa
 
 Calders K, Brede B, Newnham G, Culvenor D, Armston J, Bartholomeus H, Griebel A, Hayward J, Junttila S, Lau A, Levick S, Morrone R, Origo N, Pfeifer M, Verbesselt J and Herold M (2023) StrucNet: a global network for automated vegetation structure monitoring. *Remote Sensing in Ecology and Conservation* 9: 587–598.
 
+Hedstrom NR & Pomeroy JW (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611-1625.
+
 Kearney MR & Porter WP (2017) NicheMapR – an R package for biophysical modelling: the microclimate model. *Methods in Ecology and Evolution* 8: 664–674.
 
 Kearney MR & Porter WP (2019) NicheMapR – an R package for biophysical modelling: the ectotherm model. *Ecography* 42: 85–96.
@@ -3471,3 +3438,5 @@ Maclean IMD (2026) Microclimf: Fast modelling of microclimate across real landsc
 Maclean IMD & Klinges DH (2021) Microclimc: A mechanistic model of above, below and within-canopy microclimate. *Ecological Modelling* 451: 109567.
 
 Maclean IMD, Mosedale JR, Bennie JJ (2019) Microclima: An r package for modelling meso- and microclimate. *Methods in Ecology and Evolution* 10: 280-90.
+
+Sturm M, Taras B, Liston GE, Derksen C, Jonas T & Lea J (2010) Estimating snow water equivalent using snow depth data and climate classes. *Journal of Hydrometeorology* 11: 1380-1394.

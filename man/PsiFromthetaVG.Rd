@@ -13,7 +13,7 @@ PsiFromthetaVG(theta, Smin, Smax, alpha, n)
 
 \item{Smax}{volumetric soil water fraction at saturation (m^3 / m^3)}
 
-\item{alpha}{Van Genuchten shape parameter}
+\item{alpha}{Van Genuchten shape parameter (kg/J)}
 
 \item{n}{Van Genuchten pore size distribution parameter}
 }

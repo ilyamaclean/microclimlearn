@@ -15,7 +15,7 @@ PsiFromtheta(theta, psie, b, Smax, MPa = TRUE)
 
 \item{Smax}{volumetric soil water fraction at saturation (m^3 / m^3)}
 
-\item{MPa}{optional logical indicating whether to return outputs in Mpa (TRUE) or kPa (FALSE)}
+\item{MPa}{optional logical indicating whether to return outputs in MPa (TRUE) or kPa (FALSE)}
 }
 \value{
 soil water potential (MPa or kPa ~ J/Kg)

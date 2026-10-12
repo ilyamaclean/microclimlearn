@@ -16,8 +16,10 @@ vaporConductivityFromPsiTheta(psiw, theta, Tk, Smax)
 \item{Smax}{volumetric soil water content at saturation (m3 m-3)}
 }
 \value{
-soil vapour conductivity (kg^2 m-1 s-1 J-1)
+soil vapour conductivity (kg s / m^3)
 }
 \description{
-Calculates soil vapour conductivity as a function of water potential and moisture content
+Calculates the conductivity of the soil for water vapour,
+which diffuses through its air-filled pores, as a function of water
+potential and water content
 }

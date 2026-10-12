@@ -16,8 +16,7 @@ hydraulicConductivityFromTheta(theta, b, Smax, Ksat)
 \item{Ksat}{saturated hydraulic conductivity (kg s / m^3)}
 }
 \value{
-hydraulic conductivity (kg s / m^3). The Campbell hydraulic
-  conductivity exponent (2*b + 3) is derived from \code{b} internally.
+hydraulic conductivity (kg s / m^3)
 }
 \description{
 Calculates hydraulic conductivity from soil water content using Campbell method

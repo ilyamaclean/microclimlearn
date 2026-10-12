@@ -15,7 +15,7 @@ A numeric vector of length 4 containing density parameters:
 \describe{
   \item{densfun[1]}{Upper asymptotic snow density (g cm^-3)}
   \item{densfun[2]}{Initial / minimum snow density (g cm^-3)}
-  \item{densfun[3]}{Depth-dependent densification coefficient (m^-1)}
+  \item{densfun[3]}{Depth-dependent densification coefficient (cm^-1)}
   \item{densfun[4]}{Age-dependent densification coefficient (day^-1)}
 }
 }
@@ -23,6 +23,6 @@ A numeric vector of length 4 containing density parameters:
 Returns empirical parameter values for a snow density evolution
 function, based on different climatic snow regimes.
 
-These parameterisations are intended for use with [snowdenfun()] to estimate
+These parameterisations are intended for use with [SnowDensFun()] to estimate
 bulk snow density as a function of snow depth and age.
 }

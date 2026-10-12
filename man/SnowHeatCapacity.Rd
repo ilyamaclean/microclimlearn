@@ -17,6 +17,6 @@ SnowHeatCapacity(rho, Tc, pk = 101.3)
 Snow volumetric heat capacity (J m-3 K-1).
 }
 \description{
-Calculates volumetric heat capacity of snow as a mixture of ice,
-air, and optionally liquid water.
+Calculates the volumetric heat capacity of snow as a mixture of
+ice and air.
 }

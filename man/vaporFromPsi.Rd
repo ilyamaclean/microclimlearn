@@ -16,8 +16,9 @@ vaporFromPsi(psiw, theta, Tk, Smax)
 \item{Smax}{volumetric soil water content at saturation (m3 m-3)}
 }
 \value{
-soil vapour content
+soil vapour content (kg of vapour per m3 of soil)
 }
 \description{
-Calculates soil vapour content from soil water potential using the Kelvin equation
+Calculates the water vapour held in the air-filled pores of
+the soil from soil water potential using the Kelvin equation
 }

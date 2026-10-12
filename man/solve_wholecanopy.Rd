@@ -19,7 +19,7 @@ solve_wholecanopy(
   maxiter = 20,
   leafh = FALSE,
   MOST = TRUE,
-  Lfrac
+  Lfrac = 0.8
 )
 }
 \arguments{
@@ -54,7 +54,7 @@ area per unit horizontal area (TRUE) or per sloped ground surface area (FALSE)}
 are taken to be logarithmic down to canopy top. If `FALSE`, a roughness
 sublayer is assumed above the canopy.}
 
-\item{Lfrac}{fraction of plant area that is living leaf}
+\item{Lfrac}{fraction of plant area that is living leaf (default 0.8)}
 }
 \value{
 a list of of the following variables
@@ -67,6 +67,7 @@ a list of of the following variables
  \item{uh}{wind speed at top of canopy (m/s)}
  \item{th}{temperature at top of canopy (deg C)}
  \item{rHa}{bulk surface aerodynamic resistance (s/m)}
+ \item{rHg}{resistance to heat transfer of the air between the ground surface and `zref` (s/m)}
  \item{rSl}{bulk surface stomatal resistance (s/m)}
  \item{rS}{bulk surface resistance to vapour including from ground surface (s/m)}
  \item{psim}{diabatic influencing factor for momentum}

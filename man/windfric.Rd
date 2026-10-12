@@ -4,7 +4,7 @@
 \alias{windfric}
 \title{Calculate wind friction velocity}
 \usage{
-windfric(uref, zref, h, pai, LL = Inf, MOST = TRUE)
+windfric(uref, zref, h, pai, LL = Inf, MOST = TRUE, z0 = 0.004)
 }
 \arguments{
 \item{uref}{wind speed at reference height (m/s)}
@@ -21,6 +21,9 @@ is neutral air.}
 \item{MOST}{Logical. If `TRUE`, profiles above the canopy are taken to be
 logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
 above the canopy.}
+
+\item{z0}{roughness length of the surface beneath the vegetation (m). The
+default is that of bare ground.}
 }
 \value{
 friction velocity (m/s)

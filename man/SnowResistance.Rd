@@ -4,35 +4,54 @@
 \alias{SnowResistance}
 \title{Aerodynamic resistance above snow}
 \usage{
-SnowResistance(snowdepth, hgt, pai, uref, psim, psih, zref)
+SnowResistance(
+  snowdepth,
+  hgt,
+  pai,
+  uref,
+  zref,
+  LL = Inf,
+  MOST = TRUE,
+  z0 = 0.002
+)
 }
 \arguments{
 \item{snowdepth}{Snow depth (m).}
 
-\item{hgt}{Vegetation height (m).}
+\item{hgt}{Vegetation height above the ground (m). Zero if there is none.}
 
-\item{pai}{Plant area index (m^2 m^-2).}
+\item{pai}{Plant area index of the vegetation (m^2 m^-2).}
 
 \item{uref}{Wind speed at the reference height (m s^-1).}
 
-\item{psim}{Stability correction term for momentum (dimensionless).}
+\item{zref}{Reference height above the ground surface (m). Must be above
+both the snow and the vegetation.}
 
-\item{psih}{Stability correction term for heat (dimensionless).}
+\item{LL}{Obukhov length as returned by [Obukhov()] (m). The default, `Inf`,
+is neutral air.}
 
-\item{zref}{Reference height above the ground surface (m).}
+\item{MOST}{Logical. If `TRUE`, profiles above the vegetation are taken to
+be logarithmic down to canopy top. If `FALSE`, a roughness sublayer is assumed
+above it. Has no effect when the vegetation is buried.}
+
+\item{z0}{roughness length of the snow surface (m)}
 }
 \value{
-Aerodynamic resistance to heat transfer (\eqn{s m^{-1}}).
+a list of the following:
+\describe{
+ \item{rHa}{resistance to heat transfer between the snow surface and `zref` (s m^-1)}
+ \item{uf}{friction velocity (m s^-1)}
+}
 }
 \description{
-Computes aerodynamic resistance to heat transfer between a snow
-surface and the reference height, accounting for partial burial of vegetation
-by snow where relevant.
+Calculates the resistance to heat transfer between a snow
+surface and the reference height, and the friction velocity of the wind above
+the snow. Vegetation is taken to be buried by the snow up to the snow depth,
+so that only the part standing above the snow surface affects the wind.
 }
 \details{
-If snow partially buries the vegetation canopy, vegetation height and plant
-area index are reduced in proportion to the exposed canopy above the snow
-surface. Zero-plane displacement height and roughness length for momentum are
-then recalculated for the reduced canopy using [zeroplanedis()] and
-[roughlength()].
+Plant area is taken to be spread evenly with height, so the plant area
+standing above the snow is in proportion to the height standing above it.
+Where the snow buries the vegetation completely, the surface is treated as
+bare.
 }

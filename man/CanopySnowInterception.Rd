@@ -2,9 +2,9 @@
 % Please edit documentation in R/snow.R
 \name{CanopySnowInterception}
 \alias{CanopySnowInterception}
-\title{Calculate canopy interception of snowfall}
+\title{Canopy snow interception}
 \usage{
-CanopySnowInterception(hgt, pai, uf, prec, tc, Li, Sh = 6.2)
+CanopySnowInterception(hgt, pai, uf, prec, tc, Li, Sh = 6.2, dT = 3600)
 }
 \arguments{
 \item{hgt}{Canopy height (m).}
@@ -17,30 +17,40 @@ CanopySnowInterception(hgt, pai, uf, prec, tc, Li, Sh = 6.2)
 
 \item{tc}{Air temperature (degrees C).}
 
-\item{Li}{Snow load on the canopy from the previous time step
+\item{Li}{Snow load on the canopy at the start of the time step
 (mm snow water equivalent).}
 
-\item{Sh}{Snow load per unit branch area coefficient (kg m^-3).
-Default is `6.2`.}
+\item{Sh}{Snow load that a unit area of branch can hold (kg m^-2). Hedstrom
+and Pomeroy give 6.6 for pine and 5.9 for spruce.}
+
+\item{dT}{time step (s)}
 }
 \value{
-Numeric value giving canopy-intercepted snowfall for the time step
-  (mm snow water equivalent).
+a list of the following, each in mm snow water equivalent:
+\describe{
+ \item{intercepted}{snowfall caught by the canopy during the time step}
+ \item{unloaded}{snow falling from the canopy to the ground during the time step}
+ \item{load}{snow load on the canopy at the end of the time step}
+}
 }
 \description{
-Estimates the amount of snowfall intercepted by vegetation canopy over a single
-time step, following the formulation in the supplied C++ implementation.
+Calculates the snow caught by a vegetation canopy during a time
+step and the snow that falls from the canopy to the ground, following
+Hedstrom and Pomeroy (1998). The canopy catches a smaller share of the
+snowfall the more snow it already holds, up to the most it can hold, and the
+snow it holds falls off gradually.
 }
 \details{
-The function computes a mean within-canopy wind speed from canopy structure and
-friction velocity, uses this to estimate the fall angle of snow, and then
-calculates effective canopy cover and canopy snow storage capacity. Interception
-is limited by both incoming snowfall and the remaining canopy storage capacity.
-
-
-Very small values of `hgt` and `pai` are bounded below at 0.001 to avoid
-numerical problems. Fresh snow density is estimated as an exponential function
-of air temperature, and the maximum canopy snow load is scaled by plant area
-index. The returned interception is capped so that it cannot exceed the
-snowfall input `prec`.
+Wind carries falling snow sideways, so that it meets more of the canopy than
+snow falling straight down. The mean wind speed within the canopy is taken
+from [windprofile_below()] for foliage spread evenly with height, and snow is
+taken to fall at 0.8 m/s. The most snow the canopy can hold rises with plant
+area and is greater for the light snow that falls in cold air. Snow held by
+the canopy falls off at a rate that leaves 0.678 of it after a week.
+Sublimation and melt of the snow held are not included. Very small values of
+`hgt` and `pai` are bounded below at 0.001.
+}
+\references{
+Hedstrom NR, Pomeroy JW (1998) Measurements and modelling of snow
+interception in the boreal forest. Hydrological Processes 12: 1611-1625.
 }
