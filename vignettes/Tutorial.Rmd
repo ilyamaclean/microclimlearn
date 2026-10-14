@@ -1670,13 +1670,13 @@ Below, we use `thermalConductivity` and `heatCapacity` to examine how these prop
 
 ```{r eval=FALSE}
 # Composition of a typical clay loam
-Vq <- 0.0386 # volumetric quartz fraction
-Vm <- 0.4907 # volumetric fraction of other minerals
-Vo <- 0.0107 # volumetric organic fraction
-Mc <- 0.5422 # mass fraction of clay
+Vq <- 0.0568 # volumetric quartz fraction
+Vm <- 0.4818 # volumetric fraction of other minerals
+Vo <- 0.0114 # volumetric organic fraction
+Mc <- 0.34 # mass fraction of clay
 
 # Volumetric water fraction, from almost dry to saturated
-Vw <- seq(0.02, 0.46, length.out = 100)
+Vw <- seq(0.02, 0.45, length.out = 100)
 
 # Thermal conductivity (W m^-1 K^-1)
 k <- thermalConductivity(Vq, Vm, Vo, Vw, Mc,
@@ -1700,7 +1700,7 @@ plot(Ch ~ Vw, type = "l", lwd = 2, col = "red",
 
 ![](images/img20.png)
 
-Heat capacity increases linearly with water content, from about 1.3 to 3.2 MJ m^-3^ K^-1^, because it is the sum of the heat capacities of the soil constituents weighted by their volumes. Thermal conductivity increases more than sixfold, from about 0.2 to 1.4 W m^-1^ K^-1^, with the steepest increase at intermediate moisture levels. In dry soil, heat passes between particles mainly at their points of contact. As the soil wets, water bridges the gaps between particles, allowing heat to flow more readily.
+Heat capacity increases linearly with water content, from about 1.3 to 3.1 MJ m^-3^ K^-1^, because it is the sum of the heat capacities of the soil constituents weighted by their volumes. Thermal conductivity increases more than sixfold, from about 0.2 to 1.5 W m^-1^ K^-1^, with the steepest increase at intermediate moisture levels. In dry soil, heat passes between particles mainly at their points of contact. As the soil wets, water bridges the gaps between particles, allowing heat to flow more readily.
 
 The ratio of thermal conductivity to volumetric heat capacity is known as **thermal diffusivity**. It determines how rapidly temperature changes propagate through the soil. Here, diffusivity more than doubles between dry and saturated conditions, allowing daily temperature fluctuations to penetrate deeper into wet soil.
 
@@ -1726,10 +1726,10 @@ vegp$pai <- 0 # plant area index: zero for bare ground
 
 # --------------------- Thermal properties of the soil -------------------- #
 # Clay loam with a volumetric water fraction of 0.3
-k <- thermalConductivity(Vq = 0.0386, Vm = 0.4907, Vo = 0.0107,
-                         Vw = 0.3, Mc = 0.5422,
+k <- thermalConductivity(Vq = 0.0568, Vm = 0.4818, Vo = 0.0114,
+                         Vw = 0.3, Mc = 0.34,
                          Tc = 15, pk = 101.3) # thermal conductivity (W m^-1 K^-1)
-Ch <- heatCapacity(Vq = 0.0386, Vm = 0.4907, Vo = 0.0107,
+Ch <- heatCapacity(Vq = 0.0568, Vm = 0.4818, Vo = 0.0114,
                    Vw = 0.3,
                    Tc = 15, pk = 101.3) # heat capacity (J m^-3 K^-1)
 
