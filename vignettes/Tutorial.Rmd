@@ -2601,16 +2601,16 @@ plot(pai_seq, frac_intercepted,
 Interception increases rapidly with plant area index, then begins to level off once most of the falling snow meets the canopy. Sparse canopies intercept little snow, whereas dense canopies can retain a large fraction of a snowfall event before unloading or throughfall return it to the ground.
 
 ## Animal energy budgets
-In this section we present some simple approaches for computing the body temperature of ectotherms and the energy budget of endotherms. The animal is represented geometrically as a triaxial ellipsoid defined by its length, width, and height, providing a flexible but tractable approximation that allows key physical properties such as volume, surface area, and directional exposure to be calculated.
+In this section we present some simple approaches for computing the body temperature of ectotherms and, for endotherms, the heat they must produce, or lose by evaporation, to hold their body temperature. The animal is represented geometrically as a triaxial ellipsoid defined by its length, width, and height, providing a flexible but tractable approximation that allows key physical properties such as volume, surface area, and directional exposure to be calculated.
 
 These quantities underpin all components of the energy budget. Radiative exchange depends on how the body interacts with directional (direct) and hemispheric (diffuse and longwave) fluxes, convective heat loss depends on the characteristic dimension of the body relative to airflow, and metabolic heat production depends on body size and temperature.
 
-The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation and projected (silhouette) area in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and energy balance in endotherms.
+The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation and projected (silhouette) area in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and, in endotherms, for the heat production or evaporation needed to hold body temperature, together with a physiologically equivalent temperature.
 
 ### Radiation absorption
 In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes, such that absorption is proportional to the mean of the upward and downward components. In contrast, direct shortwave radiation is directional, and the amount absorbed depends on the area of the body projected normal to the solar beam.
 
-We account for this by scaling direct shortwave radiation by the ratio of projected (silhouette) area to total surface area. This dimensionless coefficient captures how body orientation relative to the sun modifies energy gain. The projected area, and hence the interception coefficient, is calculated as a function of solar geometry and body orientation using the `silhouette` function. 
+We account for this by scaling direct shortwave radiation, measured perpendicular to the solar beam, by the ratio of projected (silhouette) area to total surface area. This dimensionless coefficient captures how body orientation relative to the sun modifies energy gain. The projected area, and hence the interception coefficient, is calculated as a function of solar geometry and body orientation using the `silhouette` function. 
 
 The example below illustrates how the interception of direct solar radiation varies over the course of a day for a simple human geometry. Solar zenith and azimuth angles are calculated for a midsummer day, and only daylight hours are retained. The body is represented using typical dimensions for an upright adult (height = 170 cm, width = 45 cm, length = 25 cm), where width corresponds approximately to shoulder breadth and length to front–back body depth. The individual is assumed to be upright (zero tilt) and facing south (`adir = 180`). The `silhouette` function is then used to compute the fraction of direct beam radiation intercepted (i.e. the projected area divided by total surface area) as solar position changes through the day. Note that this representation is geometrically symmetric: an equivalent configuration could be obtained by exchanging height and length and setting the body tilt to 90°, illustrating that it is the orientation of the principal axes relative to the solar beam, rather than their labels, that determines interception.
 
@@ -2655,7 +2655,7 @@ plot(svals$SolarCoef ~ as.POSIXct(tme),
 ```
 ![](images/img30.png)
 
-The `position` argument controls how body orientation is specified When `fixed`, the body maintains a constant orientation defined by `adir`  - the direction from north in which the animal is facing and `atilt` - which specifies the angle between the body’s height axis and the vertical.
+The `position` argument controls how body orientation is specified. When `fixed`, the body maintains a constant orientation defined by `adir`  - the direction from north in which the animal is facing and `atilt` - the angle by which the front of the body is raised, which tilts its height axis from the vertical by the same angle.
 The options `max` and `min` instead assume that the body adopts the orientation that maximises or minimises interception of direct radiation at each time step, representing extreme behavioural thermoregulation. The `randomdir` option assumes the body rotates freely in the horizontal plane (i.e. azimuth is random) while maintaining a fixed tilt, whereas `random` assumes both azimuth and tilt are random, giving an orientation-averaged interception. Together, these options provide a simple way to represent a range of behavioural and postural assumptions, from fixed orientation through to fully random or optimised alignment with the solar beam.
 
 
@@ -2704,26 +2704,26 @@ plot((d * 100) ~ adir,
 plot(rHa ~ adir,
      type = "l",
      lwd = 2,
-     ylim = c(0, 100),
+     ylim = c(0, 150),
      xlab = "Orientation relative to wind direction (degrees)",
      ylab = expression("Boundary layer resistance (s m"^-1 * ")"))
 ```
 ![](images/img31.png)
 
-The characteristic dimension and hence also the resistance to heat loss is lowest when the animal is side-on to the direction of the wind. Here the wind is blowing past the front and back of the animal, so the distance over which laminar flow develops is shorter and the boundary layer remains thinner. Conversely, when the animal is aligned with the wind, this distance is greater, allowing a thicker boundary layer to develop and increasing resistance to heat loss.
+The characteristic dimension and hence also the resistance to heat loss is lowest when the animal is side-on to the direction of the wind. Here the wind crosses the body from one side to the other, so the distance it travels over the surface is short and the boundary layer remains thin. Conversely, when the animal is aligned with the wind, this distance is greater, allowing a thicker boundary layer to develop and increasing resistance to heat loss.
 
 ### Metabolic rates
 Metabolic heat production forms one component of the animal energy balance. In ectotherms it is often small relative to radiative and convective fluxes, but can still influence body temperature, particularly in larger or more active animals. In endotherms, by contrast, metabolism is typically the dominant heat source and must offset environmental heat loss.
 
-In the tutorial, the metabolic rate is calculated using the `metabolic_rate` function and  depends on body mass and body temperature. Mass is obtained from volume and density, and metabolic heat production is expressed per unit surface area so that it is directly comparable with the other energy balance terms.
+In the tutorial, the metabolic rate is calculated using the `metabolic_rate` function and  depends on body mass and body temperature. Mass is obtained from volume and density. The function returns metabolic heat production in watts, which the energy balance divides by surface area so that it is comparable with the other terms.
 
 For ectotherms, metabolic rate is controlled by four parameters: a normalisation constant (`a0`), a mass-scaling exponent (`b`), a temperature sensitivity (`Q10`), and a reference temperature (`Tref`). The exponent `b` determines how metabolism scales with body size and typically lies close to 0.7–0.8. The parameter `Q10` controls how rapidly metabolism increases with temperature, with values around 2–3 common for ectotherms, implying an approximate doubling or tripling of metabolic rate per 10 °C. The normalisation constant `a0` sets the overall magnitude of metabolic rate at the reference temperature, and therefore captures differences among taxa and activity levels. Together, these parameters define how strongly metabolic heat production responds to both size and temperature.
 
-The `create_ectop` function in the `micropoint` package assembles these parameters for different ectotherm types alongside body geometry and surface properties. Body dimensions are used to estimate volume and surface area assuming an ellipsoid, while defaults are assigned for traits such as density, emissivity, thermal conductivity, evaporative skin fraction and conductive contact with the substrate. These defaults vary by organism type (e.g. arthropod, reptile, amphibian), but can be modified as needed.
+The `create_ectop` function in the `micropoint` package assembles these parameters for different ectotherm types alongside body geometry and surface properties. Body dimensions are used to estimate volume and surface area assuming an ellipsoid, while defaults are assigned for traits such as density, emissivity, thermal conductivity, resistance of the skin to water loss and conductive contact with the substrate. These defaults vary by organism type (e.g. arthropod, reptile, amphibian), but can be modified as needed.
 
-For endotherms, the same parameters can be used, but their interpretation differs. The exponent b is typically similar (≈0.7–0.75), while Q10 is often lower (≈1.5–2) because metabolic rate is more tightly regulated with respect to temperature. The normalisation constant a0 is much larger, reflecting substantially higher metabolic rates per unit mass. As a result, metabolism is not a minor term but the primary heat source in the energy balance, and changes in a0 directly affect the capacity to maintain body temperature under different environmental conditions.
+For endotherms, body temperature is held nearly constant, so the temperature term plays no part. Basal metabolic rate depends on body mass alone, and the `create_endop` function sets it from Kleiber's relation: about 3.4 W for a 1 kg animal, rising with mass to the power 0.75. Metabolism is the main heat source in the endotherm energy balance, and what matters is how far it must rise above this basal rate to hold body temperature in the cold.
 
-In the example below, we show how the metabolic rate of a typically-sized reptile varies as a function of its body temperature
+In the example below, we show how the metabolic rate of a typically-sized reptile varies as a function of its body temperature.
 
 ```{r eval=FALSE}
 # Animal geometry (cm)
