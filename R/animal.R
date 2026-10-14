@@ -11,8 +11,10 @@
 #' @param len body length along the longitudinal axis (cm)
 #' @param adir body azimuth direction (degrees). Only used when
 #' \code{position = "fixed"}. Default is 0.
-#' @param atilt body tilt from vertical (degrees). Only used when
-#' \code{position = "fixed"} or \code{position = "randomdir"}. Default is 0.
+#' @param atilt body tilt (degrees): the angle by which the long axis of the body
+#' is raised from horizontal at its front, which tilts its vertical axis from
+#' vertical by the same angle. Only used when \code{position = "fixed"} or
+#' \code{position = "randomdir"}. Default is 0.
 #' @param position assumption about body orientation relative to the sun. Must
 #' be one of:
 #' \describe{
@@ -39,49 +41,46 @@
 #' @details The three body dimensions are treated as the full axis lengths of an
 #' ellipsoid and are converted internally from centimetres to metres before
 #' calculation. Surface area is approximated because no exact closed-form
-#' solution exists for a general triaxial ellipsoid.
+#' solution exists for a general triaxial ellipsoid. With random orientation,
+#' silhouette area is a quarter of surface area, as it is for any convex body.
 #' @export
 silhouette <- function(zen, azi, height, width, len, adir = 0, atilt = 0.0, position = "fixed") {
-
-  # Compute semi-axis (converted from cm to m)
+  # Semi-axes of the ellipsoid (m): along the length, across and up
   AA <- len / 200
   BB <- width / 200
   CC <- height / 200
-  # Convert directions to radians
-  zenr <- zen * pi / 180
-  azir <- azi * pi / 180
-  adirr <- adir * pi / 180
-  atiltr <- atilt * pi / 180
-  # Calculate surface area using Knud Thomsens formula for ellipsoid
-  P <- 1.6075 # Approximation constant
+
+  # Surface area, from Knud Thomsen's approximation, and volume
+  P <- 1.6075
   Area <- 4 * pi * (((AA^P * BB^P) + (AA^P * CC^P) + (BB^P * CC^P)) / 3)^(1 / P)
   Volume <- (4 / 3) * pi * AA * BB * CC
-  if (position == "max") { # assume solar radiation maximised
+
+  # Area of the shadow the body casts on a plane facing the sun, for a body
+  # heading towards adir with its front raised by atilt. The sun's direction is
+  # resolved along the length, width and height of the body, and each component
+  # is weighted by the cross-section of the ellipsoid seen from that axis
+  shadow <- function(adir) {
+    z <- zen * pi / 180
+    theta <- (adir - azi) * pi / 180
+    t <- atilt * pi / 180
+    L <- sin(z) * cos(t) * cos(theta) + cos(z) * sin(t)
+    M <- sin(z) * sin(theta)
+    N <- cos(z) * cos(t) - sin(z) * sin(t) * cos(theta)
+    pi * sqrt(L^2 * BB^2 * CC^2 + M^2 * CC^2 * AA^2 + N^2 * AA^2 * BB^2)
+  }
+
+  if (position == "max") { # body side-on to the sun
     silA <- pi * max(c(BB * CC, AA * CC, AA * BB))
-  }
-  else if (position == "min") { # assume solar radiation minimised
+  } else if (position == "min") { # body end-on to the sun
     silA <- pi * min(c(BB * CC, AA * CC, AA * BB))
-  }
-  else if (position == "randomdir") { # direction (horizontal rotation) assumed random
-    phi <- acos(cos(zenr) * cos(-atiltr) + sin(zenr) * sin(-atiltr) * cos(azir))
-    M <- sin(phi)
-    N <- cos(phi)
-    silA <- pi * sqrt(0.5 * M^2 * (BB^2 * CC^2 + CC^2 * AA^2) + N^2 * AA^2 * BB^2)
-  }
-  else if (position == "random") { # direction and tilt assumed random
-    silA <- pi * sqrt((AA^2 * BB^2 + AA^2 * CC^2 + BB^2 * CC^2) / 3)
-  }
-  else if (position == "fixed") {
-    theta <- (adirr - azir)
-    phi <- acos(cos(zenr) * cos(-atiltr) + sin(zenr) * sin(-atiltr) * cos(theta))
-    L <- cos(theta) * sin(phi)
-    M <- sin(theta) * sin(phi)
-    N <- cos(phi)
-    silA <- pi * sqrt(L^2 * BB^2 * CC^2 +
-                        M^2 * CC^2 * AA^2 +
-                        N^2 * AA^2 * BB^2)
-  }
-  else stop("Position not recongised")
+  } else if (position == "fixed") {
+    silA <- shadow(adir)
+  } else if (position == "randomdir") { # shadow averaged over all headings
+    s <- sapply(0:359, shadow)
+    silA <- rowMeans(matrix(s, ncol = 360))
+  } else if (position == "random") { # shadow averaged over all orientations
+    silA <- Area / 4
+  } else stop("Position not recognised")
   out <- list(SurfArea = Area, Volume = Volume, silA = silA, SolarCoef = silA / Area)
   return (out)
 }
@@ -96,31 +95,59 @@ silhouette <- function(zen, azi, height, width, len, adir = 0, atilt = 0.0, posi
 #' @param len body length along the longitudinal axis (cm)
 #' @param adir body azimuth direction (degrees). Only used when
 #' \code{position = "fixed"}. Default is 0.
-#' @param atilt body tilt from vertical (degrees). Only used when
-#' \code{position = "fixed"}. Default is 0.
+#' @param atilt body tilt (degrees): the angle by which the long axis of the body
+#' is raised from horizontal at its front. Only used when
+#' \code{position = "fixed"} or \code{position = "randomdir"}. Default is 0.
 #' @param position assumption about body orientation. Must be one of:
-#' \item{\code{"fixed"}}{body orientation is fixed according to
+#' \describe{
+#'   \item{\code{"fixed"}}{body orientation is fixed according to
 #'   \code{adir} and \code{atilt}}
-#'   \item{\code{"max"}}{body orientation is assumed to maximise projected
-#'   silhouette area}
-#'   \item{\code{"min"}}{body orientation is assumed to minimise projected
-#'   silhouette area}
+#'   \item{\code{"max"}}{body turned to present its largest cross-section to
+#'   the sun}
+#'   \item{\code{"min"}}{body turned to present its smallest cross-section to
+#'   the sun}
 #'   \item{\code{"randomdir"}}{body azimuth direction is assumed random, but
 #'   tilt is fixed by \code{atilt}}
 #'   \item{\code{"random"}}{both body azimuth direction and tilt are assumed
 #'   random}
+#' }
+#' @param zen solar zenith angle (degrees). Only used, and then required, when
+#' \code{position} is \code{"max"} or \code{"min"}.
+#' @param azi solar azimuth angle (degrees). Only used, and then required, when
+#' \code{position} is \code{"max"} or \code{"min"}.
 #' @return a numeric value giving the characteristic dimension (m), defined as
-#' volume divided by projected silhouette area
+#' volume divided by projected area
 #' @details The characteristic dimension is calculated as:
 #' \deqn{d = V / A_p}
-#' where \eqn{V} is ellipsoid volume and \eqn{A_p} is projected area normal to
-#' the flow direction. The projected area is always evaluated for a horizontal
-#' beam (i.e. \eqn{90^\circ} zenith angle) aligned with the wind direction.
-#' Solar angles (\code{zen}, \code{azi}) are only used to determine body
-#' orientation when \code{position} is set to \code{"max"} or \code{"min"}.
+#' where \eqn{V} is ellipsoid volume and \eqn{A_p} is the area the body presents
+#' to a horizontal wind from direction \code{wdir}. For an ellipsoid this is
+#' two-thirds of the length of the body along the wind. When \code{position} is
+#' \code{"max"} or \code{"min"}, the body is first turned towards the sun, and
+#' the area it then presents to the wind is used. Turning is by heading and
+#' tilt only, so when the width is the axis that should point at the sun, the
+#' body lies across the sun's direction with its long axis upright.
 #' @export
 chardim <- function(wdir, height, width, len,
-                    adir = 0.0, atilt = 0.0, position = "fixed") {
+                    adir = 0.0, atilt = 0.0, position = "fixed", zen = NULL, azi = NULL) {
+  # A body that maximises or minimises the sunlight it intercepts points its
+  # shortest or longest axis at the sun. Its orientation is set that way, and
+  # its size along the wind follows from that orientation
+  if (position %in% c("max", "min")) {
+    if (is.null(zen) || is.null(azi)) stop("zen and azi are needed when position is max or min")
+    dims <- c(len, width, height)
+    axis <- if (position == "max") which.min(dims) else which.max(dims)
+    if (axis == 1) { # long axis towards the sun
+      adir <- azi
+      atilt <- 90 - zen
+    } else if (axis == 2) { # side towards the sun's azimuth, long axis upright
+      adir <- azi + 90
+      atilt <- 90
+    } else { # back towards the sun
+      adir <- azi
+      atilt <- -zen
+    }
+    position <- "fixed"
+  }
   sa <- silhouette(
     zen = 90,
     azi = wdir,
@@ -140,7 +167,7 @@ chardim <- function(wdir, height, width, len,
 #' convection using standard dimensionless relationships.
 #' @param tair air temperature (degrees C)
 #' @param dT initial estimate of temperature difference between the animal surface and air
-#' (degrees C)
+#' (degrees C). Its sign does not matter.
 #' @param uz wind speed at the animal scale (m s^-1)
 #' @param d characteristic dimension of the animal (m): volume divided by the
 #' area it presents to the wind, as returned by [chardim()]
@@ -151,10 +178,14 @@ chardim <- function(wdir, height, width, len,
 #' @details Thermal diffusivity and kinematic viscosity are calculated as
 #' functions of air temperature. The animal is treated as a spheroid, the size
 #' of which is the length of its body along the wind (1.5 times `d`). The Nusselt
-#' number for forced convection is that of Whitaker (1972) for a sphere, while
-#' free convection is estimated from Grashof and Prandtl numbers. The two
-#' contributions are combined using a cubic mean to represent mixed convection.
-#' @references Whitaker S (1972) Forced convection heat transfer correlations for
+#' numbers are those for a sphere: Whitaker (1972) for forced convection and
+#' Churchill (1983) for free convection. The two contributions are combined
+#' using a cubic mean to represent mixed convection.
+#' @references Churchill SW (1983) Free convection around immersed bodies. In:
+#' Schlunder EU (ed) Heat Exchanger Design Handbook, Section 2.5.7. Hemisphere,
+#' New York.
+#'
+#' Whitaker S (1972) Forced convection heat transfer correlations for
 #' flow in pipes, past flat plates, single cylinders, single spheres, and for flow
 #' in packed beds and tube bundles. AIChE Journal 18: 361-371.
 #' @export
@@ -181,10 +212,11 @@ animalrHa <- function(tair, dT, uz, d, rHmax = 300.0) {
 
   # Heat carried away by air that rises or sinks because the animal warms or
   # cools it (free convection), which matters when there is little wind. The
-  # Grashof number measures the strength of that buoyancy
-  Gr <- (9.81 * D^3 * dT) / (Tk * v^2)
-  Nun <- (0.825 + (0.387 * (Gr * Pr)^(1/6)) /
-            (1 + (0.492 / Pr)^(9/16))^(8/27))^2
+  # Grashof number measures the strength of that buoyancy. As for forced
+  # convection, the animal is treated as a sphere, which in still air loses heat
+  # by conduction at least
+  Gr <- (9.81 * D^3 * abs(dT)) / (Tk * v^2)
+  Nun <- 2 + 0.589 * (Gr * Pr)^(1/4) / (1 + (0.469 / Pr)^(9/16))^(4/9)
 
   # The two act together, the stronger dominating
   Nu <- (Nuf^3 + Nun^3)^(1/3)
@@ -198,7 +230,7 @@ animalrHa <- function(tair, dT, uz, d, rHmax = 300.0) {
 #' @param volume Animal volume (m^3)
 #' @param rho Animal density (kg m^-3)
 #' @param Q10 Temperature sensitivity coefficient
-#' @param a0 Normalisation constant
+#' @param a0 Normalisation constant (W kg^-b)
 #' @param b Mass-scaling exponent
 #' @param Tref Reference temperature (°C)
 #' @param Tbody Body temperature (°C)
@@ -206,6 +238,8 @@ animalrHa <- function(tair, dT, uz, d, rHmax = 300.0) {
 #' @return Numeric vector of metabolic rate (W)
 #' @export
 metabolic_rate <- function(volume, rho, Q10, a0, b, Tref, Tbody) {
+  # Metabolic rate rises less than in proportion to body mass, and by a factor
+  # of Q10 for every 10 degrees the body is warmer than the reference temperature
   m <- volume * rho
   a0 * m^b * Q10^((Tbody - Tref) / 10)
 }
@@ -266,9 +300,8 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
   }
   Rabs <- Rswabs + Rlwabs
   # ---------------- Calculate Characteristic dimension (m) ------------------ #
-  svals <- with(ecto_params, silhouette(zen = 90, azi = microcdata$winddir,
-                                        height, width, len, adir, atilt, position))
-  d <- svals$Volume / svals$silA
+  d <- with(ecto_params, chardim(microcdata$winddir, height, width, len, adir, atilt,
+                                 position, solp$zen, solp$azi))
   # ------------------------------- Initialize values ------------------------ #
   error <- 1e99
   iter <- 1
