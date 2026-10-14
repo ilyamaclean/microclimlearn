@@ -274,16 +274,9 @@ metabolic_rate <- function(volume, rho, Q10, a0, b, Tref, Tbody) {
 Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1e-3, maxiter = 100) {
   sb <- 5.67e-8 # Stefan-Boltzmann constant (W m^-2 K^-4)
 
-  # Radiation absorbed per unit body surface: the direct beam on the silhouette
-  # the body presents to the sun, and half the diffuse, reflected and longwave
-  # radiation from above and below, since half the body faces each way
+  # Radiation absorbed per unit body surface
   solp <- sunposition(tme, lat, long)
-  sil <- with(ecto_params, silhouette(solp$zen, solp$azi, height, width, len,
-                                      adir, atilt, position))
-  sc <- sil$silA / sil$SurfArea
-  Rsw <- sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown + 0.5 * microcdata$Rswup
-  Rabs <- (1 - ecto_params$refl) * Rsw +
-    0.5 * ecto_params$em * (microcdata$Rlwdown + microcdata$Rlwup)
+  Rabs <- animalRabs(ecto_params, solp, microcdata)
 
   # Size of the body as the wind meets it, which sets its boundary layer
   d <- with(ecto_params, chardim(microcdata$winddir, height, width, len, adir, atilt,
@@ -342,335 +335,327 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
   return (Tbody)
 }
 
-
-#' Mammal heat transfer resistance
-#'
-#' Calculates total resistance to heat loss for a mammal, combining boundary
-#' layer, coat, and vascular resistances under warm and cold conditions.
-#'
-#' @param height Body height (cm)
-#' @param width Body width (cm)
-#' @param len Body length (cm)
-#' @param coatthick Coat thickness (cm)
-#' @param tbody Body temperature (degrees C)
-#' @param tair Air temperature (degrees C)
-#' @param adir body azimuth direction (degrees)
-#' @param atilt body tilt from vertical (degrees)
-#' @param position assumption about body orientation. See [chardim()]
-#' @param windspeed Wind speed at animal height (m s^-1)
-#' @param wdir wind direction (degrees)
-#' @return A list with:
-#'   \describe{
-#'     \item{rHa_bound}{boundary layer resistance (s m^-1)}
-#'     \item{rHa_warm}{Total resistance (s m^-1) under vasodilated (warm) conditions}
-#'     \item{rHa_cold}{Total resistance (s m^-1) under vasoconstricted (cold) conditions}
-#'   }
-#'
-#' @details
-#' Total resistance is calculated as the sum of boundary layer resistance,
-#' coat resistance, and a fixed vascular resistance representing either
-#' vasodilation or vasoconstriction. Coat conductance decreases with coat
-#' thickness and increases with wind speed.
-#'
+#' @title Radiation absorbed by an animal
+#' @description Calculates the shortwave and longwave radiation absorbed per unit
+#' body surface by an animal treated as an ellipsoid.
+#' @param params a list of animal parameters containing \code{height},
+#' \code{width}, \code{len} (cm), \code{adir}, \code{atilt} (degrees),
+#' \code{position} (see [silhouette()]), \code{refl} (shortwave reflectance) and
+#' \code{em} (longwave emissivity)
+#' @param solp a list with the solar zenith (\code{zen}) and azimuth (\code{azi})
+#' angles (degrees), as returned by [sunposition()]
+#' @param microcdata a list of radiation fluxes at the animal (W m^-2):
+#' \code{Rdirdown} (direct, perpendicular to the solar beam), \code{Rdifdown}
+#' (diffuse downward), \code{Rswup} (upward shortwave), \code{Rlwdown} and
+#' \code{Rlwup} (downward and upward longwave)
+#' @return radiation absorbed per unit body surface (W m^-2)
+#' @details The direct beam falls on the silhouette the body presents to the sun.
+#' Half the body faces upward and half downward, so it receives half the diffuse
+#' and longwave radiation from the sky and half that reflected or emitted from below.
 #' @export
-mammal_resistance <- function(height, width, len, coatthick, tbody, tair,
-                              adir = 0.0, atilt = 0.0, position = "fixed",
-                              windspeed = 0, wdir = 0) {
-  # boundary layer resistance
-  d <- chardim(wdir, height, width, len, adir, atilt, position)
-  dT <- abs(tbody - tair)
-  rHa <- animalrHa(tair, dT, windspeed, d)
-  # coat resistance
-  kmm0 <- 2.7058 * coatthick^(-0.803)
-  kmm <-  kmm0 * (1 + 0.1 * windspeed)
-  rHcoat <- 1000 / kmm
-  # vascular conductance
-  rHvas_cold <- 110
-  rHvas_warm <- 30
-  return(list(rHa_bound = rHa,
-              rHa_warm = rHa + rHcoat + rHvas_warm,
-              rHa_cold = rHa + rHcoat + rHvas_cold))
+animalRabs <- function(params, solp, microcdata) {
+  # Share of the body surface that the direct beam strikes
+  sil <- with(params, silhouette(solp$zen, solp$azi, height, width, len, adir, atilt, position))
+  sc <- sil$silA / sil$SurfArea
+  # Shortwave absorbed from the direct beam and from diffuse and reflected light,
+  # and longwave from the sky and the ground
+  Rsw <- sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown + 0.5 * microcdata$Rswup
+  Rabs <- (1 - params$refl) * Rsw + 0.5 * params$em * (microcdata$Rlwdown + microcdata$Rlwup)
+  return(Rabs)
 }
-
-#' Bird heat transfer resistance
-#'
-#' Calculates total resistance to heat loss for a bird, combining boundary
-#' layer resistance with plumage conductance under minimum and maximum
-#' insulation states.
-#'
-#' @param height Body height (cm)
-#' @param width Body width (cm)
-#' @param len Body length (cm)
-#' @param rho Body density (kg m^-3). Default is 730.
-#' @param tbody Body temperature (degrees C)
-#' @param tair Air temperature (degrees C)
-#' @param adir body azimuth direction (degrees)
-#' @param atilt body tilt from vertical (degrees)
-#' @param position assumption about body orientation. See [chardim()]
-#' @param windspeed Wind speed at animal height (m s^-1)
-#' @param wdir wind direction (degrees)
-#'
-#' @return A list with:
-#'   \describe{
-#'     \item{rHa_bound}{boundary layer resistance (s m^-1)}
-#'     \item{rHa_warm}{Total resistance (s m^-1) under reduced insulation (warm conditions)}
-#'     \item{rHa_cold}{Total resistance (s m^-1) under increased insulation (cold conditions)}
-#'   }
-#'
-#' @details
-#' Boundary layer resistance is calculated from body geometry and wind speed.
-#' Plumage conductance is estimated from body mass using an allometric
-#' relationship for minimum conductance, with a higher conductance representing
-#' reduced insulation. Conductance is converted to resistance and adjusted for
-#' wind speed before being combined with boundary layer resistance.
-#'
+#' @title Operative temperature
+#' @description Calculates the operative temperature of an animal surface: the
+#' temperature of uniform surroundings with which the surface would exchange the
+#' same heat by radiation and convection as in the actual environment.
+#' @param Rabs radiation absorbed per unit surface (W m^-2), as returned by
+#' [animalRabs()]
+#' @param tair air temperature (degrees C)
+#' @param rHa boundary layer resistance to heat (s m^-1), as returned by [animalrHa()]
+#' @param em longwave emissivity of the surface
+#' @param pk atmospheric pressure (kPa)
+#' @return a list with:
+#' \describe{
+#'   \item{Te}{operative temperature (degrees C)}
+#'   \item{re}{resistance of the surroundings to heat (s m^-1): boundary layer
+#'   and radiative resistance in parallel}
+#' }
+#' @details Longwave emission is linearised about air temperature, so radiation
+#' acts as a resistance in parallel with the boundary layer. Operative temperature
+#' equals air temperature when the surface absorbs as much radiation as it would
+#' emit at air temperature, as in shade with surroundings at air temperature.
 #' @export
-bird_resistance <- function(height, width, len, rho = 730, tbody, tair,
-                            adir, atilt, position, windspeed, wdir) {
-  # boundary layer resistance
-  d <- chardim(wdir, height, width, len, adir, atilt, position)
-  dT <- abs(tbody - tair)
-  rHa <- animalrHa(20, 5, windspeed, d)
-  # calculate body mass
-  vol <- (4 / 3) * pi * (height / 200) * (width / 200) * (len / 200)
-  mass <- rho * vol
-  g_min <- 0.06 * mass^(-0.15)
-  g_max <- g_min * 1.75
-  k0_min <- g_min * 8.314 * ((tair + 273.15) / 101325)
-  k0_max <- g_max * 8.314 * ((tair + 273.15) / 101325)
-  k_min <- k0_min * (1 + 0.05 * windspeed)
-  k_max <- k0_max * (1 + 0.05 * windspeed)
-  return(list(rHa_bound = rHa,
-              rHa_warm = rHa + 1/ k_min,
-              rHa_cold = rHa + 1/ k_max))
-}
-
-#' Endotherm energy balance
-#'
-#' Calculates net energy balance for an endotherm at a single time step from
-#' body traits and local microclimate.
-#'
-#' @param endo_params A list of endotherm parameters with the following entries:
-#'   \describe{
-#'     \item{height}{Body height (cm).}
-#'     \item{width}{Body width (cm).}
-#'     \item{len}{Body length (cm).}
-#'     \item{refl}{Shortwave reflectance of the body surface (unitless).}
-#'     \item{em}{Longwave emissivity of the body surface (unitless).}
-#'     \item{confrac}{Fraction of body surface in conductive contact with the substrate (unitless).}
-#'     \item{adir}{Body orientation relative to north (degrees).}
-#'     \item{atilt}{Body tilt angle relative to the horizontal (degrees).}
-#'     \item{position}{Descriptor of body position (character).}
-#'     \item{Tbody}{Body temperature (degrees C).}
-#'     \item{type}{Endotherm type; one of \code{"mammal"} or \code{"bird"}.}
-#'     \item{basmet}{Basal metabolic rate (W).}
-#'     \item{coatthick}{Coat thickness (cm; mammals only).}
-#'     \item{rho}{Body density (kg m^-3; birds only).}
-#'   }
-#' @param tme POSIXlt object indicating date and time in UTC.
-#' @param microcdata A list of microclimate variables with the following entries:
-#'   \describe{
-#'     \item{Tair}{Air temperature (degrees C).}
-#'     \item{Tsurf}{Surface temperature (degrees C).}
-#'     \item{Rdirdown}{Direct shortwave radiation flux perpendicular to the solar beam (W m^-2).}
-#'     \item{Rdifdown}{Diffuse downward shortwave radiation flux (W m^-2).}
-#'     \item{Rswup}{Upward shortwave radiation flux (W m^-2).}
-#'     \item{Rlwdown}{Downward longwave radiation flux (W m^-2).}
-#'     \item{Rlwup}{Upward longwave radiation flux (W m^-2).}
-#'     \item{winddir}{Wind direction (degrees from north).}
-#'     \item{windspeed}{Wind speed at animal height (m s^-1).}
-#'     \item{pk}{Atmospheric pressure (kPa).}
-#'   }
-#' @param lat Latitude (decimal degrees).
-#' @param long Longitude (decimal degrees).
-#'
-#' @return Net energy balance (W), with positive values indicating heat gain
-#'   and negative values indicating heat loss.
-#'
-#' @details
-#' Absorbed shortwave and longwave radiation are calculated from body geometry,
-#' orientation and surface properties. Emitted longwave radiation is determined
-#' from body temperature. Sensible heat exchange is calculated using resistances
-#' appropriate for mammals or birds, representing different insulation states.
-#' Basal metabolic heat production is added and the resulting energy balance is
-#' returned for the whole animal.
-#'
-#' @export
-Endothermstress <- function(endo_params, tme, microcdata, lat, long) {
-  # ------------------- Set constants ---------------------------------------- #
-  sb <- 5.67e-8 # Stefan-Boltzmann constant
-  # ---------------- Calculate absorbed radiation ---------------------------- #
-  # Calculate solar position
-  solp <- sunposition(tme, lat, long)
-  # Calculate absorbed radiation
-  sil <- with(endo_params, silhouette(solp$zen, solp$azi, height, width, len,
-                                      adir, atilt, position))
-  sc <-  with(sil, silA / SurfArea)
-  if (endo_params$confrac < 0.5) { # Only lower portion in contact with surface
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown +
-                 0.5 * (1 - endo_params$confrac)  * microcdata$Rswup) *
-      (1 - endo_params$refl)
-    Rlwabs <- 0.5 * (microcdata$Rlwdown + (1 - endo_params$confrac)  *
-                       microcdata$Rlwup) * endo_params$em
-  } else {  # Upper portion in contact with surface too
-    upcon <-  endo_params$confrac - 0.5 # upper portion in contact with surface
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown) *
-      (1 - endo_params$refl) * (1 - upcon)
-    Rlwabs <- (0.5 * microcdata$Rlwdown) * (1 - upcon) * endo_params$em
-  }
-  Rabs <- Rswabs + Rlwabs
-  Rabs <- Rswabs + Rlwabs
-  # ----------------- Calculate emitted radiation ---------------------------- #
-  Rem <- with(endo_params, em * sb * (Tbody + 273.15)^4)
-  # ----------------- Calculate sensible heat flux --------------------------- #
-  tair <- microcdata$Tair
-  windspeed <- microcdata$windspeed
-  wdir <-   microcdata$winddir
-  if (endo_params$type == "mammal") {
-    rHas <- with(endo_params, mammal_resistance(height, width, len, coatthick,
-            Tbody, tair, adir, atilt, position, windspeed, wdir))
-  } else if (endo_params$type == "bird") {
-    rHas <- with(endo_params, bird_resistance(height, width, len, rho,
-            Tbody, tair, adir, atilt, position, windspeed, wdir))
-  } else stop("Endotherm type not recognised")
-  ph <- rhoair(tair, microcdata$pk)
-  cp <- cpair(tair)
-  H_warm <- (ph * cp / rHas$rHa_warm) * (endo_params$Tbody - tair)
-  H_cold <- (ph * cp / rHas$rHa_cold) * (endo_params$Tbody - tair)
-  # ----------------- Calculate contact heat flux --------------------------- #
-  Hc_warm <- (ph * cp / (rHas$rHa_warm - rHas$rHa_bound)) *
-    (endo_params$Tbody - microcdata$Tsurf)
-  Hc_cold <- (ph * cp / (rHas$rHa_cold - rHas$rHa_bound)) *
-    (endo_params$Tbody - microcdata$Tsurf)
-  HH_warm <- (1 - endo_params$confrac) * H_warm + endo_params$confrac * Hc_warm
-  HH_cold <- (1 - endo_params$confrac) * H_cold + endo_params$confrac * Hc_cold
-  M <- endo_params$basmet / sil$SurfArea
-  # --------------------- Calculate energy balance --------------------------- #
-  EB_cold <- Rabs - Rem - HH_cold + M # W/m^2
-  EB_warm <- Rabs - Rem - HH_warm + M # W/m^2
-  if (EB_warm > 0) {
-    EB <- EB_warm
-  } else {
-    EB <- EB_cold
-  }
-  EB <- EB * sil$SurfArea
-  return(EB)
-}
-#' Physiologically equivalent temperature for an endotherm
-#'
-#' @description Computes the physiologically equivalent temperature (PET) for
-#' an endotherm at a single time step: the air temperature in a standard
-#' reference environment (calm wind, no additional radiation) that would
-#' produce the same body temperature and heat loss as the animal has in the
-#' environment being considered.
-#'
-#' @param endo_params A list of endotherm parameters with the following entries:
-#'   \describe{
-#'     \item{height}{Body height (cm).}
-#'     \item{width}{Body width (cm).}
-#'     \item{len}{Body length (cm).}
-#'     \item{refl}{Shortwave reflectance of the body surface (unitless).}
-#'     \item{em}{Longwave emissivity of the body surface (unitless).}
-#'     \item{confrac}{Fraction of body surface in conductive contact with the substrate (unitless).}
-#'     \item{adir}{Body orientation relative to north (degrees).}
-#'     \item{atilt}{Body tilt angle relative to the horizontal (degrees).}
-#'     \item{position}{Descriptor of body position (character).}
-#'     \item{Tbody}{Body temperature (degrees C).}
-#'     \item{type}{Endotherm type; one of \code{"mammal"} or \code{"bird"}.}
-#'     \item{basmet}{Basal metabolic rate (W).}
-#'     \item{coatthick}{Coat thickness (cm; mammals only).}
-#'     \item{rho}{Body density (kg m^-3; birds only).}
-#'   }
-#' @param tme POSIXlt object indicating date and time in UTC.
-#' @param microcdata A list of microclimate variables with the following entries:
-#'   \describe{
-#'     \item{Tair}{Air temperature (degrees C).}
-#'     \item{Tsurf}{Surface temperature (degrees C).}
-#'     \item{Rdirdown}{Direct shortwave radiation flux perpendicular to the solar beam (W m^-2).}
-#'     \item{Rdifdown}{Diffuse downward shortwave radiation flux (W m^-2).}
-#'     \item{Rswup}{Upward shortwave radiation flux (W m^-2).}
-#'     \item{Rlwdown}{Downward longwave radiation flux (W m^-2).}
-#'     \item{Rlwup}{Upward longwave radiation flux (W m^-2).}
-#'     \item{winddir}{Wind direction (degrees from north).}
-#'     \item{windspeed}{Wind speed at animal height (m s^-1).}
-#'     \item{pk}{Atmospheric pressure (kPa).}
-#'   }
-#' @param lat Latitude (decimal degrees).
-#' @param long Longitude (decimal degrees).
-#' @param uref  reference (standardising) wind speed used to express the
-#' @param iters integer specifying how many times to iterate the equation (4 achieves near exact solution)
-#'
-#' @return Physiologically equivalent temperature (degrees C)
-#' @export
-EndothermPET <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, iters = 4) {
+operativetemp <- function(Rabs, tair, rHa, em, pk) {
   sb <- 5.67e-8
-  # ---------------- Absorbed and emitted radiation (as Endothermstress) ----- #
+  rcp <- rhoair(tair, pk) * cpair(tair) # volumetric heat capacity of air (J m^-3 K^-1)
+  # Radiative exchange behaves as a resistance alongside convection, smaller the
+  # warmer the surroundings
+  rR <- rcp / (4 * em * sb * (tair + 273.15)^3)
+  re <- 1 / (1 / rHa + 1 / rR)
+  # Air temperature raised by the radiation absorbed beyond what the surface
+  # would emit at air temperature
+  Te <- tair + re * (Rabs - em * sb * (tair + 273.15)^4) / rcp
+  return(list(Te = Te, re = re))
+}
+#' @title Resistance of a coat to heat
+#' @description Calculates the resistance of a layer of fur or plumage to the flow
+#' of heat from skin to coat surface.
+#' @param depth coat depth (cm)
+#' @param kcoat effective thermal conductivity of the coat (W m^-1 K^-1),
+#' including radiation between fibres. Typically 0.04 to 0.08.
+#' @param tair air temperature (degrees C)
+#' @param pk atmospheric pressure (kPa)
+#' @return resistance to heat (s m^-1)
+#' @export
+coatresistance <- function(depth, kcoat, tair, pk) {
+  # Conduction across the coat, expressed in the same units as a boundary layer
+  rcp <- rhoair(tair, pk) * cpair(tair)
+  rc <- rcp * (depth / 100) / kcoat
+  return(rc)
+}
+#' @title Resistance of body tissue to heat
+#' @description Calculates the resistance to the flow of heat from the body core
+#' to the skin, for a body in which heat is produced throughout.
+#' @param volume body volume (m^3)
+#' @param area body surface area (m^2)
+#' @param kflesh effective thermal conductivity of the flesh (W m^-1 K^-1). Blood
+#' flow to the skin raises it: about 0.5 with vessels near the skin constricted,
+#' several times that with them dilated.
+#' @param tair air temperature (degrees C)
+#' @param pk atmospheric pressure (kPa)
+#' @return resistance to heat (s m^-1)
+#' @details In a sphere of radius R producing heat uniformly, the temperature
+#' drop from centre to surface is that across a resistance R / 2k per unit area.
+#' For an ellipsoid, R is taken as three times volume over surface area, which is
+#' the radius for a sphere.
+#' @export
+tissueresistance <- function(volume, area, kflesh, tair, pk) {
+  rcp <- rhoair(tair, pk) * cpair(tair)
+  # Radius of the equivalent sphere (m), and conduction from centre to surface
+  # with heat produced throughout
+  R <- 3 * volume / area
+  rt <- rcp * R / (2 * kflesh)
+  return(rt)
+}
+#' @title Endotherm heat balance
+#' @description Calculates what a bird or mammal must do to hold its core at body
+#' temperature at a single time step, and the physiologically equivalent
+#' temperature of its surroundings.
+#' @param endo_params a list of endotherm parameters as returned by [create_endop()]
+#' @param tme POSIXlt object indicating date and time in UTC
+#' @param microcdata a list of microclimate variables with the following entries:
+#'   \describe{
+#'     \item{Tair}{Air temperature (degrees C).}
+#'     \item{relhum}{Air relative humidity (percentage).}
+#'     \item{pk}{Atmospheric pressure (kPa).}
+#'     \item{windspeed}{Wind speed at animal height (m s^-1).}
+#'     \item{winddir}{Wind direction (degrees from north).}
+#'     \item{Rdirdown}{Direct shortwave radiation flux perpendicular to the solar beam (W m^-2).}
+#'     \item{Rdifdown}{Diffuse downward shortwave radiation flux (W m^-2).}
+#'     \item{Rswup}{Upward shortwave radiation flux (W m^-2).}
+#'     \item{Rlwdown}{Downward longwave radiation flux (W m^-2).}
+#'     \item{Rlwup}{Upward longwave radiation flux (W m^-2).}
+#'   }
+#' @param lat latitude (decimal degrees)
+#' @param long longitude (decimal degrees)
+#' @param uref wind speed of the reference setting for the physiologically
+#' equivalent temperature (m s^-1). Default 0.1.
+#' @param evapunits units in which evaporation is returned: \code{"W"} (heat
+#' lost by evaporation, the default), \code{"L/day"} (water evaporated, litres
+#' per day) or \code{"percent"} (water evaporated as a percentage of body mass
+#' per day)
+#' @return a list with:
+#' \describe{
+#'   \item{regime}{\code{"cold"}, \code{"thermoneutral"} or \code{"hot"}}
+#'   \item{Mreq}{metabolic rate required to hold body temperature (W)}
+#'   \item{Mbasal}{basal metabolic rate (W)}
+#'   \item{Ereq}{evaporation required to hold body temperature, from breathing
+#'   and skin together, in \code{evapunits}}
+#'   \item{Emax}{most the animal can evaporate, panting at its fastest and, if it
+#'   sweats, with its skin fully wet, in \code{evapunits}}
+#'   \item{Tskin}{skin temperature (degrees C)}
+#'   \item{Tsurf}{coat surface temperature (degrees C)}
+#'   \item{Te}{operative temperature (degrees C)}
+#'   \item{PET}{physiologically equivalent temperature (degrees C)}
+#' }
+#' @details The animal is a core held at body temperature, losing heat through
+#' three resistances in series: tissue between core and skin, the coat, and the
+#' surroundings (boundary layer and radiation in parallel). The animal regulates
+#' the first through blood flow to the skin. Some heat is also lost by breathing,
+#' as inhaled air leaves saturated at body temperature; the air breathed rises
+#' with metabolic rate, 20 percent of the oxygen in it being used (as in
+#' NicheMapR). If heat lost with blood flow at its lowest still exceeds what basal
+#' metabolism can supply, the animal is cold and must raise its metabolic rate. If
+#' heat lost with blood flow at its highest is less than basal metabolism, it is
+#' hot and must evaporate the rest. Between the two it is thermoneutral. Panting
+#' raises the rate of breathing up to \code{pantmax} times; an animal that sweats
+#' can wet its whole skin, and vapour then passes through the coat and boundary
+#' layer, which are taken to resist vapour as they resist heat.
+#'
+#' The physiologically equivalent temperature is the air temperature of a
+#' reference setting (shade, surroundings at air temperature, wind \code{uref}) in
+#' which the animal would have the same core and skin temperature, and so the same
+#' heat flux from the skin, as in the actual conditions. Evaporation is the same in
+#' both settings, so humidity does not enter it.
+#' @export
+Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapunits = "W") {
+  p <- endo_params
+  Tair <- microcdata$Tair
+  pk <- microcdata$pk
+  rcp <- rhoair(Tair, pk) * cpair(Tair)
+
+  # Body size, the radiation the body absorbs and its size as the wind meets it
   solp <- sunposition(tme, lat, long)
-  sil <- with(endo_params, silhouette(solp$zen, solp$azi, height, width, len,
-                                     adir, atilt, position))
-  sc <- with(sil, silA / SurfArea)
-  if (endo_params$confrac < 0.5) {
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown +
-                 0.5 * (1 - endo_params$confrac) * microcdata$Rswup) *
-      (1 - endo_params$refl)
-    Rlwabs <- 0.5 * (microcdata$Rlwdown + (1 - endo_params$confrac) *
-                       microcdata$Rlwup) * endo_params$em
-  } else {
-    upcon <- endo_params$confrac - 0.5
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown) *
-      (1 - endo_params$refl) * (1 - upcon)
-    Rlwabs <- (0.5 * microcdata$Rlwdown) * (1 - upcon) * endo_params$em
+  geo <- silhouette(solp$zen, solp$azi, p$height, p$width, p$len, p$adir, p$atilt, p$position)
+  A <- geo$SurfArea
+  Rabs <- animalRabs(p, solp, microcdata)
+  d <- chardim(microcdata$winddir, p$height, p$width, p$len, p$adir, p$atilt, p$position,
+               solp$zen, solp$azi)
+
+  # Heat lost by breathing, as a share of metabolic rate: air breathed per joule
+  # of metabolism (20.1 kJ per litre of oxygen, 20 percent of the oxygen used)
+  # leaves saturated at body temperature, carrying the latent heat of the water
+  vapdens <- function(e, tc) e * 1000 * 0.018015 / (8.314 * (tc + 273.15)) # kg m^-3
+  ea <- satvap(Tair) * microcdata$relhum / 100
+  airperJ <- 1 / (20.1e6 * 0.2095 * 0.2) # m^3 of air per J
+  lakg <- latvap(p$Tb) / 0.018015 # latent heat (J kg^-1)
+  fresp <- airperJ * lakg * max(vapdens(satvap(p$Tb), p$Tb) - vapdens(ea, Tair), 0)
+
+  # Resistances of coat and of tissue at lowest and highest blood flow, and basal
+  # metabolism per unit body surface
+  rc <- coatresistance(p$coat, p$kcoat, Tair, pk)
+  rtmax <- tissueresistance(geo$Volume, A, p$kmin, Tair, pk)
+  rtmin <- tissueresistance(geo$Volume, A, p$kmax, Tair, pk)
+  Mb <- p$basmet / A
+
+  # Heat balance. The boundary layer depends on the temperature of the coat
+  # surface, so the balance is repeated until that settles
+  Tsurf <- Tair
+  for (i in 1:10) {
+    rHa <- animalrHa(Tair, Tsurf - Tair, microcdata$windspeed, d)
+    ot <- operativetemp(Rabs, Tair, rHa, p$em, pk)
+    Te <- ot$Te
+    re <- ot$re
+    # Dry heat loss for a given tissue resistance (W m^-2)
+    Q <- function(rt) rcp * (p$Tb - Te) / (rt + rc + re)
+    if (Q(rtmax) >= Mb * (1 - fresp)) {
+      # Cold: blood flow at its lowest, metabolism makes up the loss
+      regime <- "cold"
+      rt <- rtmax
+      Mreq <- Q(rt) / (1 - fresp)
+    } else if (Q(rtmin) >= Mb * (1 - fresp)) {
+      # Thermoneutral: blood flow set so that basal metabolism balances the loss
+      regime <- "thermoneutral"
+      rt <- rcp * (p$Tb - Te) / (Mb * (1 - fresp)) - rc - re
+      Mreq <- Mb
+    } else {
+      # Hot: blood flow at its highest, evaporation removes the rest
+      regime <- "hot"
+      rt <- rtmin
+      Mreq <- Mb
+    }
+    Ereq <- Mreq - Q(rt)
+    # Skin and coat surface temperatures, from the share of the drop from core to
+    # surroundings that lies outside each
+    Tsurf <- Te + (p$Tb - Te) * re / (rt + rc + re)
+    Tskin <- Te + (p$Tb - Te) * (rc + re) / (rt + rc + re)
   }
-  Rabs <- Rswabs + Rlwabs
-  Rem <- with(endo_params, em * sb * (Tbody + 273.15)^4)
-  # ---------------- Actual sensible + contact heat exchange ------------------ #
-  tair <- microcdata$Tair
-  windspeed <- microcdata$windspeed
-  wdir <- microcdata$winddir
-  if (endo_params$type == "mammal") {
-    rHas <- with(endo_params, mammal_resistance(height, width, len, coatthick,
-                                                Tbody, tair, adir, atilt, position, windspeed, wdir))
-    rHas_ref <- with(endo_params, mammal_resistance(height, width, len, coatthick,
-                                                    Tbody, tair, adir, atilt, position, uref, wdir))
-  } else if (endo_params$type == "bird") {
-    rHas <- with(endo_params, bird_resistance(height, width, len, rho,
-                                              Tbody, tair, adir, atilt, position, windspeed, wdir))
-    rHas_ref <- with(endo_params, bird_resistance(height, width, len, rho,
-                                                  Tbody, tair, adir, atilt, position, uref, wdir))
-  } else stop("Endotherm type not recognised")
-  ph <- rhoair(tair, microcdata$pk)
-  cp <- cpair(tair)
-  H_warm <- (ph * cp / rHas$rHa_warm) * (endo_params$Tbody - tair)
-  H_cold <- (ph * cp / rHas$rHa_cold) * (endo_params$Tbody - tair)
-  Hc_warm <- (ph * cp / (rHas$rHa_warm - rHas$rHa_bound)) *
-    (endo_params$Tbody - microcdata$Tsurf)
-  Hc_cold <- (ph * cp / (rHas$rHa_cold - rHas$rHa_bound)) *
-    (endo_params$Tbody - microcdata$Tsurf)
-  HH_warm <- (1 - endo_params$confrac) * H_warm + endo_params$confrac * Hc_warm
-  HH_cold <- (1 - endo_params$confrac) * H_cold + endo_params$confrac * Hc_cold
-  # ---------------- Pick regulatory state exactly as Endothermstress -------- #
-  M <- endo_params$basmet / sil$SurfArea
-  EB_warm <- Rabs - Rem - HH_warm + M
-  if (EB_warm > 0) {
-    Renv <- Rabs - Rem - HH_warm
-    rHa_ref <- rHas_ref$rHa_warm
-  } else {
-    Renv <- Rabs - Rem - HH_cold
-    rHa_ref <- rHas_ref$rHa_cold
+
+  # Most the animal can evaporate (W m^-2): breathing at its fastest, and vapour
+  # from the wetted share of the skin through coat and boundary layer
+  wet <- if (p$sweat) 1 else p$wetfrac
+  Eskin <- wet * rhoair(Tair, pk) * latvap(Tskin) * max(satvap(Tskin) - ea, 0) / ((rc + rHa) * pk)
+  Emax <- p$pantmax * fresp * Mreq + Eskin
+
+  # Physiologically equivalent temperature: the still-air temperature that drives
+  # the same heat flux from skin at the same temperature through coat and
+  # reference boundary layer
+  Qdry <- Q(rt)
+  dref <- chardim(0, p$height, p$width, p$len, position = "random")
+  PET <- Tair
+  Tsr <- Tsurf
+  for (i in 1:10) {
+    rHr <- animalrHa(PET, Tsr - PET, uref, dref)
+    rer <- operativetemp(p$em * 5.67e-8 * (PET + 273.15)^4, PET, rHr, p$em, pk)$re
+    PET <- Tskin - Qdry * (rc + rer) / rcp
+    Tsr <- PET + Qdry * rer / rcp
   }
-  # ---------- Solve for equivalent temperature (Penman-style linearisation) - #
-  # Reference environment = blackbody enclosure at Te with convective exchange
-  # at the reference wind speed; both must together reproduce Renv:
-  #   em*sb*((Te+273.15)^4-(Tbody+273.15)^4) + (ph*cp/rHa_ref)*(Te-Tbody) = Renv
-  # Solved by linearising the radiative term and iterating (cf. the "iters"
-  # argument on SolveEnergyBalance), rather than a general root solver.
-  gconv <- (ph * cp) / rHa_ref
-  Te <- endo_params$Tbody
-  for (i in 1:iters) {
-    grad <- 4 * endo_params$em * sb * (Te + 273.15)^3
-    resid <- endo_params$em * sb * ((Te + 273.15)^4 - (endo_params$Tbody + 273.15)^4) +
-      gconv * (Te - endo_params$Tbody) - Renv
-    Te <- Te - resid / (grad + gconv)
-  }
-  return(Te)
+
+  # Evaporation for the whole animal, in the units asked for
+  E <- c(Ereq, Emax) * A
+  if (evapunits == "L/day") {
+    E <- E / lakg * 86400
+  } else if (evapunits == "percent") {
+    E <- 100 * E / lakg * 86400 / (geo$Volume * p$rho)
+  } else if (evapunits != "W") stop("evapunits must be W, L/day or percent")
+
+  out <- list(regime = regime, Mreq = Mreq * A, Mbasal = p$basmet, Ereq = E[1], Emax = E[2],
+              Tskin = Tskin, Tsurf = Tsurf, Te = Te, PET = PET)
+  return(out)
+}
+#' @title Endotherm parameters
+#' @description Creates a list of parameters for [Endotherm()] for a bird or
+#' mammal from its size and coat. Physiological values are typical ones from the
+#' literature, so that only things that can be seen or measured need be given.
+#' Any value can be changed in the returned list.
+#' @param height body height (cm)
+#' @param width body width (cm)
+#' @param len body length (cm)
+#' @param coat depth of fur or plumage (cm)
+#' @param type one of \code{"mammal"} or \code{"bird"}
+#' @param sweat logical: can the animal sweat? Default \code{FALSE}.
+#' @param refl shortwave reflectance of the coat. Default 0.2.
+#' @param adir body azimuth direction (degrees). Default 0.
+#' @param atilt body tilt (degrees). See [silhouette()]. Default 0.
+#' @param position assumption about body orientation. See [silhouette()].
+#' Default \code{"randomdir"}.
+#' @return a list of parameters:
+#' \describe{
+#'   \item{height, width, len, coat, sweat, adir, atilt, position, refl}{as given}
+#'   \item{em}{longwave emissivity of the coat: 0.97}
+#'   \item{rho}{body density (kg m^-3): 1000}
+#'   \item{Tb}{core body temperature (degrees C): 37 for mammals, as in NicheMapR;
+#'   40 for birds, between the mean resting and active values of Prinzinger et al.
+#'   (1991)}
+#'   \item{basmet}{basal metabolic rate (W), from body mass by Kleiber's relation,
+#'   70 kcal per day times mass in kg to the power 0.75}
+#'   \item{kmin, kmax}{effective flesh conductivity with least and most blood flow
+#'   to the skin (W m^-1 K^-1): 0.9 and 2.8, NicheMapR's values}
+#'   \item{kcoat}{effective conductivity of fur or plumage (W m^-1 K^-1): 0.05,
+#'   measured for cattle hair coats (Maia et al. 2005). Scholander et al. (1950)
+#'   found insulation roughly in proportion to coat depth across arctic and
+#'   tropical mammals, so one value serves.}
+#'   \item{wetfrac}{share of the skin that is wet without sweating: 0.005, as in
+#'   NicheMapR}
+#'   \item{pantmax}{most by which panting raises the rate of breathing: 5, as in
+#'   NicheMapR}
+#' }
+#' @references Kearney MR, Briscoe NJ, Mathewson PD, Porter WP (2021) NicheMapR:
+#' an R package for biophysical modelling: the endotherm model. Ecography 44:
+#' 1595-1605.
+#'
+#' Kleiber M (1947) Body size and metabolic rate. Physiological Reviews 27:
+#' 511-541.
+#'
+#' Maia ASC, da Silva RG, Loureiro CMB (2005) Effective thermal conductivity of
+#' the hair coat of Holstein cows in a tropical environment. Revista Brasileira
+#' de Zootecnia 34: 2051-2058.
+#'
+#' Prinzinger R, Pressmar A, Schleucher E (1991) Body temperature in birds.
+#' Comparative Biochemistry and Physiology 99A: 499-506.
+#'
+#' Scholander PF, Walters V, Hock R, Irving L (1950) Body insulation of some
+#' arctic and tropical mammals and birds. Biological Bulletin 99: 225-236.
+#' @export
+create_endop <- function(height, width, len, coat, type = "mammal", sweat = FALSE, refl = 0.2,
+                         adir = 0, atilt = 0, position = "randomdir") {
+  if (!type %in% c("mammal", "bird")) stop("type must be mammal or bird")
+  # Body mass from the volume of the ellipsoid, and basal metabolism from mass
+  # (70 kcal per day is 3.39 W)
+  volume <- (4 / 3) * pi * (height / 200) * (width / 200) * (len / 200)
+  basmet <- 3.39 * (volume * 1000)^0.75
+  out <- list(height = height, width = width, len = len, coat = coat, sweat = sweat,
+              adir = adir, atilt = atilt, position = position, refl = refl, em = 0.97,
+              rho = 1000, Tb = if (type == "bird") 40 else 37, basmet = basmet,
+              kmin = 0.9, kmax = 2.8, kcoat = 0.05, wetfrac = 0.005, pantmax = 5)
+  return(out)
 }
