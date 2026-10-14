@@ -1846,7 +1846,7 @@ We now move to a more realistic model in which the soil is divided into vertical
 
 At each timestep, the temperatures of all soil layers are calculated simultaneously by solving the heat equation using a tridiagonal matrix using function `SoilHeatModel`. Because surface heat exchange itself depends on surface temperature, the calculation is iterated until the surface energy balance converges. Temperature is held fixed at the lower boundary, typically at a depth where daily fluctuations are negligible.
 
-We first use `createsoilplist` to define the soil profile, specifying its type, depth and number of layers. The function assigns default values for bulk density and the proportions of quartz, other minerals, clay and organic matter, with bulk density increasing slightly with depth. Organic matter can also be concentrated near the surface using `surface_organicmu`. Here we use a 2 m clay loam profile with 15 layers and three times the average organic matter content in the surface layer. Other available soil types can be determined by inspecting the `createsoilplist` help file.
+We first use `createsoilplist` to define the soil profile, specifying its type, depth and number of layers. The function assigns default values for the proportions of quartz, other minerals, clay and organic matter. Organic matter can also be concentrated near the surface using `surface_organicmu`. Here we use a 2 m clay loam profile with 15 layers and three times the average organic matter content in the surface layer. Other available soil types can be determined by inspecting the `createsoilplist` help file.
 
 ```{r eval=FALSE}
 # -------------- Generate list of soil model parameters --------------- #
@@ -2039,7 +2039,7 @@ par(mar = c(5, 5, 2, 2),
 plot(theta, log10(-psiw1),
      type = "l",
      lwd = 2,
-     ylim = c(log10(1e7), log10(1.2)),
+     ylim = c(log10(1e4), log10(1)),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
@@ -2048,7 +2048,7 @@ plot(theta, log10(-psiw1),
 lines(theta, log10(-psiw2),
       col = "red",
       lwd = 2)
-exps <- 0:7
+exps <- 0:4
 axis(2,
      at = log10(10^exps),
      cex.axis = 2,
@@ -2063,7 +2063,7 @@ legend("bottomright",
 
 ![](images/img24a.png)
 
-The van Genuchten model gives more negative potentials throughout. The curves differ by about a factor of two at higher water contents but diverge increasingly as the soil dries. This difference matters less for water movement than might be expected, because hydraulic conductivity becomes extremely low in dry soil, limiting water redistribution.
+The two curves are similar, differing by no more than about a factor of two. They meet in wet soil and again at a water content of about 0.1, where the van Genuchten potential begins to fall steeply as water content approaches its residual value.
 
 Soil texture also strongly influences water retention. Below, we compare clay and sand using the van Genuchten formulation over the same range of water contents.
 
@@ -2090,7 +2090,7 @@ par(mar = c(5, 5, 2, 2))
 plot(theta, log10(-psiw1),
      type = "l",
      lwd = 2,
-     ylim = c(log10(1e9), log10(0.1)),
+     ylim = c(log10(1e10), log10(0.1)),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
@@ -2099,7 +2099,7 @@ plot(theta, log10(-psiw1),
 lines(theta, log10(-psiw2),
       col = "red",
       lwd = 2)
-exps <- -1:9
+exps <- -1:10
 axis(2,
      at = log10(10^exps),
      cex.axis = 2,
@@ -2116,7 +2116,7 @@ legend("bottomright",
 
 At the same water content, sand has a much less negative water potential than clay, reflecting its larger pores and weaker retention of water. Clay therefore holds water more tightly, although this does not necessarily mean more water is available to plants.
 
-Water potential helps determine the direction of water movement, but its rate depends on **hydraulic conductivity**. As soil dries, fewer pores remain water-filled and connected, causing conductivity to decline sharply. Below, we compare the Campbell and van Genuchten formulations for clay loam, again using a logarithmic scale to show the large changes with water content.
+Water potential helps determine the direction of water movement, but its rate depends on **hydraulic conductivity**. As soil dries, fewer pores remain water-filled and connected, causing conductivity to decline sharply. Below, we compare the Campbell and van Genuchten formulations for clay loam, again using a logarithmic scale to show the large changes with water content. The van Genuchten curve takes two parameters fitted to measured conductivities: a conductivity at saturation, `Ko`, and a pore connectivity parameter, `L`.
 
 ```{r eval=FALSE}
 Campbell_params <- Campbellparams("Clay loam")
@@ -2133,7 +2133,8 @@ Ks2 <- with(VG_params,
                                              Smin, # residual water content
                                              Smax, # volumetric water content at saturation
                                              n, # van Genuchten shape parameter
-                                             Ksat)) # saturated hydraulic conductivity
+                                             Ko, # conductivity at the matching point
+                                             L)) # pore connectivity parameter
 
 # ----------------------------- Plot results ------------------------------ #
 par(mar = c(5, 5, 2, 2))
@@ -2141,7 +2142,7 @@ plot(theta, Ks1,
      log = "y",
      type = "l",
      lwd = 2,
-     ylim = c(1e-20, 1e-4),
+     ylim = c(1e-14, 1e-5),
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression("Conductivity (kg s m"^-3 * ")"),
      cex.axis = 2,
@@ -2159,7 +2160,7 @@ legend("bottomright",
 
 ![](images/img24c.png)
 
-Both formulations predict a decline of several orders of magnitude as the soil dries, with van Genuchten giving lower conductivities throughout this range. Together, the water retention and hydraulic conductivity relationships determine how readily water is redistributed through the soil profile.
+Both formulations predict a decline of several orders of magnitude as the soil dries. The van Genuchten curve gives higher conductivities in drier soil and slightly lower ones in the wettest. Together, the water retention and hydraulic conductivity relationships determine how readily water is redistributed through the soil profile.
 
 With these relationships defined, we can now model water movement through the soil. As with the heat model, the soil is divided into vertical layers, with fluxes calculated between them. However, soil water flow is strongly nonlinear because hydraulic conductivity changes by many orders of magnitude with water content. `SoilWaterModel` therefore uses a Newton–Raphson method, iteratively adjusting the solution until the equations governing water movement and storage are satisfied. This requires calculating how fluxes respond to changes in water potential. The Campbell formulation is used because its simple power-law relationships make these calculations efficient.
 

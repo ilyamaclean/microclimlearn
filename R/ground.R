@@ -117,7 +117,6 @@
 #' The selected soil parameter values are replicated across \code{nlayers + 1}
 #' soil nodes. Organic matter content is adjusted vertically with corresponding
 #' rescaling of mineral and related soil constituents to preserve total volume.
-#' Bulk density is also adjusted slightly with depth.
 #'
 #' Available soil types (argument \code{soiltype}) are:
 #' \itemize{
@@ -143,7 +142,6 @@
 #'   \item{Vm}{Mineral fraction by volume (m^3 m^-3), repeated for each soil layer}
 #'   \item{Vo}{Organic fraction by volume (m^3 m^-3), repeated for each soil layer and adjusted with depth}
 #'   \item{Mc}{Mass fraction of clay (kg kg^-1), repeated for each soil layer}
-#'   \item{rho}{Bulk density (Mg m^-3), repeated for each soil layer and adjusted with depth}
 #'   \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer.
 #'     The Campbell hydraulic conductivity exponent used internally by the soil water solver
 #'     is derived from this as \code{2 * b + 3}; it is not a separate element of this list.}
@@ -166,7 +164,7 @@ createsoilplist <- function(soiltype = "Clay loam", nlayers = 15, totalDepth = 3
   # every node to begin with
   soilparams <- micropoint::newsoilparamstable
   s <- which(soilparams$Soil.type == soiltype)
-  campbellcols <- c("Smax", "Smin", "Ksat", "Vq", "Vm", "Vo", "Mc", "rho", "b", "psi_e")
+  campbellcols <- c("Smax", "Smin", "Ksat", "Vq", "Vm", "Vo", "Mc", "b", "psi_e")
   v <- as.numeric(soilparams[s, campbellcols])
   names(v) <- campbellcols
   soilc <- as.list(v)
@@ -185,9 +183,6 @@ createsoilplist <- function(soiltype = "Clay loam", nlayers = 15, totalDepth = 3
   soilc$Vm <- soilc$Vm * mu
   soilc$Vq <- soilc$Vq * mu
   soilc$Mc <- soilc$Mc * mu
-  # Bulk density increases slightly with depth
-  mu <- seq(0.9, 1.1, length.out = nlayers + 1)
-  soilc$rho <- soilc$rho * mu
   # Radiative properties of the soil surface, and its slope and aspect
   soilc$gref <- 0.15
   soilc$groundem <- 0.97
@@ -612,12 +607,18 @@ Campbellparams <- function(soiltype) {
 #'   \item{n}{Pore size distribution parameter (unitless)}
 #'   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
 #'   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
-#'   \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3)}
+#'   \item{Ko}{Matching point hydraulic conductivity of the unsaturated conductivity curve (kg s / m^3)}
+#'   \item{L}{Pore connectivity parameter of the unsaturated conductivity curve (unitless)}
 #' }
-#' @references Bittelli M, Campbell GS, Tomei F (2015) Soil Physics with
-#' Python: Transport in the Soil-Plant-Atmosphere System. Oxford University
-#' Press. Table 5.4.
+#' @references Schaap MG, Leij FJ (2000) Improved prediction of unsaturated
+#' hydraulic conductivity with the Mualem-van Genuchten model. Soil Science
+#' Society of America Journal 64: 843-851.
+#'
+#' Schaap MG, Leij FJ, van Genuchten MTh (2001) Rosetta: a computer program for
+#' estimating soil hydraulic parameters with hierarchical pedotransfer
+#' functions. Journal of Hydrology 251: 163-176.
 #' @details
+#' The values are the class averages of the Rosetta pedotransfer functions.
 #' Available soil types (argument \code{soiltype}) are:
 #' \itemize{
 #'   \item Sand
@@ -635,20 +636,22 @@ Campbellparams <- function(soiltype) {
 #' }
 #' @export
 VGparams <- function(soiltype) {
-  # Parameters of the water retention curve for each soil type
+  # Parameters of the water retention and unsaturated conductivity curves,
+  # averaged over the soils of each texture class
   vg <- data.frame(
     Soil.type = c("Sand", "Loamy sand", "Sandy loam", "Loam", "Silt loam", "Sandy clay loam",
                   "Clay loam", "Silty clay loam", "Sandy clay", "Silty clay", "Clay", "Silt"),
-    alpha = c(0.68, 0.49, 0.39, 0.18, 0.14, 0.23, 0.19, 0.14, 0.22, 0.18, 0.17, 0.08),
-    n     = c(1.70, 1.50, 1.40, 1.21, 1.20, 1.22, 1.18, 1.20, 1.18, 1.16, 1.16, 1.24),
-    Smin  = c(0.02, 0.03, 0.05, 0.05, 0.05, 0.05, 0.06, 0.05, 0.07, 0.06, 0.07, 0.04),
-    Smax  = c(0.38, 0.39, 0.40, 0.42, 0.44, 0.41, 0.45, 0.46, 0.44, 0.50, 0.50, 0.44)
+    alpha = c(0.359, 0.354, 0.272, 0.113, 0.052, 0.215, 0.161, 0.086, 0.341, 0.165, 0.153, 0.067),
+    n     = c(3.177, 1.746, 1.449, 1.472, 1.663, 1.330, 1.416, 1.521, 1.208, 1.321, 1.253, 1.679),
+    Smin  = c(0.053, 0.049, 0.039, 0.061, 0.065, 0.063, 0.079, 0.090, 0.117, 0.111, 0.098, 0.050),
+    Smax  = c(0.375, 0.390, 0.387, 0.399, 0.439, 0.384, 0.442, 0.482, 0.385, 0.481, 0.459, 0.489),
+    Ko    = c(2.89e-4, 2.87e-4, 1.83e-4, 4.36e-5, 2.06e-5, 8.18e-5, 5.9e-5, 2.64e-5, 5.11e-5,
+              3.74e-5, 3.5e-5, 3.94e-5),
+    L     = c(-0.930, -0.874, -0.861, -0.371, 0.365, -1.280, -0.763, -0.156, -3.665, -1.287,
+              -1.561, 0.624)
   )
   s <- which(vg$Soil.type == soiltype)
-  out <- as.list(vg[s, c("alpha", "n", "Smin", "Smax")])
-  # Saturated hydraulic conductivity is a property of the soil, whichever curve is used
-  soilparams <- micropoint::newsoilparamstable
-  out$Ksat <- soilparams$Ksat[soilparams$Soil.type == soiltype]
+  out <- as.list(vg[s, c("alpha", "n", "Smin", "Smax", "Ko", "L")])
   return(out)
 }
 #' @title Derives soil water potential from volumetric water content using the Campbell method
@@ -769,15 +772,19 @@ hydraulicConductivityFromTheta <- function(theta, b, Smax, Ksat) {
 #' @param Smin residual volumetric soil water fraction (m^3 / m^3)
 #' @param Smax volumetric soil water fraction at saturation (m^3 / m^3)
 #' @param n van Genuchten pore size distribution parameter
-#' @param Ksat saturated hydraulic conductivity (kg s / m^3)
+#' @param Ko matching point hydraulic conductivity (kg s / m^3): the conductivity
+#' the curve gives at saturation
+#' @param L pore connectivity parameter (unitless)
 #' @return hydraulic conductivity (kg s / m^3)
 #' @export
-hydraulicConductivityFromThetaVG <- function(theta, Smin, Smax, n, Ksat) {
+hydraulicConductivityFromThetaVG <- function(theta, Smin, Smax, n, Ko, L = 0.5) {
   m <- 1 - (1 / n)
   # Degree of saturation
   Se <- (theta - Smin) / (Smax - Smin)
-  Se <- pmin(1, pmax(0, Se))
-  k <- Ksat * Se^0.5 * (1 - (1 - Se^(1/m))^m)^2
+  Se <- pmin(1, pmax(1e-12, Se))
+  # Conductivity of the water-filled pores, which falls as the soil dries and
+  # water is left only in the smallest and least connected of them
+  k <- Ko * Se^L * (1 - (1 - Se^(1/m))^m)^2
   return(k)
 }
 #' @title Updates soil water status using the soil water model
