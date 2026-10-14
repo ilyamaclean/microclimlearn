@@ -272,83 +272,70 @@ metabolic_rate <- function(volume, rho, Q10, a0, b, Tref, Tbody) {
 #' @return Body temperature (deg C)
 #' @export
 Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1e-3, maxiter = 100) {
+  sb <- 5.67e-8 # Stefan-Boltzmann constant (W m^-2 K^-4)
 
-  # ------------------- Set constants ---------------------------------------- #
-  RgasC <- 8.314 # Universal gas constant
-  sb <- 5.67e-8 # Stefan-Boltzman constant
-  D0 <- 2.26e-5 # water diiffusivity and standard pressure and temperature
-  P0 <- 101.325 # standard pressure
-  T0 <- 273.15 # standard temperature
-  # ---------------- Calculate absorbed radiation ---------------------------- #
-  # Calculate solar position
+  # Radiation absorbed per unit body surface: the direct beam on the silhouette
+  # the body presents to the sun, and half the diffuse, reflected and longwave
+  # radiation from above and below, since half the body faces each way
   solp <- sunposition(tme, lat, long)
-  # Calculate absorbed radiation
   sil <- with(ecto_params, silhouette(solp$zen, solp$azi, height, width, len,
                                       adir, atilt, position))
-  sc <-  with(sil, silA / SurfArea)
-  if (ecto_params$confrac < 0.5) { # Only lower portion in contact with surface
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown +
-                 0.5 * (1 - ecto_params$confrac)  * microcdata$Rswup) *
-      (1 - ecto_params$refl)
-    Rlwabs <- 0.5 * (microcdata$Rlwdown + (1 - ecto_params$confrac)  *
-                       microcdata$Rlwup) * ecto_params$em
-  } else {  # Upper portion in contact with surface too
-    upcon <-  ecto_params$confrac - 0.5 # upper portion in contact with surface
-    Rswabs <- (sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown) *
-      (1 - ecto_params$refl) * (1 - upcon)
-    Rlwabs <- (0.5 * microcdata$Rlwdown) * (1 - upcon) * ecto_params$em
-  }
-  Rabs <- Rswabs + Rlwabs
-  # ---------------- Calculate Characteristic dimension (m) ------------------ #
+  sc <- sil$silA / sil$SurfArea
+  Rsw <- sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown + 0.5 * microcdata$Rswup
+  Rabs <- (1 - ecto_params$refl) * Rsw +
+    0.5 * ecto_params$em * (microcdata$Rlwdown + microcdata$Rlwup)
+
+  # Size of the body as the wind meets it, which sets its boundary layer
   d <- with(ecto_params, chardim(microcdata$winddir, height, width, len, adir, atilt,
                                  position, solp$zen, solp$azi))
-  # ------------------------------- Initialize values ------------------------ #
+
+  # Heat exchange that does not depend on body temperature. The share of the body
+  # touching the ground exchanges heat with it by conduction, and water vapour by
+  # diffusion, across half the height of the body
+  Tair <- microcdata$Tair
+  Tsurf <- microcdata$Tsurf
+  pk <- microcdata$pk
+  cf <- ecto_params$confrac
+  cd <- 1 - cf
+  cp <- cpair(Tair)
+  ph <- rhoair(Tair, pk)
+  halfheight <- 0.5 * ecto_params$height / 100 # m
+  mc <- cf * ecto_params$k / halfheight # conductance to the ground (W m^-2 K^-1)
+  mr <- cd * ecto_params$em * sb # longwave emission from the exposed share
+  mrc <- cf * ecto_params$em * sb # longwave emission from the share touching the ground
+  # Moist skin is saturated at body temperature. Vapour pressure differences are
+  # taken at air temperature, with the change at body temperature added below
+  es <- satvap(Tair)
+  Da <- es - es * microcdata$relhum / 100 # skin against the air
+  Dac <- es - (microcdata$surfrelhum / 100) * satvap(Tsurf) # skin against the ground
+
+  # Body temperature from the energy balance, linearised about air temperature.
+  # Boundary layer resistance, metabolic rate and the linearisation depend on
+  # body temperature, so it is found by iteration
   error <- 1e99
   iter <- 1
-  Tbody <- microcdata$Tair + 2
+  Tbody <- Tair + 2
   while (error > tolerance && iter < maxiter) {
-    Te <- (Tbody + microcdata$Tair) / 2
-    Tf <- (Tbody + microcdata$Tsurf) / 2
-    # -------------- Compute boundary layer resistance ----------------------- #
-    dT <- abs(Tbody - microcdata$Tair)
-    rHa <- animalrHa(microcdata$Tair, dT, microcdata$windspeed, d)
-    # ------------------------- Compute metaboloc rate ----------------------- #
-    M <- with(ecto_params, metabolic_rate(volume, rho, Q10, a0, b, Tref, Tbody)
-              / area)
-    # ----------------------- Re-compute body tmeperature -------------------- #
-    cp <- cpair(microcdata$Tair)
-    ph <- rhoair(microcdata$Tair, microcdata$pk)
-    cd <- 1 - ecto_params$confrac
-    ea <- satvap(microcdata$Tair)
-    Da <- ea * (1 - microcdata$relhum / 100) # Vapour pressure deficit
-    Dac <- (microcdata$surfrelhum / 100) * satvap(Tf) - ea #  contact Vapour pressure deficit
-    # latent heat exchange through a contact interface
-    keff <- with(ecto_params, k / (0.5 * height))
-    # Calculate mus
-    mr <- cd * ecto_params$em * 5.67e-8 # emmited ratiation mu
-    mrc <- with(ecto_params, confrac * em * 5.67e-8) # emmited ratiation mu
-    mc <- keff * ecto_params$confrac # conductance mu
-    mv <- ph * cp * cd / rHa
+    Te <- (Tbody + Tair) / 2
+    Tf <- (Tbody + Tsurf) / 2
+    rHa <- animalrHa(Tair, Tbody - Tair, microcdata$windspeed, d)
+    M <- with(ecto_params, metabolic_rate(volume, rho, Q10, a0, b, Tref, Tbody) / area)
+    # Sensible and latent heat from the exposed share, with vapour leaving the
+    # skin through its own resistance and that of the boundary layer
     la <- latvap(Tbody)
-    # Total vapour resistance for exposed surface
-    rv <- rHa + ecto_params$rc
-    ml <- (ph * la * cd) / (rv * microcdata$pk)
-    Dw <- D0 * (P0 / microcdata$pk) *
-      ((Tf + 273.15) / T0)^1.75 # water diffusivity
-    rv_contact <- ecto_params$rc + ((0.5 * ecto_params$height *
-                         (microcdata$Tsurf + 273.15) * RgasC) / (Dw * 1000))
-    mlc <- (la * ecto_params$confrac) / rv_contact
-    DeV <- satvap(Te + 0.5) - satvap(Te - 0.5) # Slope of the saturated vapour pressure curve (Lv)
-    DeC <- satvap(Tf + 0.5) - satvap(Tf - 0.5) # Slope of the saturated vapour pressure curve (Lc)
-    # Calculate various contributions to body temperature
-    top <- (Rabs + M - mr * (microcdata$Tair + 273.15)^4 -
-              mrc * (microcdata$Tair + 273.15)^4 -
-              mc * dT - ml * Da - mlc * Dac)
-    btm <- 4 * mr * (Te + 273.15)^3 + 4 * mrc * (Tf + 273.15)^3 +
-      mc + mv + ml * DeV + (microcdata$surfrelhum / 100) * mlc * DeC
-    newTbody <- microcdata$Tair + top / btm
+    mv <- ph * cp * cd / rHa
+    ml <- (ph * la * cd) / ((rHa + ecto_params$rc) * pk)
+    # Latent heat through the share touching the ground, by diffusion through the
+    # air in the pores between body and ground
+    Dw <- 2.26e-5 * (101.325 / pk) * ((Tf + 273.15) / 273.15)^1.75 # diffusivity of water vapour (m^2/s)
+    mlc <- (ph * la * cf) / ((halfheight / Dw + ecto_params$rc) * pk)
+    DeV <- satvap(Te + 0.5) - satvap(Te - 0.5) # slope of the saturated vapour pressure curve
+    # Heat gained less heat lost at air temperature, over the rate at which losses
+    # rise as the body warms
+    top <- Rabs + M - (mr + mrc) * (Tair + 273.15)^4 + mc * (Tsurf - Tair) - ml * Da - mlc * Dac
+    btm <- 4 * mr * (Te + 273.15)^3 + 4 * mrc * (Tf + 273.15)^3 + mc + mv + (ml + mlc) * DeV
+    newTbody <- Tair + top / btm
     error <- abs(newTbody - Tbody)
-    error
     Tbody <- newTbody
     iter <- iter + 1
   }
@@ -511,7 +498,7 @@ bird_resistance <- function(height, width, len, rho = 730, tbody, tair,
 #' @export
 Endothermstress <- function(endo_params, tme, microcdata, lat, long) {
   # ------------------- Set constants ---------------------------------------- #
-  sb <- 5.67e-8 # Stefan-Boltzman constant
+  sb <- 5.67e-8 # Stefan-Boltzmann constant
   # ---------------- Calculate absorbed radiation ---------------------------- #
   # Calculate solar position
   solp <- sunposition(tme, lat, long)
