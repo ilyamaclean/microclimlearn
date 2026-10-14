@@ -2767,13 +2767,13 @@ plot(met_rate ~ Tbody,
 ### Ectotherms
 The components described above are combined in the `Ectothermtemp` function, which solves for ectotherm body temperature at a single time step from animal traits, time and location, and a set of local microclimate variables. The required animal properties are supplied via the ecto_params object returned by create_ectop, while microcdata provides the near-body environmental conditions, including air and surface temperature, humidity, wind speed and direction, and the upward and downward shortwave and longwave fluxes.
 
-The function first calculates solar position from time, latitude and longitude, and uses this together with body geometry and orientation to determine the fraction of direct solar radiation intercepted. Absorbed shortwave and longwave radiation are then calculated from the relevant flux components, accounting for surface reflectance, emissivity, and the fraction of the body in conductive contact with the substrate. The same body geometry is then used to compute the characteristic dimension relevant to convective heat exchange, by treating the wind as a horizontal beam and calculating projected area normal to the flow.
+The function first calculates solar position from time, latitude and longitude, and uses this together with body geometry and orientation to determine the fraction of direct solar radiation intercepted. Absorbed shortwave and longwave radiation are then calculated from the relevant flux components, accounting for surface reflectance and emissivity. The same body geometry is then used to compute the characteristic dimension relevant to convective heat exchange, by treating the wind as a horizontal beam and calculating projected area normal to the flow.
 
 Body temperature is obtained iteratively because several terms depend on body temperature itself. At each iteration the function updates the boundary layer resistance to heat loss, metabolic heat production, radiative emission, sensible heat exchange, conductive exchange with the substrate, and latent heat exchange from exposed and contacting surfaces. These terms are then combined to give an updated estimate of body temperature, and iteration continues until the change between successive estimates falls below the specified tolerance.
 
 This is a single-time-step calculation, so to predict body temperature through time it must be called repeatedly using time-varying microclimate inputs. In practice, this means first running the microclimate model to obtain the local conditions experienced by the animal, and then passing these to Ectothermtemp at each time step.
 
-The example below illustrates this workflow for a small reptile in short grass. We first subset the weather data to June, define the vegetation and soil properties, and initialise the soil heat model. We then create the ectotherm parameter list, specifying body dimensions, reflectance and orientation assumptions. At each hourly time step the canopy and soil models are run to estimate the local microclimate, including near-surface air temperature and humidity, surface temperature, and the relevant radiative fluxes. These are assembled into a `microcdata` list and passed to `Ectothermtemp`, which returns body temperature for that hour.
+The example below illustrates this workflow for a small reptile on bare ground. We first subset the weather data to June, set the ground to bare and define the soil properties, and initialise the soil heat model. We then create the ectotherm parameter list, specifying body dimensions, reflectance and orientation assumptions. At each hourly time step the ground surface energy balance and the soil model are run to estimate the local microclimate, including near-surface air temperature and humidity, surface temperature, and the relevant radiative fluxes. These are assembled into a `microcdata` list and passed to `Ectothermtemp`, which returns body temperature for that hour.
 
 ```{r eval=FALSE}
 # -------------------- Create June weather dataset ------------------------- #
@@ -2788,13 +2788,10 @@ weather <- weather[sel,]
 tme <- tme[sel]
 
 # -------------------- Create vegetation parameter set -------------------- #
-# Sparse short grass canopy
+# Bare ground
 vegp <- createplant_inputs("C3")
-vegp$h <- 0.05     # canopy height (m)
-vegp$pai <- 0.1    # plant area index
-
-# Zero-plane displacement height
-d <- zeroplanedis(0.05, 0.1)
+vegp$h <- 0     # vegetation height (m): zero for bare ground
+vegp$pai <- 0   # plant area index: zero for bare ground
 
 # -------------------- Create soil datasets and initialise models --------- #
 groundp <- micropoint::groundparams
@@ -2849,16 +2846,16 @@ for (hr in 1:720) {
 
     # -------------------- Run microclimate model ------------------------ #
 
-    # Estimate relative humidity at soil surface
+    # Estimate relative humidity at soil surface (percentage)
     soilrh <- soilrelhum(
-      0.2,
-      soilheat$Te[1],
-      psie = -3.26,
-      b = 6.62,
-      Smax = 0.46
+      0.2,              # volumetric water content at the surface
+      soilheat$Te[1],   # soil surface temperature (°C)
+      soilp$psi_e[1],   # air-entry water potential (J/kg)
+      soilp$b[1],       # Campbell shape parameter
+      soilp$Smax[1]     # water content at saturation
     )
 
-    # Solve canopy energy balance
+    # Solve the energy balance of the ground surface
     can <- solve_wholecanopy(
       weather,
       vegp,
@@ -2868,19 +2865,8 @@ for (hr in 1:720) {
       -5.215668,
       zref = 2,
       G,
-      0.2,
-      soilrh / 100
-    )
-
-    # -------- Resistance between soil surface and atmosphere ------------ #
-
-    rHg <- groundresistance(
-      vegp$h,
-      vegp$pai,
-      can$uf,
-      can$LL,
-      can$psih,
-      zref = 2
+      theta = 0.2,
+      soilrh = soilrh
     )
 
     # -------------------- Solve soil heat transport --------------------- #
@@ -2888,11 +2874,11 @@ for (hr in 1:720) {
     soilheat <- SoilHeatModel(
       soilheat,
       soilp,
-      Rabs = can$Rabs,
+      Rabs = can$Rabs,               # radiation absorbed by the ground
       Tref = weather$temp[hr],
       relhum = weather$relhum[hr],
       atmPressure = weather$pres[hr],
-      rHg
+      rHa = can$rHg                  # resistance from ground to zref
     )
 
     # Update convergence criterion
@@ -2901,40 +2887,36 @@ for (hr in 1:720) {
     itr <- itr + 1
   }
 
+  # Move the soil model on to the next time step
+  soilheat$oldTe <- soilheat$Te
+
   # --------- Calculate conditions 6 cm above the ground surface --------- #
 
-  # Roughness length
-  zm <- roughlength(vegp$h, vegp$pai, d)
+  # Resistance to heat transfer between the ground surface and 6 cm
+  r6 <- canopyresistance(0.06, can$uf, vegp$h, vegp$pai, can$LL)
 
-  # Stability correction term
-  psih6 <- dpsih(zm / can$LL) -
-    dpsim((0.06 - d) / can$LL)
-
-  # Aerodynamic resistance at 6 cm
-  rHaz <- (log((0.06 - d) / (0.2 * zm)) + psih6) /
-    (0.41 * can$uf)
-
-  # Air temperature at 6 cm
+  # Air temperature at 6 cm: the share of the temperature difference between
+  # ground and reference height that lies above 6 cm
   Tz <- weather$temp[hr] +
     (can$tcanopy - weather$temp[hr]) *
-    ((can$rHa - rHaz) / can$rHa)
+    ((can$rHa - r6) / can$rHa)
 
   # Vapour pressures
   es <- satvap(can$tcanopy)
   ea <- satvap(weather$temp[hr]) *
     (weather$relhum[hr] / 100)
 
-  # Vapour pressure at 6 cm
+  # Vapour pressure at 6 cm, where vapour from the ground also meets the
+  # resistance of the soil surface
   ez <- ea +
     (es - ea) *
-    (can$rHa + rHaz) / (can$rHa + can$rS)
+    (can$rHa - r6) / (can$rHa + can$rS)
 
   # Relative humidity at 6 cm
   Rhz <- pmin((ez / satvap(Tz)) * 100, 100)
 
   # Wind speed at 6 cm
-  uz <- (can$uf / 0.41) *
-    (log((0.06 - d) / zm) + can$psim)
+  uz <- windprofile_above(0.06, can$uf, vegp$h, vegp$pai, can$LL)
 
   # --------- Calculate upward and downward radiation fluxes ------------ #
 
@@ -2979,7 +2961,7 @@ for (hr in 1:720) {
     Tair = Tz,
     Tsurf = can$tcanopy,
     relhum = Rhz,
-    surfrelhum = 100,
+    surfrelhum = soilrh,
     pk = weather$pres[hr],
     windspeed = uz,
     winddir = weather$winddir[hr],
@@ -2987,9 +2969,9 @@ for (hr in 1:720) {
     Rdifdown = weather$difrad[hr],
     Rswup = Rswup,
     Rlwdown = weather$lwdown[hr],
-    Rlwup = vegp$em *
-      5.67e-8 *
-      (can$tcanopy + 273.15)^4
+    # longwave emitted by the ground and sky longwave it reflects
+    Rlwup = groundp$em * 5.67e-8 * (can$tcanopy + 273.15)^4 +
+      (1 - groundp$em) * weather$lwdown[hr]
   )
 
   # Solve ectotherm heat balance
@@ -3011,7 +2993,7 @@ plot(
   type = "l",
   xlab = "Date",
   ylab = "Temperature (°C)",
-  ylim = c(0, 45),
+  ylim = c(0, 50),
   col = rgb(0, 0, 0, 0.5),
   lwd = 2
 )
@@ -3024,7 +3006,7 @@ plot(
   type = "l",
   xlab = "",
   ylab = "",
-  ylim = c(0, 45),
+  ylim = c(0, 50),
   col = "red"
 )
 
@@ -3041,9 +3023,9 @@ legend(
 
 Body temperature is predicted from the local conditions experienced by the animal near the ground, not directly from standard weather data. The microclimate model is therefore used first to translate reference-height meteorological observations into temperature, humidity and radiative conditions at the animal’s height, and these are then passed to Ectothermtemp.
 
-In the final plot, the red line shows predicted body temperature and the black line the corresponding air temperature from the weather data. Differences between the two arise because the animal exchanges heat not only with the air, but also with radiation, the ground surface and the substrate.
+In the final plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. Differences between the two arise because the animal exchanges heat not only with the air, but also by radiation and by conduction with the ground it rests on.
 
-The microcdata object contains the quantities needed for this calculation: air temperature and humidity at the animal’s height (Tair, relhum), surface temperature and upward longwave flux from below (Tsurf, Rlwup), and the direct, diffuse and reflected shortwave components (Rdirdown, Rdifdown, Rswup).
+The microcdata object contains the quantities needed for this calculation: air temperature and humidity at the animal’s height (Tair, relhum), surface temperature, the humidity of the ground surface and upward longwave flux from below (Tsurf, surfrelhum, Rlwup), and the direct, diffuse and reflected shortwave components (Rdirdown, Rdifdown, Rswup).
 
 ### Endotherms
 For endotherms, the treatment here is restricted to birds and mammals and is intentionally simple. A more complete representation of endotherm energy balance would need to account explicitly for processes such as active control of blood flow to the skin, variation in insulation with fur or feather depth and posture, evaporative cooling, and metabolic adjustments associated with thermogenesis or heat dissipation. Readers are referred to the `NicheMapR` package for more complex handling. Here, these complexities are represented in a highly simplified way through alternative resistances to sensible heat loss under warm and cold conditions.
