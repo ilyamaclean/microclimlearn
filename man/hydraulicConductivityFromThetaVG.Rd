@@ -4,7 +4,7 @@
 \alias{hydraulicConductivityFromThetaVG}
 \title{Calculates hydraulic conductivity from soil water content using Van Genuchten method}
 \usage{
-hydraulicConductivityFromThetaVG(theta, Smin, Smax, n, Ksat)
+hydraulicConductivityFromThetaVG(theta, Smin, Smax, n, Ko, L = 0.5)
 }
 \arguments{
 \item{theta}{volumetric soil water content (m3 m-3)}
@@ -15,7 +15,10 @@ hydraulicConductivityFromThetaVG(theta, Smin, Smax, n, Ksat)
 
 \item{n}{van Genuchten pore size distribution parameter}
 
-\item{Ksat}{saturated hydraulic conductivity (kg s / m^3)}
+\item{Ko}{matching point hydraulic conductivity (kg s / m^3): the conductivity
+the curve gives at saturation}
+
+\item{L}{pore connectivity parameter (unitless)}
 }
 \value{
 hydraulic conductivity (kg s / m^3)

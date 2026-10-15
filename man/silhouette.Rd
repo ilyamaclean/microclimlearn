@@ -29,8 +29,10 @@ silhouette(
 \item{adir}{body azimuth direction (degrees). Only used when
 \code{position = "fixed"}. Default is 0.}
 
-\item{atilt}{body tilt from vertical (degrees). Only used when
-\code{position = "fixed"} or \code{position = "randomdir"}. Default is 0.}
+\item{atilt}{body tilt (degrees): the angle by which the long axis of the body
+is raised from horizontal at its front, which tilts its vertical axis from
+vertical by the same angle. Only used when \code{position = "fixed"} or
+\code{position = "randomdir"}. Default is 0.}
 
 \item{position}{assumption about body orientation relative to the sun. Must
 be one of:
@@ -69,5 +71,6 @@ simplified assumptions about orientation.
 The three body dimensions are treated as the full axis lengths of an
 ellipsoid and are converted internally from centimetres to metres before
 calculation. Surface area is approximated because no exact closed-form
-solution exists for a general triaxial ellipsoid.
+solution exists for a general triaxial ellipsoid. With random orientation,
+silhouette area is a quarter of surface area, as it is for any convex body.
 }

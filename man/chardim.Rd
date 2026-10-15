@@ -4,7 +4,17 @@
 \alias{chardim}
 \title{Calculates a characteristic dimension based on projected area}
 \usage{
-chardim(wdir, height, width, len, adir = 0, atilt = 0, position = "fixed")
+chardim(
+  wdir,
+  height,
+  width,
+  len,
+  adir = 0,
+  atilt = 0,
+  position = "fixed",
+  zen = NULL,
+  azi = NULL
+)
 }
 \arguments{
 \item{wdir}{wind direction (degrees)}
@@ -18,24 +28,33 @@ chardim(wdir, height, width, len, adir = 0, atilt = 0, position = "fixed")
 \item{adir}{body azimuth direction (degrees). Only used when
 \code{position = "fixed"}. Default is 0.}
 
-\item{atilt}{body tilt from vertical (degrees). Only used when
-\code{position = "fixed"}. Default is 0.}
+\item{atilt}{body tilt (degrees): the angle by which the long axis of the body
+is raised from horizontal at its front. Only used when
+\code{position = "fixed"} or \code{position = "randomdir"}. Default is 0.}
 
 \item{position}{assumption about body orientation. Must be one of:
-\item{\code{"fixed"}}{body orientation is fixed according to
+\describe{
+  \item{\code{"fixed"}}{body orientation is fixed according to
   \code{adir} and \code{atilt}}
-  \item{\code{"max"}}{body orientation is assumed to maximise projected
-  silhouette area}
-  \item{\code{"min"}}{body orientation is assumed to minimise projected
-  silhouette area}
+  \item{\code{"max"}}{body turned to present its largest cross-section to
+  the sun}
+  \item{\code{"min"}}{body turned to present its smallest cross-section to
+  the sun}
   \item{\code{"randomdir"}}{body azimuth direction is assumed random, but
   tilt is fixed by \code{atilt}}
   \item{\code{"random"}}{both body azimuth direction and tilt are assumed
-  random}}
+  random}
+}}
+
+\item{zen}{solar zenith angle (degrees). Only used, and then required, when
+\code{position} is \code{"max"} or \code{"min"}.}
+
+\item{azi}{solar azimuth angle (degrees). Only used, and then required, when
+\code{position} is \code{"max"} or \code{"min"}.}
 }
 \value{
 a numeric value giving the characteristic dimension (m), defined as
-volume divided by projected silhouette area
+volume divided by projected area
 }
 \description{
 Computes a characteristic dimension of an ellipsoidal body as
@@ -46,9 +65,11 @@ orientation specified directly or inferred from simple assumptions.
 \details{
 The characteristic dimension is calculated as:
 \deqn{d = V / A_p}
-where \eqn{V} is ellipsoid volume and \eqn{A_p} is projected area normal to
-the flow direction. The projected area is always evaluated for a horizontal
-beam (i.e. \eqn{90^\circ} zenith angle) aligned with the wind direction.
-Solar angles (\code{zen}, \code{azi}) are only used to determine body
-orientation when \code{position} is set to \code{"max"} or \code{"min"}.
+where \eqn{V} is ellipsoid volume and \eqn{A_p} is the area the body presents
+to a horizontal wind from direction \code{wdir}. For an ellipsoid this is
+two-thirds of the length of the body along the wind. When \code{position} is
+\code{"max"} or \code{"min"}, the body is first turned towards the sun, and
+the area it then presents to the wind is used. Turning is by heading and
+tilt only, so when the width is the axis that should point at the sun, the
+body lies across the sun's direction with its long axis upright.
 }

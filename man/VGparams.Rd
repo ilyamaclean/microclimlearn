@@ -16,13 +16,15 @@ A list of soil parameters:
   \item{n}{Pore size distribution parameter (unitless)}
   \item{Smin}{Residual volumetric soil water content (m^3 m^-3)}
   \item{Smax}{Volumetric soil water content at saturation (m^3 m^-3)}
-  \item{Ksat}{Saturated hydraulic conductivity (kg s / m^3)}
+  \item{Ko}{Matching point hydraulic conductivity of the unsaturated conductivity curve (kg s / m^3)}
+  \item{L}{Pore connectivity parameter of the unsaturated conductivity curve (unitless)}
 }
 }
 \description{
 Create list of Van Genuchten soil hydraulic parameters
 }
 \details{
+The values are the class averages of the Rosetta pedotransfer functions.
 Available soil types (argument \code{soiltype}) are:
 \itemize{
   \item Sand
@@ -40,7 +42,11 @@ Available soil types (argument \code{soiltype}) are:
 }
 }
 \references{
-Bittelli M, Campbell GS, Tomei F (2015) Soil Physics with
-Python: Transport in the Soil-Plant-Atmosphere System. Oxford University
-Press. Table 5.4.
+Schaap MG, Leij FJ (2000) Improved prediction of unsaturated
+hydraulic conductivity with the Mualem-van Genuchten model. Soil Science
+Society of America Journal 64: 843-851.
+
+Schaap MG, Leij FJ, van Genuchten MTh (2001) Rosetta: a computer program for
+estimating soil hydraulic parameters with hierarchical pedotransfer
+functions. Journal of Hydrology 251: 163-176.
 }

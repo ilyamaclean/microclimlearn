@@ -45,7 +45,6 @@ A list of soil parameters:
   \item{Vm}{Mineral fraction by volume (m^3 m^-3), repeated for each soil layer}
   \item{Vo}{Organic fraction by volume (m^3 m^-3), repeated for each soil layer and adjusted with depth}
   \item{Mc}{Mass fraction of clay (kg kg^-1), repeated for each soil layer}
-  \item{rho}{Bulk density (Mg m^-3), repeated for each soil layer and adjusted with depth}
   \item{b}{Campbell soil water retention parameter (unitless), repeated for each soil layer.
     The Campbell hydraulic conductivity exponent used internally by the soil water solver
     is derived from this as \code{2 * b + 3}; it is not a separate element of this list.}
@@ -71,7 +70,6 @@ aspect, surface organic matter, and deep boundary saturation.
 The selected soil parameter values are replicated across \code{nlayers + 1}
 soil nodes. Organic matter content is adjusted vertically with corresponding
 rescaling of mineral and related soil constituents to preserve total volume.
-Bulk density is also adjusted slightly with depth.
 
 Available soil types (argument \code{soiltype}) are:
 \itemize{

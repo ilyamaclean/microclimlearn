@@ -10,7 +10,7 @@ animalrHa(tair, dT, uz, d, rHmax = 300)
 \item{tair}{air temperature (degrees C)}
 
 \item{dT}{initial estimate of temperature difference between the animal surface and air
-(degrees C)}
+(degrees C). Its sign does not matter.}
 
 \item{uz}{wind speed at the animal scale (m s^-1)}
 
@@ -33,11 +33,15 @@ convection using standard dimensionless relationships.
 Thermal diffusivity and kinematic viscosity are calculated as
 functions of air temperature. The animal is treated as a spheroid, the size
 of which is the length of its body along the wind (1.5 times `d`). The Nusselt
-number for forced convection is that of Whitaker (1972) for a sphere, while
-free convection is estimated from Grashof and Prandtl numbers. The two
-contributions are combined using a cubic mean to represent mixed convection.
+numbers are those for a sphere: Whitaker (1972) for forced convection and
+Churchill (1983) for free convection. The two contributions are combined
+using a cubic mean to represent mixed convection.
 }
 \references{
+Churchill SW (1983) Free convection around immersed bodies. In:
+Schlunder EU (ed) Heat Exchanger Design Handbook, Section 2.5.7. Hemisphere,
+New York.
+
 Whitaker S (1972) Forced convection heat transfer correlations for
 flow in pipes, past flat plates, single cylinders, single spheres, and for flow
 in packed beds and tube bundles. AIChE Journal 18: 361-371.

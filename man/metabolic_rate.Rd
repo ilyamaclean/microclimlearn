@@ -13,7 +13,7 @@ metabolic_rate(volume, rho, Q10, a0, b, Tref, Tbody)
 
 \item{Q10}{Temperature sensitivity coefficient}
 
-\item{a0}{Normalisation constant}
+\item{a0}{Normalisation constant (W kg^-b)}
 
 \item{b}{Mass-scaling exponent}
 

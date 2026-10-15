@@ -570,11 +570,10 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
   # the same heat flux from skin at the same temperature through coat and
   # reference boundary layer
   Qdry <- Q(rt)
-  dref <- chardim(0, p$height, p$width, p$len, position = "random")
   PET <- Tair
   Tsr <- Tsurf
   for (i in 1:10) {
-    rHr <- animalrHa(PET, Tsr - PET, uref, dref)
+    rHr <- animalrHa(PET, Tsr - PET, uref, d)
     rer <- operativetemp(p$em * 5.67e-8 * (PET + 273.15)^4, PET, rHr, p$em, pk)$re
     PET <- Tskin - Qdry * (rc + rer) / rcp
     Tsr <- PET + Qdry * rer / rcp
@@ -621,7 +620,7 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #'   \item{kmin, kmax}{effective flesh conductivity with least and most blood flow
 #'   to the skin (W m^-1 K^-1): 0.9 and 2.8, NicheMapR's values}
 #'   \item{kcoat}{effective conductivity of fur or plumage (W m^-1 K^-1): 0.05,
-#'   measured for cattle hair coats (Maia et al. 2005). Scholander et al. (1950)
+#'   measured for cattle hair coats (Maia et al. 2009). Scholander et al. (1950)
 #'   found insulation roughly in proportion to coat depth across arctic and
 #'   tropical mammals, so one value serves.}
 #'   \item{wetfrac}{share of the skin that is wet without sweating: 0.005, as in
@@ -636,9 +635,9 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #' Kleiber M (1947) Body size and metabolic rate. Physiological Reviews 27:
 #' 511-541.
 #'
-#' Maia ASC, da Silva RG, Loureiro CMB (2005) Effective thermal conductivity of
-#' the hair coat of Holstein cows in a tropical environment. Revista Brasileira
-#' de Zootecnia 34: 2051-2058.
+#' Maia ASC, da Silva RG, de Souza Junior JBF, da Silva RB, Domingos HGT (2009)
+#' Effective thermal conductivity of the hair coat of Holstein cows in a
+#' tropical environment. Revista Brasileira de Zootecnia 38: 2218-2223.
 #'
 #' Prinzinger R, Pressmar A, Schleucher E (1991) Body temperature in birds.
 #' Comparative Biochemistry and Physiology 99A: 499-506.
