@@ -7,17 +7,17 @@
 dewpoint(tc, rh)
 }
 \arguments{
-\item{tc}{Air temperature (°C).}
+\item{tc}{Air temperature (degrees C).}
 
-\item{rh}{Relative humidity (%).}
+\item{rh}{Relative humidity (\%).}
 }
 \value{
-Dew-point temperature (°C).
+Dew-point temperature (degrees C).
 }
 \description{
-Calculate dew-point temperature (°C) from air temperature (°C) and
-relative humidity (%). Uses Magnus equations with coefficients for
-water and ice, applying the ice formulation when dew point is below 0 °C.
+Calculate dew-point temperature (degrees C) from air temperature (degrees C) and
+relative humidity (\%). Uses Magnus equations with coefficients for
+water and ice, applying the ice formulation when dew point is below 0 degrees C.
 }
 \seealso{
 [satvap()]

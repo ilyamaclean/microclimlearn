@@ -80,7 +80,7 @@ Solve energy balance equation for entire canopy returning associated variables
 }
 \details{
 Meteorological inputs must represent above-canopy conditions,
-whereas forcing data are often measured 1–2 m above the ground, below the
+whereas forcing data are often measured 1-2 m above the ground, below the
 height of surrounding vegetation (e.g. forest canopy). The function
 `weatherhgt_adjust` in the `micropoint` package  can be used to adjusts
 weather variables to estimate the values that would occur sufficiently high

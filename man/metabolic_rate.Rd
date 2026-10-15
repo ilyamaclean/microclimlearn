@@ -17,9 +17,9 @@ metabolic_rate(volume, rho, Q10, a0, b, Tref, Tbody)
 
 \item{b}{Mass-scaling exponent}
 
-\item{Tref}{Reference temperature (°C)}
+\item{Tref}{Reference temperature (degrees C)}
 
-\item{Tbody}{Body temperature (°C)}
+\item{Tbody}{Body temperature (degrees C)}
 }
 \value{
 Numeric vector of metabolic rate (W)

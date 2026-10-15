@@ -96,7 +96,7 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97,
     # Ensure length of G matches Ta
     if (length(G) == 1) G <- rep(G, length(Ta))
     Ts <- 0
-    # One search interval that’s wide enough for all Ta
+    # One search interval that's wide enough for all Ta
     mn <- min(Ta) - 30
     mx <- max(Ta) + 50
     for (hr in 1:length(Ta)) {
@@ -130,7 +130,7 @@ SolveEnergyBalance <- function(Ta, pk, rh, Rabs, rHa, rS, G = 0, em = 0.97,
 #' sublayer is assumed above the canopy.
 #' @param Lfrac fraction of plant area that is living leaf (default 0.8)
 #' @details Meteorological inputs must represent above-canopy conditions,
-#' whereas forcing data are often measured 1–2 m above the ground, below the
+#' whereas forcing data are often measured 1-2 m above the ground, below the
 #' height of surrounding vegetation (e.g. forest canopy). The function
 #' `weatherhgt_adjust` in the `micropoint` package  can be used to adjusts
 #' weather variables to estimate the values that would occur sufficiently high

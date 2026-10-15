@@ -2602,18 +2602,16 @@ plot(pai_seq, frac_intercepted,
 Interception increases rapidly with plant area index, then begins to level off once most of the falling snow meets the canopy. Sparse canopies intercept little snow, whereas dense canopies can retain a large fraction of a snowfall event before unloading or throughfall return it to the ground.
 
 ## Animal energy budgets
-In this section we present some simple approaches for computing the body temperature of ectotherms and, for endotherms, the heat they must produce, or lose by evaporation, to hold their body temperature. The animal is represented geometrically as a triaxial ellipsoid defined by its length, width, and height, providing a flexible but tractable approximation that allows key physical properties such as volume, surface area, and directional exposure to be calculated.
+In this section we present some simple approaches for computing the body temperature of ectotherms and, for endotherms, the heat they must produce, or lose by evaporation, to hold their body temperature near-constant. The animal is represented geometrically as a triaxial ellipsoid defined by its length, width, and height, providing a flexible but tractable approximation that allows key physical properties such as volume, surface area, and directional exposure to sunshine and wind to be calculated. These quantities underpin all components of their energy budget. Radiative exchange depends on how the body interacts with directional (direct) and hemispheric (diffuse and longwave) fluxes, convective heat loss depends on the characteristic dimension of the body relative to airflow, and metabolic heat production depends on body size and temperature.
 
-These quantities underpin all components of the energy budget. Radiative exchange depends on how the body interacts with directional (direct) and hemispheric (diffuse and longwave) fluxes, convective heat loss depends on the characteristic dimension of the body relative to airflow, and metabolic heat production depends on body size and temperature.
-
-The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation and projected (silhouette) area in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and, in endotherms, for the heat production or evaporation needed to hold body temperature, together with a physiologically equivalent temperature.
+The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and, in endotherms, for the heat production or evaporation needed to hold body temperature near-constant, together with a physiologically equivalent temperature.
 
 ### Radiation absorption
-In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes, such that absorption is proportional to the mean of the upward and downward components. In contrast, direct shortwave radiation is directional, and the amount absorbed depends on the area of the body projected normal to the solar beam.
+In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, and the amount absorbed depends on the area of the body projected normal to the solar beam. This projected area can be thought of as the size of the shadow the body would cast onto a surface perpendicular to the incoming sunlight. For example, when the sun is directly overhead, a standing person casts a relatively small shadow, whereas facing the low evening sun, they would cast a much larger shadow onto a wall behind them. The larger the projected area, the more direct solar radiation the body intercepts.
 
-We account for this by scaling direct shortwave radiation, measured perpendicular to the solar beam, by the ratio of projected (silhouette) area to total surface area. This dimensionless coefficient captures how body orientation relative to the sun modifies energy gain. The projected area, and hence the interception coefficient, is calculated as a function of solar geometry and body orientation using the `silhouette` function. 
+In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, so absorption depends on the area of the body projected perpendicular to the solar beam. This is equivalent to the size of the shadow cast onto a surface perpendicular to the sunlight. For example, a standing person casts a small shadow when the sun is overhead, but a much larger one onto a wall behind them when facing the evening sun. We account for this using the `silhouette` function, which calculates the ratio of projected area to total body surface area from solar geometry and body orientation. This dimensionless coefficient determines the fraction of direct solar radiation, expressed relative to a surface perpendicular to the beam, intercepted per unit body surface area.
 
-The example below illustrates how the interception of direct solar radiation varies over the course of a day for a simple human geometry. Solar zenith and azimuth angles are calculated for a midsummer day, and only daylight hours are retained. The body is represented using typical dimensions for an upright adult (height = 170 cm, width = 45 cm, length = 25 cm), where width corresponds approximately to shoulder breadth and length to front–back body depth. The individual is assumed to be upright (zero tilt) and facing south (`adir = 180`). The `silhouette` function is then used to compute the fraction of direct beam radiation intercepted (i.e. the projected area divided by total surface area) as solar position changes through the day. Note that this representation is geometrically symmetric: an equivalent configuration could be obtained by exchanging height and length and setting the body tilt to 90°, illustrating that it is the orientation of the principal axes relative to the solar beam, rather than their labels, that determines interception.
+The example below illustrates how interception of direct solar radiation varies over a midsummer day for a person standing upright and facing south (`adir = 180`). Solar zenith and azimuth angles are calculated for daylight hours, and the body is represented using typical adult dimensions (height = 170 cm, width = 45 cm, length = 25 cm), with width corresponding to shoulder breadth and length to front–back depth. Body tilt is set to zero (upright). The `silhouette` function calculates how the interception coefficient changes as the sun moves across the sky. Note that the geometry is symmetric: exchanging height and length and setting body tilt to 90° gives an equivalent configuration, since interception depends on the orientation of the body's principal axes relative to the sun, rather than how those axes are labelled.
 
 ```{r eval=FALSE}
 # Calculate solar zenith and azimuth as function of time of day
@@ -2656,8 +2654,7 @@ plot(svals$SolarCoef ~ as.POSIXct(tme),
 ```
 ![](images/img30.png)
 
-The `position` argument controls how body orientation is specified. When `fixed`, the body maintains a constant orientation defined by `adir`  - the direction from north in which the animal is facing and `atilt` - the angle by which the front of the body is raised, which tilts its height axis from the vertical by the same angle.
-The options `max` and `min` instead assume that the body adopts the orientation that maximises or minimises interception of direct radiation at each time step, representing extreme behavioural thermoregulation. The `randomdir` option assumes the body rotates freely in the horizontal plane (i.e. azimuth is random) while maintaining a fixed tilt, whereas `random` assumes both azimuth and tilt are random, giving an orientation-averaged interception. Together, these options provide a simple way to represent a range of behavioural and postural assumptions, from fixed orientation through to fully random or optimised alignment with the solar beam.
+The `position` argument controls how body orientation is specified. When `fixed`, the body maintains a constant orientation defined by `adir`  - the direction from north in which the animal is facing and `atilt` - the angle by which the front of the body is raised, which tilts its height axis from the vertical by the same angle. The options `max` and `min` instead assume that the body adopts the orientation that maximises or minimises interception of direct radiation at each time step, representing extreme behavioural thermoregulation. The `randomdir` option assumes the body rotates freely in the horizontal plane (i.e. azimuth is random) while maintaining a fixed tilt, whereas `random` assumes both azimuth and tilt are random, giving an orientation-averaged interception. Together, these options provide a simple way to represent a range of behavioural and postural assumptions, from fixed orientation through to fully random or optimised alignment with the solar beam.
 
 
 ### Resistance to heat loss
@@ -2727,6 +2724,7 @@ For endotherms, body temperature is held nearly constant, so the temperature ter
 In the example below, we show how the metabolic rate of a typically-sized reptile varies as a function of its body temperature.
 
 ```{r eval=FALSE}
+require(micropoint) # ensure micropoint package is installed
 # Animal geometry (cm)
 height <- 12 # height (cm)
 width <- 8 # width (cm)
@@ -2766,15 +2764,11 @@ plot(met_rate ~ Tbody,
 ![](images/img32.png)
 
 ### Ectotherms
-The components described above are combined in the `Ectothermtemp` function, which solves for ectotherm body temperature at a single time step from animal traits, time and location, and a set of local microclimate variables. The required animal properties are supplied via the ecto_params object returned by create_ectop, while microcdata provides the near-body environmental conditions, including air and surface temperature, humidity, wind speed and direction, and the upward and downward shortwave and longwave fluxes.
+The components described above are combined in the `Ectothermtemp` function, which calculates ectotherm body temperature for a single time step. It takes the animal's traits, held in the `ecto_params` object returned by `create_ectop`, and `microcdata`, a list of the microclimate conditions experienced by the animal at that time step: single values of air temperature, humidity and wind at the animal's height, the temperature and humidity of the ground surface it rests on, and the shortwave and longwave radiation reaching it from above and below.
 
-The function first calculates solar position from time, latitude and longitude, and uses this together with body geometry and orientation to determine the fraction of direct solar radiation intercepted. Absorbed shortwave and longwave radiation are then calculated from the relevant flux components, accounting for surface reflectance and emissivity. The same body geometry is then used to compute the characteristic dimension relevant to convective heat exchange, by treating the wind as a horizontal beam and calculating projected area normal to the flow.
+Several terms in the energy balance, such as convective heat exchange and metabolic heat production, themselves depend on body temperature. The function therefore iterates internally, updating these terms until its estimate of body temperature settles.
 
-Body temperature is obtained iteratively because several terms depend on body temperature itself. At each iteration the function updates the boundary layer resistance to heat loss, metabolic heat production, radiative emission, sensible heat exchange, conductive exchange with the substrate, and latent heat exchange from exposed and contacting surfaces. These terms are then combined to give an updated estimate of body temperature, and iteration continues until the change between successive estimates falls below the specified tolerance.
-
-This is a single-time-step calculation, so to predict body temperature through time it must be called repeatedly using time-varying microclimate inputs. In practice, this means first running the microclimate model to obtain the local conditions experienced by the animal, and then passing these to Ectothermtemp at each time step.
-
-The example below illustrates this workflow for a small reptile on bare ground. We first subset the weather data to June, set the ground to bare and define the soil properties, and initialise the soil heat model. We then create the ectotherm parameter list, specifying body dimensions, reflectance and orientation assumptions. At each hourly time step the ground surface energy balance and the soil model are run to estimate the local microclimate, including near-surface air temperature and humidity, surface temperature, and the relevant radiative fluxes. These are assembled into a `microcdata` list and passed to `Ectothermtemp`, which returns body temperature for that hour.
+To derive the variables in `microcdata`, we first need to run a microclimate model. Here, we use the methods introduced in previous sections to calculate hourly microclimate conditions for a small reptile on bare ground in June. The ground surface energy balance and soil heat model are solved iteratively because heat exchange between the ground surface and underlying soil depends on both. We then calculate air temperature, humidity, wind and radiation at the reptile's height and combine these into `microcdata`. Finally, we pass these conditions to `Ectothermtemp` to calculate the reptile's body temperature.
 
 ```{r eval=FALSE}
 # -------------------- Create June weather dataset ------------------------- #
@@ -2842,7 +2836,8 @@ for (hr in 1:720) {
   error <- 1e99
   itr <- 1
 
-  # Iteratively solve canopy and soil energy balance
+  # Solve the ground surface and the soil alternately until the ground heat
+  # flux settles
   while (error > 1e-2 && itr < 20) {
 
     # -------------------- Run microclimate model ------------------------ #
@@ -3022,11 +3017,7 @@ legend(
 ```
 ![](images/img33.png)
 
-Body temperature is predicted from the local conditions experienced by the animal near the ground, not directly from standard weather data. The microclimate model is therefore used first to translate reference-height meteorological observations into temperature, humidity and radiative conditions at the animal’s height, and these are then passed to Ectothermtemp.
-
-In the final plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. Differences between the two arise because the animal exchanges heat not only with the air, but also by radiation and by conduction with the ground it rests on.
-
-The microcdata object contains the quantities needed for this calculation: air temperature and humidity at the animal’s height (Tair, relhum), surface temperature, the humidity of the ground surface and upward longwave flux from below (Tsurf, surfrelhum, Rlwup), and the direct, diffuse and reflected shortwave components (Rdirdown, Rdifdown, Rswup).
+In the plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. The two differ because the animal exchanges heat not only with the air, but also by radiation and by conduction with the ground it rests on.
 
 ### Endotherms
 Birds and mammals maintain a relatively stable core temperature by regulating heat production and loss. Their thermal balance differs from that of an ectotherm because the temperature of the body surface can be very different from that of the core. Heat moves between the core and the environment through body tissues and the coat of fur or feathers, before being exchanged with the surroundings by convection and radiation. Each stage offers resistance to heat flow. In steady state, heat flow through these successive resistances is analogous to current through electrical resistors in series: the greater the resistance, the larger the temperature difference needed to carry a given heat flux. Thus, the surface of a well-insulated coat can be much cooler than the animal's core, and it is this outer surface that exchanges sensible and radiative heat with the surroundings.
@@ -3063,6 +3054,7 @@ rodent <- create_endop(height = 3, width = 3, len = 8, coat = 0.5,
 conditions <- function(tair, Rdir, u) {
   sb <- 5.67e-8 # Stefan-Boltzmann constant
   list(Tair = tair,
+       Tsurf = tair, # ground at air temperature
        relhum = 50,
        pk = 101.3,
        windspeed = u,
@@ -3153,7 +3145,7 @@ lines(E_rodent ~ tair, lwd = 2, col = "red")
 ```
 ![](images/img33b.png)
 
-The lion's predicted thermoneutral zone extends from roughly 13 to 22 °C. Below this range, its metabolic rate increases relatively slowly, remaining below twice basal even at −10 °C. The rodent has a much narrower thermoneutral range, centred near 31 °C. Below this, it must increase metabolic heat production sharply, reaching nearly eight times basal at −10 °C. Such high expenditure would be difficult to sustain, which helps explain the importance of behavioural thermoregulation in small mammals, including huddling, curling up and using burrows. At high temperatures, both animals require evaporative cooling. Relative to body mass, the rodent's requirement rises much more rapidly, approaching 40% of its mass per day at 40 °C. This reflects its high surface-area-to-volume ratio and the scale of evaporative loss relative to its small water reserve. Evaporation also occurs in the cold through respiration, particularly when metabolic demand, and hence breathing, is high.
+The lion's predicted thermoneutral zone extends from roughly 13 to 20 °C. Below this range, its metabolic rate increases relatively slowly, remaining below twice basal even at −10 °C. The rodent has a much narrower thermoneutral range, centred near 31 °C. Below this, it must increase metabolic heat production sharply, reaching about eight times basal at −10 °C. Such high expenditure would be difficult to sustain, which helps explain the importance of behavioural thermoregulation in small mammals, including huddling, curling up and using burrows. At high temperatures, both animals require evaporative cooling. Relative to body mass, the rodent's requirement rises much more rapidly, approaching 40% of its mass per day at 40 °C. This reflects its high surface-area-to-volume ratio and the scale of evaporative loss relative to its small water reserve. Evaporation also occurs in the cold through respiration, particularly when metabolic demand, and hence breathing, is high.
 
 Finally, we examine how the lion's heat load varies over a month, comparing full sun with shade. The supplied weather dataset comes from southwest England, so we modify June conditions to create an illustrative, warmer and sunnier environment. These are synthetic weather conditions, not observations from an African site. The example also introduces `clearskyrad`, which estimates incoming shortwave radiation under clear skies, and `difprop`, which estimates the diffuse fraction of incoming shortwave radiation.
 
@@ -3289,6 +3281,7 @@ for (hr in 1:720) {
 
   # ------------------------- Lion in sun and in shade ----------------------- #
   microcdata <- list(Tair = Tz,
+                     Tsurf = can$tcanopy, # ground surface temperature
                      relhum = pmin(100 * ez / satvap(Tz), 100),
                      pk = weather_new$pres[hr],
                      windspeed = uz,

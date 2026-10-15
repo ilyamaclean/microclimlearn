@@ -232,8 +232,8 @@ animalrHa <- function(tair, dT, uz, d, rHmax = 300.0) {
 #' @param Q10 Temperature sensitivity coefficient
 #' @param a0 Normalisation constant (W kg^-b)
 #' @param b Mass-scaling exponent
-#' @param Tref Reference temperature (°C)
-#' @param Tbody Body temperature (°C)
+#' @param Tref Reference temperature (degrees C)
+#' @param Tbody Body temperature (degrees C)
 #'
 #' @return Numeric vector of metabolic rate (W)
 #' @export
@@ -284,7 +284,8 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
 
   # Heat exchange that does not depend on body temperature. The share of the body
   # touching the ground exchanges heat with it by conduction, and water vapour by
-  # diffusion, across half the height of the body
+  # diffusion, across half the height of the body. Only the rest of the body
+  # exchanges radiation
   Tair <- microcdata$Tair
   Tsurf <- microcdata$Tsurf
   pk <- microcdata$pk
@@ -295,7 +296,6 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
   halfheight <- 0.5 * ecto_params$height / 100 # m
   mc <- cf * ecto_params$k / halfheight # conductance to the ground (W m^-2 K^-1)
   mr <- cd * ecto_params$em * sb # longwave emission from the exposed share
-  mrc <- cf * ecto_params$em * sb # longwave emission from the share touching the ground
   # Moist skin is saturated at body temperature. Vapour pressure differences are
   # taken at air temperature, with the change at body temperature added below
   es <- satvap(Tair)
@@ -325,8 +325,8 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
     DeV <- satvap(Te + 0.5) - satvap(Te - 0.5) # slope of the saturated vapour pressure curve
     # Heat gained less heat lost at air temperature, over the rate at which losses
     # rise as the body warms
-    top <- Rabs + M - (mr + mrc) * (Tair + 273.15)^4 + mc * (Tsurf - Tair) - ml * Da - mlc * Dac
-    btm <- 4 * mr * (Te + 273.15)^3 + 4 * mrc * (Tf + 273.15)^3 + mc + mv + (ml + mlc) * DeV
+    top <- Rabs + M - mr * (Tair + 273.15)^4 + mc * (Tsurf - Tair) - ml * Da - mlc * Dac
+    btm <- 4 * mr * (Te + 273.15)^3 + mc + mv + (ml + mlc) * DeV
     newTbody <- Tair + top / btm
     error <- abs(newTbody - Tbody)
     Tbody <- newTbody
@@ -340,8 +340,9 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
 #' body surface by an animal treated as an ellipsoid.
 #' @param params a list of animal parameters containing \code{height},
 #' \code{width}, \code{len} (cm), \code{adir}, \code{atilt} (degrees),
-#' \code{position} (see [silhouette()]), \code{refl} (shortwave reflectance) and
-#' \code{em} (longwave emissivity)
+#' \code{position} (see [silhouette()]), \code{refl} (shortwave reflectance),
+#' \code{em} (longwave emissivity) and \code{confrac} (share of the body surface
+#' in contact with the ground)
 #' @param solp a list with the solar zenith (\code{zen}) and azimuth (\code{azi})
 #' angles (degrees), as returned by [sunposition()]
 #' @param microcdata a list of radiation fluxes at the animal (W m^-2):
@@ -350,17 +351,20 @@ Ectothermtemp <- function(ecto_params, tme, microcdata, lat, long, tolerance = 1
 #' \code{Rlwup} (downward and upward longwave)
 #' @return radiation absorbed per unit body surface (W m^-2)
 #' @details The direct beam falls on the silhouette the body presents to the sun.
-#' Half the body faces upward and half downward, so it receives half the diffuse
-#' and longwave radiation from the sky and half that reflected or emitted from below.
+#' Half the body faces upward and receives diffuse and longwave radiation from the
+#' sky. Half faces downward and receives radiation reflected or emitted by the
+#' ground, except where it touches the ground, which receives none.
 #' @export
 animalRabs <- function(params, solp, microcdata) {
   # Share of the body surface that the direct beam strikes
   sil <- with(params, silhouette(solp$zen, solp$azi, height, width, len, adir, atilt, position))
   sc <- sil$silA / sil$SurfArea
-  # Shortwave absorbed from the direct beam and from diffuse and reflected light,
-  # and longwave from the sky and the ground
-  Rsw <- sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown + 0.5 * microcdata$Rswup
-  Rabs <- (1 - params$refl) * Rsw + 0.5 * params$em * (microcdata$Rlwdown + microcdata$Rlwup)
+  # Share of the body surface facing the ground without touching it
+  down <- max(0.5 - params$confrac, 0)
+  # Shortwave absorbed from the direct beam, diffuse skylight and light reflected
+  # by the ground, and longwave from the sky and the ground
+  Rsw <- sc * microcdata$Rdirdown + 0.5 * microcdata$Rdifdown + down * microcdata$Rswup
+  Rabs <- (1 - params$refl) * Rsw + params$em * (0.5 * microcdata$Rlwdown + down * microcdata$Rlwup)
   return(Rabs)
 }
 #' @title Operative temperature
@@ -445,6 +449,7 @@ tissueresistance <- function(volume, area, kflesh, tair, pk) {
 #' @param microcdata a list of microclimate variables with the following entries:
 #'   \describe{
 #'     \item{Tair}{Air temperature (degrees C).}
+#'     \item{Tsurf}{Temperature of the ground surface the animal stands or lies on (degrees C).}
 #'     \item{relhum}{Air relative humidity (percentage).}
 #'     \item{pk}{Atmospheric pressure (kPa).}
 #'     \item{windspeed}{Wind speed at animal height (m s^-1).}
@@ -477,10 +482,12 @@ tissueresistance <- function(volume, area, kflesh, tair, pk) {
 #'   \item{Te}{operative temperature (degrees C)}
 #'   \item{PET}{physiologically equivalent temperature (degrees C)}
 #' }
-#' @details The animal is a core held at body temperature, losing heat through
-#' three resistances in series: tissue between core and skin, the coat, and the
-#' surroundings (boundary layer and radiation in parallel). The animal regulates
-#' the first through blood flow to the skin. Some heat is also lost by breathing,
+#' @details The animal is a core held at body temperature. Heat passes through
+#' the tissue between core and skin, which the animal regulates through blood flow
+#' to the skin, and then by two routes side by side: over most of the body through
+#' the coat to the surroundings (boundary layer and radiation in parallel), and
+#' where the body touches the ground through the layer between skin and ground to
+#' the ground surface. Some heat is also lost by breathing,
 #' as inhaled air leaves saturated at body temperature; the air breathed rises
 #' with metabolic rate, 20 percent of the oxygen in it being used (as in
 #' NicheMapR). If heat lost with blood flow at its lowest still exceeds what basal
@@ -520,23 +527,32 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
   lakg <- latvap(p$Tb) / 0.018015 # latent heat (J kg^-1)
   fresp <- airperJ * lakg * max(vapdens(satvap(p$Tb), p$Tb) - vapdens(ea, Tair), 0)
 
-  # Resistances of coat and of tissue at lowest and highest blood flow, and basal
+  # Resistances of coat, of the layer between skin and ground where the body
+  # touches it, and of tissue at lowest and highest blood flow, and basal
   # metabolism per unit body surface
   rc <- coatresistance(p$coat, p$kcoat, Tair, pk)
+  rg <- coatresistance(p$contactdepth, p$kcontact, Tair, pk)
   rtmax <- tissueresistance(geo$Volume, A, p$kmin, Tair, pk)
   rtmin <- tissueresistance(geo$Volume, A, p$kmax, Tair, pk)
   Mb <- p$basmet / A
+  cf <- p$confrac
 
   # Heat balance. The boundary layer depends on the temperature of the coat
   # surface, so the balance is repeated until that settles
   Tsurf <- Tair
   for (i in 1:10) {
+    # Operative temperature of the exposed coat, from the radiation it absorbs
     rHa <- animalrHa(Tair, Tsurf - Tair, microcdata$windspeed, d)
-    ot <- operativetemp(Rabs, Tair, rHa, p$em, pk)
+    ot <- operativetemp(Rabs / (1 - cf), Tair, rHa, p$em, pk)
     Te <- ot$Te
     re <- ot$re
+    # The routes from skin through the coat and through the contact with the
+    # ground act together as one resistance to surroundings at a temperature
+    # between the operative temperature and that of the ground
+    ro <- 1 / ((1 - cf) / (rc + re) + cf / rg)
+    Tenv <- ro * ((1 - cf) * Te / (rc + re) + cf * microcdata$Tsurf / rg)
     # Dry heat loss for a given tissue resistance (W m^-2)
-    Q <- function(rt) rcp * (p$Tb - Te) / (rt + rc + re)
+    Q <- function(rt) rcp * (p$Tb - Tenv) / (rt + ro)
     if (Q(rtmax) >= Mb * (1 - fresp)) {
       # Cold: blood flow at its lowest, metabolism makes up the loss
       regime <- "cold"
@@ -545,7 +561,7 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
     } else if (Q(rtmin) >= Mb * (1 - fresp)) {
       # Thermoneutral: blood flow set so that basal metabolism balances the loss
       regime <- "thermoneutral"
-      rt <- rcp * (p$Tb - Te) / (Mb * (1 - fresp)) - rc - re
+      rt <- rcp * (p$Tb - Tenv) / (Mb * (1 - fresp)) - ro
       Mreq <- Mb
     } else {
       # Hot: blood flow at its highest, evaporation removes the rest
@@ -554,29 +570,32 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
       Mreq <- Mb
     }
     Ereq <- Mreq - Q(rt)
-    # Skin and coat surface temperatures, from the share of the drop from core to
-    # surroundings that lies outside each
-    Tsurf <- Te + (p$Tb - Te) * re / (rt + rc + re)
-    Tskin <- Te + (p$Tb - Te) * (rc + re) / (rt + rc + re)
+    # Skin temperature, from the share of the drop from core to surroundings that
+    # lies outside the tissue, and coat surface temperature, from the share of the
+    # drop from skin to operative temperature that lies outside the coat
+    Tskin <- Tenv + (p$Tb - Tenv) * ro / (rt + ro)
+    Tsurf <- Te + (Tskin - Te) * re / (rc + re)
   }
 
   # Most the animal can evaporate (W m^-2): breathing at its fastest, and vapour
-  # from the wetted share of the skin through coat and boundary layer
+  # from the wetted share of the exposed skin through coat and boundary layer
   wet <- if (p$sweat) 1 else p$wetfrac
-  Eskin <- wet * rhoair(Tair, pk) * latvap(Tskin) * max(satvap(Tskin) - ea, 0) / ((rc + rHa) * pk)
+  Eskin <- (1 - cf) * wet * rhoair(Tair, pk) * latvap(Tskin) * max(satvap(Tskin) - ea, 0) /
+    ((rc + rHa) * pk)
   Emax <- p$pantmax * fresp * Mreq + Eskin
 
   # Physiologically equivalent temperature: the still-air temperature that drives
   # the same heat flux from skin at the same temperature through coat and
-  # reference boundary layer
+  # reference boundary layer, and through the contact to ground at that temperature
   Qdry <- Q(rt)
   PET <- Tair
   Tsr <- Tsurf
   for (i in 1:10) {
     rHr <- animalrHa(PET, Tsr - PET, uref, d)
     rer <- operativetemp(p$em * 5.67e-8 * (PET + 273.15)^4, PET, rHr, p$em, pk)$re
-    PET <- Tskin - Qdry * (rc + rer) / rcp
-    Tsr <- PET + Qdry * rer / rcp
+    ror <- 1 / ((1 - cf) / (rc + rer) + cf / rg)
+    PET <- Tskin - Qdry * ror / rcp
+    Tsr <- PET + (Tskin - PET) * rer / (rc + rer)
   }
 
   # Evaporation for the whole animal, in the units asked for
@@ -607,9 +626,17 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #' @param atilt body tilt (degrees). See [silhouette()]. Default 0.
 #' @param position assumption about body orientation. See [silhouette()].
 #' Default \code{"randomdir"}.
+#' @param posture one of \code{"standing"} (the default), touching the ground
+#' through the feet, or \code{"lying"}, touching it with the underside of the body
 #' @return a list of parameters:
 #' \describe{
 #'   \item{height, width, len, coat, sweat, adir, atilt, position, refl}{as given}
+#'   \item{confrac}{share of the body surface in contact with the ground: 0.02
+#'   standing, the soles of the feet; 0.2 lying}
+#'   \item{contactdepth, kcontact}{length (cm) and conductivity (W m^-1 K^-1) of
+#'   the path heat takes between skin and ground. Standing, the legs: as long as
+#'   the body is high, with 0.5, the conductivity of flesh with little blood
+#'   flow. Lying, the coat pressed to half its depth, with conductivity \code{kcoat}.}
 #'   \item{em}{longwave emissivity of the coat: 0.97}
 #'   \item{rho}{body density (kg m^-3): 1000}
 #'   \item{Tb}{core body temperature (degrees C): 37 for mammals, as in NicheMapR;
@@ -646,15 +673,29 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #' arctic and tropical mammals and birds. Biological Bulletin 99: 225-236.
 #' @export
 create_endop <- function(height, width, len, coat, type = "mammal", sweat = FALSE, refl = 0.2,
-                         adir = 0, atilt = 0, position = "randomdir") {
+                         adir = 0, atilt = 0, position = "randomdir", posture = "standing") {
   if (!type %in% c("mammal", "bird")) stop("type must be mammal or bird")
+  if (!posture %in% c("standing", "lying")) stop("posture must be standing or lying")
   # Body mass from the volume of the ellipsoid, and basal metabolism from mass
   # (70 kcal per day is 3.39 W)
   volume <- (4 / 3) * pi * (height / 200) * (width / 200) * (len / 200)
   basmet <- 3.39 * (volume * 1000)^0.75
+  kcoat <- 0.05
+  # Contact with the ground: along the legs to the soles of the feet when
+  # standing, through the compressed coat of the underside when lying
+  if (posture == "standing") {
+    confrac <- 0.02
+    contactdepth <- height
+    kcontact <- 0.5
+  } else {
+    confrac <- 0.2
+    contactdepth <- 0.5 * coat
+    kcontact <- kcoat
+  }
   out <- list(height = height, width = width, len = len, coat = coat, sweat = sweat,
               adir = adir, atilt = atilt, position = position, refl = refl, em = 0.97,
               rho = 1000, Tb = if (type == "bird") 41 else 37, basmet = basmet,
-              kmin = 0.9, kmax = 2.8, kcoat = 0.05, wetfrac = 0.005, pantmax = 5)
+              kmin = 0.9, kmax = 2.8, kcoat = kcoat, wetfrac = 0.005, pantmax = 5,
+              confrac = confrac, contactdepth = contactdepth, kcontact = kcontact)
   return(out)
 }

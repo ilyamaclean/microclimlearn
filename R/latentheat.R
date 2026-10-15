@@ -257,14 +257,14 @@ bulkstomatalresist_calc <- function(solp, Ca, Rsw, Rdif, tair, tcanopy, rh, pk, 
 }
 #' Dew-point temperature
 #'
-#' Calculate dew-point temperature (°C) from air temperature (°C) and
-#' relative humidity (%). Uses Magnus equations with coefficients for
-#' water and ice, applying the ice formulation when dew point is below 0 °C.
+#' Calculate dew-point temperature (degrees C) from air temperature (degrees C) and
+#' relative humidity (\%). Uses Magnus equations with coefficients for
+#' water and ice, applying the ice formulation when dew point is below 0 degrees C.
 #'
-#' @param tc Air temperature (°C).
-#' @param rh Relative humidity (%).
+#' @param tc Air temperature (degrees C).
+#' @param rh Relative humidity (\%).
 #'
-#' @return Dew-point temperature (°C).
+#' @return Dew-point temperature (degrees C).
 #'
 #' @seealso [satvap()]
 #' @export
