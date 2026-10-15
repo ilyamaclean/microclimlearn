@@ -3226,7 +3226,7 @@ diffrac <- difprop(weather_new, -1.21867, -5.215668)
 weather_new$difrad <- diffrac * weather_new$swdown
 ```
 
-As in the ectotherm example, we first calculate the ground energy balance and near-surface microclimate, here for bare ground and at 30 cm above the surface, approximately the height of the lion's body centre. We estimate air temperature and wind at that height, but assume that vapour pressure is unchanged from 2 m, representing relatively weak near-ground moisture exchange over dry ground. For each hour, `Endotherm` is run in full sun and again with the direct beam removed to represent shade. Diffuse skylight, reflected shortwave radiation and longwave exchange are left unchanged; this isolates the effect of blocking direct sunlight rather than simulating the full microclimate beneath a tree.
+As in the ectotherm example, we first calculate the ground energy balance and near-surface microclimate, here for bare ground and at 30 cm above the surface, approximately the height of the lion's body centre. We estimate air temperature and wind at that height, and vapour pressure there from the small amount of water evaporating from the dry soil surface. For each hour, `Endotherm` is run in full sun and again with the direct beam removed to represent shade. Diffuse skylight, reflected shortwave radiation and longwave exchange are left unchanged; this isolates the effect of blocking direct sunlight rather than simulating the full microclimate beneath a tree.
 
 ```{r eval=FALSE}
 # -------------------- Ground and soil ---------------------------------------- #
@@ -3241,7 +3241,8 @@ soilp <- createsoilplist(soiltype = "Clay loam", nlayers = 15, totalDepth = 2,
                          FreeDrain = TRUE)
 n <- length(soilp$b)
 Te <- seq(weather_new$temp[1], 23.3, length.out = n) # 23.3 °C at the lower boundary
-theta <- seq(0.2, soilp$Smax[n], length.out = n)
+# Dry savanna soil: air-dry at the surface, moister at depth
+theta <- seq(0.05, soilp$Smax[n], length.out = n)
 soilheat <- InitSoilheatmod(soilp, Te, theta)
 
 # ----------------------- Run model in hourly timesteps ---------------------- #
@@ -3250,9 +3251,9 @@ for (hr in 1:720) {
   error <- 1e99
   itr <- 1
   while (error > 1e-2 && itr < 20) {
-    soilrh <- soilrelhum(0.2, soilheat$Te[1], soilp$psi_e[1], soilp$b[1], soilp$Smax[1])
+    soilrh <- soilrelhum(0.05, soilheat$Te[1], soilp$psi_e[1], soilp$b[1], soilp$Smax[1])
     can <- solve_wholecanopy(weather_new, vegp, groundp, hr, lat, long, zref = 2,
-                             G, theta = 0.2, soilrh = soilrh)
+                             G, theta = 0.05, soilrh = soilrh)
     soilheat <- SoilHeatModel(soilheat, soilp, Rabs = can$Rabs,
                               Tref = weather_new$temp[hr],
                               relhum = weather_new$relhum[hr],
@@ -3267,9 +3268,10 @@ for (hr in 1:720) {
   r30 <- canopyresistance(0.3, can$uf, vegp$h, vegp$pai, can$LL)
   Tz <- weather_new$temp[hr] +
     (can$tcanopy - weather_new$temp[hr]) * (can$rHa - r30) / can$rHa
-  # Over dry savanna ground little water evaporates, so the vapour pressure at
-  # 30 cm is taken as that at 2 m
-  ez <- satvap(weather_new$temp[hr]) * (weather_new$relhum[hr] / 100)
+  # Vapour evaporating from the ground raises the vapour pressure near the
+  # surface, and its excess over that at 2 m falls off with height as heat does
+  ea <- satvap(weather_new$temp[hr]) * (weather_new$relhum[hr] / 100)
+  ez <- ea + (satvap(can$tcanopy) - ea) * (can$rHa - r30) / (can$rS + can$rHa)
   uz <- windprofile_above(0.3, can$uf, vegp$h, vegp$pai, can$LL)
 
   # ------------------- Direct and reflected shortwave ---------------------- #
@@ -3325,9 +3327,9 @@ lines(Emax ~ tmec, lty = 2)
 ```
 ![](images/img34.png)
 
-In full sun, the lion's predicted PET at midday rises as much as 24 °C above air temperature at 30 cm. Shade reduces this difference, but PET can still exceed air temperature by up to 14 °C. Blocking the direct beam does not remove radiation emitted or reflected by the hot ground. At night, PET drops a few degrees below air temperature as the animal loses radiant heat to the cooler sky.
+In full sun, the lion's predicted PET at midday rises as much as 25 °C above air temperature at 30 cm. Shade reduces this difference, but PET can still exceed air temperature by up to 16 °C. Blocking the direct beam does not remove radiation emitted or reflected by the hot ground. At night, PET drops a few degrees below air temperature as the animal loses radiant heat to the cooler sky.
 
-The lower panel compares the evaporative water loss *required* to maintain the assumed fixed core temperature with the maximum rate available through the modelled cooling mechanisms (dashed line). For much of the middle of the day, the requirement exceeds that capacity in both sun and shade. At midday in sun, for example, the model predicts a requirement of roughly 8 litres per day against a capacity of about 3.5 litres per day. These are equivalent instantaneous rates, not the amount lost over an entire day. Where required evaporation exceeds capacity, the assumed steady core temperature cannot be maintained under these conditions. The animal would need to reduce heat gain, for example by resting on cooler ground in deeper shade, or allow core temperature to rise.
+The lower panel compares the evaporative water loss *required* to maintain the assumed fixed core temperature with the maximum rate available through the modelled cooling mechanisms (dashed line). For much of the middle of the day, the requirement exceeds that capacity in both sun and shade. At midday in sun, for example, the model predicts a requirement of roughly 9 litres per day against a capacity of about 3.2 litres per day. These are equivalent instantaneous rates, not the amount lost over an entire day. Where required evaporation exceeds capacity, the assumed steady core temperature cannot be maintained under these conditions. The animal would need to reduce heat gain, for example by resting on cooler ground in deeper shade, or allow core temperature to rise.
 
 This is intentionally a simplified endotherm model. It holds core temperature fixed and uses a single body geometry and coat representation. A more detailed treatment could allow for changing posture, regional variation in the coat and transient body heat storage, as in the endotherm model implemented in `NicheMapR` (Kearney et al. 2021). For humans, related approaches underpin indices including PET, the Universal Thermal Climate Index and Wet Bulb Globe Temperature; simpler temperature–humidity indices are also widely used for livestock.
 

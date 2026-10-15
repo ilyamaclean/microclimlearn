@@ -613,8 +613,8 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #'   \item{em}{longwave emissivity of the coat: 0.97}
 #'   \item{rho}{body density (kg m^-3): 1000}
 #'   \item{Tb}{core body temperature (degrees C): 37 for mammals, as in NicheMapR;
-#'   40 for birds, between the mean resting and active values of Prinzinger et al.
-#'   (1991)}
+#'   41 for birds, the mean for the active phase across 724 species (Prinzinger et
+#'   al. 1991)}
 #'   \item{basmet}{basal metabolic rate (W), from body mass by Kleiber's relation,
 #'   70 kcal per day times mass in kg to the power 0.75}
 #'   \item{kmin, kmax}{effective flesh conductivity with least and most blood flow
@@ -654,7 +654,7 @@ create_endop <- function(height, width, len, coat, type = "mammal", sweat = FALS
   basmet <- 3.39 * (volume * 1000)^0.75
   out <- list(height = height, width = width, len = len, coat = coat, sweat = sweat,
               adir = adir, atilt = atilt, position = position, refl = refl, em = 0.97,
-              rho = 1000, Tb = if (type == "bird") 40 else 37, basmet = basmet,
+              rho = 1000, Tb = if (type == "bird") 41 else 37, basmet = basmet,
               kmin = 0.9, kmax = 2.8, kcoat = 0.05, wetfrac = 0.005, pantmax = 5)
   return(out)
 }
