@@ -87,6 +87,8 @@ knitr::opts_chunk$set(
   + [Metabolic rates](#metabolic-rates)
   + [Ectotherms](#ectotherms)
   + [Endotherms](#endotherms)
+    - [Maintaining constant body temperature](#maintaining-constant-body-temperature)
+    - [How hot or cold the surroundings feel](#how-hot-or-cold-the-surroundings-feel)
 * [Microclimate models](#microclimate-models)
   + [micropoint](#micropoint)
   + [microclimf](#microclimf)
@@ -2607,9 +2609,7 @@ In this section we present some simple approaches for computing the body tempera
 The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and, in endotherms, for the heat production or evaporation needed to hold body temperature near-constant, together with a physiologically equivalent temperature.
 
 ### Radiation absorption
-In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, and the amount absorbed depends on the area of the body projected normal to the solar beam. This projected area can be thought of as the size of the shadow the body would cast onto a surface perpendicular to the incoming sunlight. For example, when the sun is directly overhead, a standing person casts a relatively small shadow, whereas facing the low evening sun, they would cast a much larger shadow onto a wall behind them. The larger the projected area, the more direct solar radiation the body intercepts.
-
-In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, so absorption depends on the area of the body projected perpendicular to the solar beam. This is equivalent to the size of the shadow cast onto a surface perpendicular to the sunlight. For example, a standing person casts a small shadow when the sun is overhead, but a much larger one onto a wall behind them when facing the evening sun. We account for this using the `silhouette` function, which calculates the ratio of projected area to total body surface area from solar geometry and body orientation. This dimensionless coefficient determines the fraction of direct solar radiation, expressed relative to a surface perpendicular to the beam, intercepted per unit body surface area.
+In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, so absorption depends on the area of the body projected perpendicular to the solar beam. This is equivalent to the size of the shadow cast onto a surface perpendicular to the sunlight. For example, a standing person casts a small shadow into the ground when the sun is overhead, but a  larger one onto a wall behind them when facing the evening sun. We account for this using the `silhouette` function, which calculates the ratio of projected area to total body surface area from solar geometry and body orientation. This dimensionless coefficient determines the fraction of direct solar radiation, expressed relative to a surface perpendicular to the beam, intercepted per unit body surface area.
 
 The example below illustrates how interception of direct solar radiation varies over a midsummer day for a person standing upright and facing south (`adir = 180`). Solar zenith and azimuth angles are calculated for daylight hours, and the body is represented using typical adult dimensions (height = 170 cm, width = 45 cm, length = 25 cm), with width corresponding to shoulder breadth and length to front–back depth. Body tilt is set to zero (upright). The `silhouette` function calculates how the interception coefficient changes as the sun moves across the sky. Note that the geometry is symmetric: exchanging height and length and setting body tilt to 90° gives an equivalent configuration, since interception depends on the orientation of the body's principal axes relative to the sun, rather than how those axes are labelled.
 
@@ -3017,20 +3017,19 @@ legend(
 ```
 ![](images/img33.png)
 
-In the plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. The two differ because the animal exchanges heat not only with the air, but also by radiation and by conduction with the ground it rests on.
+In the plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. The two differ because its mciroenvironment differs from macroclimate and the animal's body itself is an anergy budget, for example being heated by sunlight. 
 
 ### Endotherms
-Birds and mammals maintain a relatively stable core temperature by regulating heat production and loss. Their thermal balance differs from that of an ectotherm because the temperature of the body surface can be very different from that of the core. Heat moves between the core and the environment through body tissues and the coat of fur or feathers, before being exchanged with the surroundings by convection and radiation. Each stage offers resistance to heat flow. In steady state, heat flow through these successive resistances is analogous to current through electrical resistors in series: the greater the resistance, the larger the temperature difference needed to carry a given heat flux. Thus, the surface of a well-insulated coat can be much cooler than the animal's core, and it is this outer surface that exchanges sensible and radiative heat with the surroundings.
+Birds and mammals maintain a relatively stable core temperature by regulating heat production and loss. Their thermal balance differs from that of an ectotherm because the temperature of the body surface can be very different from that of the core. We provide two endotherm models, which look at the same animal from complementary perspectives. The first, `Endotherm`, assumes the animal holds its core temperature constant and asks what that costs: how much extra metabolic heat it must expend when it is cold, or how much latent heat it must lose by evaporation when it is hot, and whether either is more than it can achieve. The latent heat loss can optionally be expressed as the water this requires. The second, `EndothermPET`, instead holds the animal's heat production fixed and lets its core and skin temperatures respond to its surroundings. From those temperatures it calculates how hot or cold the surroundings feel to the animal, expressed as a physiologically equivalent temperature (PET). Both models treat the body in the same way: heat flows from the core, through tissue and coat, to the surroundings and to the ground. We first describe the parts they share, then each model in turn.
 
-The coat resistance, calculated by `coatresistance`, is its depth divided by its effective thermal conductivity. The latter includes heat conducted through the air and hairs or feathers, as well as radiative transfer within the coat. `tissueresistance` represents the resistance between core and skin, taking account of heat produced within the body. Its value depends on body size and tissue conductivity, which can vary as blood vessels near the skin constrict or dilate. Beyond the coat, convection and radiation act in parallel. `operativetemp` combines these exchanges using the convective boundary-layer resistance calculated by `animalrHa` and an equivalent radiative resistance. It returns both an external resistance and the operative temperature: the temperature of a uniform environment that would produce the same combined convective and radiative heat exchange with the coat surface. When the radiative surroundings are at air temperature and there is no absorbed shortwave radiation, operative temperature equals air temperature. In sunshine, it can be substantially higher.
+In endotherms, heat moves between the core and the environment through body tissues and the coat of fur or feathers, before being exchanged with the surroundings by convection and radiation. Each stage offers resistance to heat flow and in steady state these successive resistances are analogous to current through electrical resistors in series: the greater the resistance, the larger the temperature difference needed to carry a given heat flux. Thus, the surface of a well-insulated coat can be much cooler than the animal's core, and it is this outer surface that exchanges sensible and radiative heat with the surroundings. The resistance of the tissues between core and skin is calculated by `tissueresistance`, which accounts for heat produced within the body. It depends on body size and tissue conductivity, which varies as blood vessels near the skin constrict or dilate. The resistance of the coat is calculated by `coatresistance` from its depth and effective thermal conductivity, accounting for heat transfer through air, hairs or feathers, and radiation within the coat. At the outer surface of the coat, heat is exchanged with the surroundings by convection and radiation. Rather than calculating these exchanges separately, we can combine their effects by calculating something known as the operative temperature: the temperature of a uniform environment that would produce the same heat exchange with the coat surface. The function `operativetemp` calculates this temperature and the associated resistance to heat loss, using the convective boundary-layer resistance from `animalrHa` and an equivalent resistance for radiation. Both endotherm models use these calculations to account for the effects of sunlight, wind and longwave radiation.
 
-`Endotherm` combines these resistances to calculate the heat that must be produced or dissipated to maintain core temperature. Heat transfer between the core and the surroundings depends on the difference between core and operative temperature and the sum of the resistances; breathing also removes heat and water vapour. Three broad responses are possible. Below the thermoneutral zone, even maximum tissue insulation is insufficient to retain the heat generated by basal metabolism, so metabolic heat production must increase. Within the thermoneutral zone, basal metabolism is sufficient and heat loss can be regulated by changing blood flow to the skin. Above it, sensible and radiative exchange cannot dispose of basal heat production even at minimum tissue resistance, so additional evaporative cooling is required, through panting or sweating where available. `Endotherm` returns the required metabolic rate, the evaporative loss needed to maintain core temperature, the maximum evaporative capacity, and the temperatures of the skin and coat surface. Evaporation can be expressed as heat loss (W), water loss (litres per day), or a percentage of body mass per day.
+#### Maintaining constant body temperature
+The `Endotherm` function calculates what the animal must do to keep its core temperature constant: the heat it must produce or dissipate. Heat transfer between the core and the surroundings depends on the difference between core and operative temperature and the sum of the resistances. Three broad responses are possible. Below the thermoneutral zone, even maximum tissue insulation is insufficient to retain the heat generated by basal metabolism, so metabolic heat production must increase. Within the thermoneutral zone, basal metabolism is sufficient and heat loss can be regulated by changing blood flow to the skin. Above it, sensible and radiative exchange cannot dispose of basal heat production even at minimum tissue resistance, so additional evaporative cooling is required, through panting or sweating where available.
 
-The function also returns physiologically equivalent temperature (`PET`). Originally developed as a human thermal index (Höppe 1999), PET expresses the combined effects of temperature, radiation and wind as the air temperature of a standard reference environment that would produce an equivalent physiological thermal state. Unlike air temperature, PET therefore depends on the properties of the animal as well as its surroundings.
+To make these calculations, `Endotherm` needs information about the animal's size, insulation and capacity to regulate heat production and loss. These parameters are assembled by `create_endop`. Users specify body dimensions, coat depth, whether the animal is a bird or mammal, coat reflectance, sweating ability and whether it is standing or lying. The remaining parameters needed to run `Endotherm` are estimated from published relationships, although any value can be changed in the returned list. Body mass is estimated from body dimensions, and basal metabolic rate from mass using Kleiber's (1947) relation. The maximum sustainable metabolic rate is set at six times basal, within the range of four to eight times basal measured in mammals and birds (Minnaar et al. 2014). Core temperature is set at 37 °C for mammals and 41 °C for birds. An upper survivable limit is set 5 °C higher, consistent with the observation that birds and mammals seldom exceed 46 °C (Freeman et al. 2020), while the lower limit is 20 °C, below which cardiac function fails in non-hibernating mammals. Coat insulation is assumed to increase in proportion to coat depth, as Scholander et al. (1950) found across arctic and tropical mammals, using a thermal conductivity measured for cattle hair (Maia et al. 2009). The range of blood flow to the skin, baseline skin wetness and maximum panting capacity are taken from the `NicheMapR` endotherm model (Kearney et al. 2021).
 
-Animal parameters are assembled by `create_endop`. The user supplies body dimensions, coat depth, animal type (bird or mammal), and relevant attributes such as reflectance and sweating ability. Default physiological parameters come from published relationships: basal metabolic rate is estimated from mass using Kleiber's (1947) relation, while core temperature, allowable tissue conductivity, skin wetness and panting capacity draw on the `NicheMapR` endotherm model (Kearney et al. 2021). The default coat conductivity is based on measurements of cattle hair (Maia et al. 2009). This is a simplification: coat structure and insulation vary between species, although the broadly proportional relationship between coat depth and insulation reported by Scholander et al. (1950) provides some justification. Defaults can be changed in the returned parameter list.
-
-We illustrate the model with two contrasting mammals: a roughly 200 kg lion with a short coat and a roughly 40 g rodent. First, we calculate the lion's skin and coat-surface temperatures at an air temperature of 20 °C, in shade and in full sun.
+We illustrate the `Endotherm` model with a lion over a month of hot weather. The code below uses `create_endop` to create parameters for a lion of roughly 200 kg with a short coat, from its body dimensions and coat depth. We set its core temperature to 38.5 °C, typical of lions, and raise the highest core temperature it can survive to match.
 
 ```{r eval=FALSE}
 # ----------------------- Create endotherm parameters ----------------------- #
@@ -3043,111 +3042,10 @@ lion <- create_endop(height = 55,    # body height (cm)
                      adir = 90,      # facing east
                      position = "fixed")
 lion$Tb <- 38.5 # core temperature of a lion (°C)
-
-rodent <- create_endop(height = 3, width = 3, len = 8, coat = 0.5,
-                       type = "mammal", adir = 90, position = "fixed")
-
-# ------------------ Function to set up simple conditions ------------------- #
-# Air temperature tair, direct radiation Rdir (W m^-2), wind speed u (m s^-1),
-# with longwave radiation from the sky and ground that of surroundings at air
-# temperature
-conditions <- function(tair, Rdir, u) {
-  sb <- 5.67e-8 # Stefan-Boltzmann constant
-  list(Tair = tair,
-       Tsurf = tair, # ground at air temperature
-       relhum = 50,
-       pk = 101.3,
-       windspeed = u,
-       winddir = 0, # wind from the north, side-on to the animal
-       Rdirdown = Rdir,
-       Rdifdown = 0.2 * Rdir,
-       Rswup = 0.2 * Rdir,
-       Rlwdown = sb * (tair + 273.15)^4,
-       Rlwup = sb * (tair + 273.15)^4)
-}
-
-# Midday on 21 June, latitude 50 °N
-tme <- as.POSIXlt("2025-06-21 12:00", tz = "UTC")
-
-# -------------- Lion at 20 °C, wind 1 m/s, in shade and in sun ------------- #
-shade <- Endotherm(lion, tme, conditions(20, 0, 1), lat = 50, long = 0)
-sun <- Endotherm(lion, tme, conditions(20, 800, 1), lat = 50, long = 0)
-round(c(Tskin = shade$Tskin, Tsurf = shade$Tsurf), 1)
-round(c(Tskin = sun$Tskin, Tsurf = sun$Tsurf), 1)
+lion$Tcmax <- lion$Tb + 5 # highest core temperature it can survive (°C)
 ```
 
-In shade, the lion's skin is predicted to be about 34 °C, while the outer coat is about 26 °C, much closer to air temperature. In full sun, the coat surface reaches about 40 °C, exceeding core temperature. The direction of heat flow through the coat can then reverse: rather than limiting heat loss from the body, the coat limits heat gain from its sun-warmed surface.
-
-We next compare the effects of wind and solar radiation on PET for the lion and rodent.
-
-```{r eval=FALSE}
-# -------------------- Equivalent temperature against wind ------------------ #
-u <- seq(0.1, 5, length.out = 50) # wind speed (m s^-1)
-PET_lion <- PET_rodent <- numeric(length(u))
-for (i in seq_along(u)) {
-  PET_lion[i] <- Endotherm(lion, tme, conditions(10, 0, u[i]), 50, 0)$PET
-  PET_rodent[i] <- Endotherm(rodent, tme, conditions(10, 0, u[i]), 50, 0)$PET
-}
-
-# ------------------ Equivalent temperature against radiation --------------- #
-Rad <- seq(0, 800, 50) # direct radiation (W m^-2), shade to full sun
-PETr_lion <- PETr_rodent <- numeric(length(Rad))
-for (i in seq_along(Rad)) {
-  PETr_lion[i] <- Endotherm(lion, tme, conditions(20, Rad[i], 1), 50, 0)$PET
-  PETr_rodent[i] <- Endotherm(rodent, tme, conditions(20, Rad[i], 1), 50, 0)$PET
-}
-
-# ----------------------------- Plot results ------------------------------ #
-par(mfrow = c(1, 2))
-plot(PET_lion ~ u, type = "l", lwd = 2, ylim = c(-15, 15),
-     xlab = expression("Wind speed (m s"^-1 * ")"),
-     ylab = expression("Equivalent temperature (" * degree * "C)"))
-lines(PET_rodent ~ u, lwd = 2, col = "red")
-abline(h = 10, lty = 2)
-legend("bottomleft", legend = c("Lion", "Rodent", "Air temperature"),
-       col = c("black", "red", "black"), lty = c(1, 1, 2), lwd = 2, bty = "n")
-plot(PETr_lion ~ Rad, type = "l", lwd = 2, ylim = c(10, 50),
-     xlab = expression("Direct radiation (W m"^-2 * ")"),
-     ylab = expression("Equivalent temperature (" * degree * "C)"))
-lines(PETr_rodent ~ Rad, lwd = 2, col = "red")
-abline(h = 20, lty = 2)
-```
-![](images/img33a.png)
-
-Without solar radiation and as wind approaches zero, PET approaches air temperature for both animals. Increasing wind lowers PET, particularly for the rodent: at 5 m s^-1^, PET is about 12 °C below air temperature for the rodent, compared with about 7 °C for the lion. Wind reduces the insulating effect of the boundary layer around the animal. This external resistance makes a larger contribution to the rodent's total thermal resistance, whereas the lion is less sensitive to the same change in wind speed. Increasing radiation has the opposite effect. Under the conditions simulated, PET rises by about 23 °C for the lion and 14 °C for the rodent. Note that our simple `conditions` function increases diffuse and reflected shortwave radiation along with the direct beam, so the second panel represents increasing overall solar exposure rather than a change in direct radiation alone.
-
-We can also use `Endotherm` to identify the thermoneutral zone, within which basal heat production is sufficient to maintain core temperature without additional evaporative cooling. The next example calculates metabolic heat production and evaporative water loss across a range of shaded air temperatures. Expressing these as a multiple of basal metabolic rate and as a percentage of body mass per day makes the two animals easier to compare.
-
-```{r eval=FALSE}
-tair <- seq(-10, 40, 1) # air temperature (°C)
-M_lion <- M_rodent <- E_lion <- E_rodent <- numeric(length(tair))
-for (i in seq_along(tair)) {
-  out_lion <- Endotherm(lion, tme, conditions(tair[i], 0, 1), 50, 0, evapunits = "percent")
-  out_rodent <- Endotherm(rodent, tme, conditions(tair[i], 0, 1), 50, 0, evapunits = "percent")
-  M_lion[i] <- out_lion$Mreq / out_lion$Mbasal
-  M_rodent[i] <- out_rodent$Mreq / out_rodent$Mbasal
-  E_lion[i] <- out_lion$Ereq
-  E_rodent[i] <- out_rodent$Ereq
-}
-
-# ----------------------------- Plot results ------------------------------ #
-par(mfrow = c(1, 2))
-plot(M_lion ~ tair, type = "l", lwd = 2, ylim = c(0, 8),
-     xlab = expression("Air temperature (" * degree * "C)"),
-     ylab = "Metabolic rate (multiple of basal)")
-lines(M_rodent ~ tair, lwd = 2, col = "red")
-legend("topright", legend = c("Lion", "Rodent"), col = c("black", "red"),
-       lwd = 2, bty = "n")
-plot(E_lion ~ tair, type = "l", lwd = 2, ylim = c(0, 40),
-     xlab = expression("Air temperature (" * degree * "C)"),
-     ylab = "Evaporation (% of body mass per day)")
-lines(E_rodent ~ tair, lwd = 2, col = "red")
-```
-![](images/img33b.png)
-
-The lion's predicted thermoneutral zone extends from roughly 13 to 20 °C. Below this range, its metabolic rate increases relatively slowly, remaining below twice basal even at −10 °C. The rodent has a much narrower thermoneutral range, centred near 31 °C. Below this, it must increase metabolic heat production sharply, reaching about eight times basal at −10 °C. Such high expenditure would be difficult to sustain, which helps explain the importance of behavioural thermoregulation in small mammals, including huddling, curling up and using burrows. At high temperatures, both animals require evaporative cooling. Relative to body mass, the rodent's requirement rises much more rapidly, approaching 40% of its mass per day at 40 °C. This reflects its high surface-area-to-volume ratio and the scale of evaporative loss relative to its small water reserve. Evaporation also occurs in the cold through respiration, particularly when metabolic demand, and hence breathing, is high.
-
-Finally, we examine how the lion's heat load varies over a month, comparing full sun with shade. The supplied weather dataset comes from southwest England, so we modify June conditions to create an illustrative, warmer and sunnier environment. These are synthetic weather conditions, not observations from an African site. The example also introduces `clearskyrad`, which estimates incoming shortwave radiation under clear skies, and `difprop`, which estimates the diffuse fraction of incoming shortwave radiation.
+The supplied weather dataset comes from southwest England, so we modify June conditions to create an illustrative, warmer and sunnier environment. These are synthetic weather conditions, not observations from an African site. The example also introduces `clearskyrad`, which estimates incoming shortwave radiation under clear skies, and `difprop`, which estimates the diffuse fraction of incoming shortwave radiation.
 
 We add 12 °C to air temperature and recalculate relative humidity while keeping actual vapour pressure constant. We then slightly reduce effective sky emissivity to represent clearer conditions, recalculate downward longwave radiation, and halve wind speed. To adjust sunshine, we express the observed shortwave flux as a proportion of the clear-sky estimate from `clearskyrad`, increase that proportion using a logit transformation, and apply it to a new clear-sky estimate for the altered conditions and location. Finally, `difprop` partitions the resulting incoming shortwave radiation into diffuse and direct components.
 
@@ -3218,7 +3116,7 @@ diffrac <- difprop(weather_new, -1.21867, -5.215668)
 weather_new$difrad <- diffrac * weather_new$swdown
 ```
 
-As in the ectotherm example, we first calculate the ground energy balance and near-surface microclimate, here for bare ground and at 30 cm above the surface, approximately the height of the lion's body centre. We estimate air temperature and wind at that height, and vapour pressure there from the small amount of water evaporating from the dry soil surface. For each hour, `Endotherm` is run in full sun and again with the direct beam removed to represent shade. Diffuse skylight, reflected shortwave radiation and longwave exchange are left unchanged; this isolates the effect of blocking direct sunlight rather than simulating the full microclimate beneath a tree.
+As in the ectotherm example, we then calculate the ground energy balance and near-surface microclimate, here for bare ground and at 30 cm above the surface, approximately the height of the lion's body centre. We estimate air temperature and wind at that height, and vapour pressure there from the small amount of water evaporating from the dry soil surface. The conditions around the lion are stored for each hour, so that both models can be run on them.
 
 ```{r eval=FALSE}
 # -------------------- Ground and soil ---------------------------------------- #
@@ -3238,7 +3136,8 @@ theta <- seq(0.05, soilp$Smax[n], length.out = n)
 soilheat <- InitSoilheatmod(soilp, Te, theta)
 
 # ----------------------- Run model in hourly timesteps ---------------------- #
-PET_sun <- PET_shade <- E_sun <- E_shade <- Emax <- Tz_all <- G <- 0
+micro <- list() # conditions around the lion for each hour
+Tz_all <- G <- 0
 for (hr in 1:720) {
   error <- 1e99
   itr <- 1
@@ -3279,7 +3178,7 @@ for (hr in 1:720) {
     Rdirdown <- Rswup <- 0
   }
 
-  # ------------------------- Lion in sun and in shade ----------------------- #
+  # ------------- Conditions around the lion, stored for each hour ---------- #
   microcdata <- list(Tair = Tz,
                      Tsurf = can$tcanopy, # ground surface temperature
                      relhum = pmin(100 * ez / satvap(Tz), 100),
@@ -3292,19 +3191,61 @@ for (hr in 1:720) {
                      Rlwdown = weather_new$lwdown[hr],
                      Rlwup = groundp$em * 5.67e-8 * (can$tcanopy + 273.15)^4 +
                        (1 - groundp$em) * weather_new$lwdown[hr])
-  sun <- Endotherm(lion, tme[hr], microcdata, lat, long, evapunits = "L/day")
-  microcdata$Rdirdown <- 0 # shade: direct beam blocked
-  shade <- Endotherm(lion, tme[hr], microcdata, lat, long, evapunits = "L/day")
-  PET_sun[hr] <- sun$PET
-  PET_shade[hr] <- shade$PET
-  E_sun[hr] <- sun$Ereq
-  E_shade[hr] <- shade$Ereq
-  Emax[hr] <- shade$Emax
+  micro[[hr]] <- microcdata
   Tz_all[hr] <- Tz
+}
+```
+
+The next bit of code runs `Endotherm` for each hour, in full sun and again with the direct beam removed to represent shade. Diffuse skylight, reflected shortwave radiation and longwave exchange are left unchanged; this isolates the effect of blocking direct sunlight rather than simulating the full microclimate beneath a tree. The figure compares the evaporative heat loss required to hold core temperature, expressed as the water this requires, with the most the lion can evaporate.
+
+```{r eval=FALSE}
+# ----------------------- Lion in sun and in shade -------------------------- #
+E_sun <- E_shade <- Emax <- numeric(720)
+for (hr in 1:720) {
+  shadedata <- micro[[hr]]
+  shadedata$Rdirdown <- 0 # shade: direct beam blocked
+  sun <- Endotherm(lion, tme[hr], micro[[hr]], lat, long, evapunits = "L/day")
+  shade <- Endotherm(lion, tme[hr], shadedata, lat, long, evapunits = "L/day")
+  E_sun[hr] <- sun$Lreq
+  E_shade[hr] <- shade$Lreq
+  Emax[hr] <- shade$Lmax
 }
 
 # ----------------------------- Plot results ------------------------------ #
 tmec <- as.POSIXct(tme)
+plot(E_sun ~ tmec, type = "l", col = "red", ylim = c(0, 20),
+     xlab = "Date", ylab = expression("Evaporation (L day"^-1 * ")"))
+lines(E_shade ~ tmec, col = "blue")
+lines(Emax ~ tmec, lty = 2) # most the lion can evaporate
+legend("topleft", legend = c("Required, sun", "Required, shade", "Maximum"),
+       col = c("red", "blue", "black"), lty = c(1, 1, 2), bty = "n", cex = 0.8)
+```
+![](images/img33a.png)
+
+The `Endotherm` function returns the required metabolic rate, the evaporative loss needed to maintain core temperature, and the temperatures of the skin and coat surface. Evaporation can be expressed as heat loss (W), water loss (litres per day), or a percentage of body mass per day. The function also returns the animal's limits: the highest metabolic rate it can sustain, and the most it can evaporate by panting at its fastest and, if it sweats, from fully wet skin. The latter depends on humidity, as moist air takes up less water. If the animal would need more than either, the function gives a warning, as it cannot then hold its core temperature.
+
+In the example above, we can see that for much of the middle of the day, the evaporation required exceeds what the lion can achieve (dashed line), in both sun and shade. At its peak in sun, for example, the model predicts a requirement of about 15 litres per day against a capacity of about 3 litres per day. These are equivalent instantaneous rates, not the amount lost over an entire day. `Endotherm` gives a warning at these hours: the lion cannot hold its core temperature, and would need to reduce heat gain, for example by resting on cooler ground in deeper shade. In this hot month the lion never needs to raise its metabolic rate above basal, so metabolic rate is not shown.
+
+#### How hot or cold the surroundings feel
+`Endotherm` tells us what the animal must do, but not how hot or cold its surroundings feel to it. That is calculated by a separate function, `EndothermPET`, as the physiologically equivalent temperature (PET). PET was originally developed as a human thermal index (Höppe 1999), but applied to animals it also depends on their size, insulation and physiology, so different animals can experience the same environment very differently. Air temperature alone is a poor guide to how hot or cold an animal feels, as sunshine can make an animal feel warmer, while wind chill can make it feel cooler. PET combines these effects into a single temperature: essentially the indoor temperature it would need to be for the animal to experience an equivalent physiological thermal state as in the outdoor environment it is actually in. It is calculated in two steps. First, the animal makes heat at a fixed rate, by default twice its basal rate, and its core and skin settle at whatever temperatures balance the heat it makes against the heat it loses outdoors. Blood flow to the skin, sweating and panting respond to those temperatures, following the rules of Höppe's (1999) model of the human body. Second, the animal, with the same core and skin temperatures, is placed indoors: in shade, in almost still air (0.1 m s^-1^), with walls and floor at air temperature and a vapour pressure of 1.2 kPa. PET is the air temperature there at which the animal loses heat as fast as it makes it. Humidity therefore matters: in humid air, sweating and panting cool the animal less, so its body runs warmer and PET is higher. Unlike `Endotherm`, `EndothermPET` lets core temperature change, so it also returns core temperature and gives a warning if it goes above or below what the animal can survive.
+
+The next bit of code runs `EndothermPET` on the same hourly conditions, again in full sun and in shade.
+
+```{r eval=FALSE}
+# ----------------------- Lion in sun and in shade -------------------------- #
+PET_sun <- PET_shade <- Tc_sun <- Tc_shade <- numeric(720)
+for (hr in 1:720) {
+  shadedata <- micro[[hr]]
+  shadedata$Rdirdown <- 0 # shade: direct beam blocked
+  sun <- EndothermPET(lion, tme[hr], micro[[hr]], lat, long)
+  shade <- EndothermPET(lion, tme[hr], shadedata, lat, long)
+  PET_sun[hr] <- sun$PET
+  PET_shade[hr] <- shade$PET
+  Tc_sun[hr] <- sun$Tcore
+  Tc_shade[hr] <- shade$Tcore
+}
+
+# ----------------------------- Plot results ------------------------------ #
 par(mfrow = c(2, 1))
 plot(PET_sun ~ tmec, type = "l", col = "red", ylim = c(10, 80),
      xlab = "Date", ylab = expression("Temperature (" * degree * "C)"))
@@ -3313,18 +3254,16 @@ lines(Tz_all ~ tmec, col = "darkgrey")
 legend("topleft", legend = c("Equivalent temperature, sun",
                               "Equivalent temperature, shade", "Air temperature"),
        col = c("red", "blue", "darkgrey"), lwd = 1, bty = "n", cex = 0.8)
-plot(E_sun ~ tmec, type = "l", col = "red", ylim = c(0, 20),
-     xlab = "Date", ylab = expression("Evaporation (L day"^-1 * ")"))
-lines(E_shade ~ tmec, col = "blue")
-lines(Emax ~ tmec, lty = 2)
+plot(Tc_sun ~ tmec, type = "l", col = "red", ylim = c(15, 60),
+     xlab = "Date", ylab = expression("Core temperature (" * degree * "C)"))
+lines(Tc_shade ~ tmec, col = "blue")
+abline(h = c(lion$Tcmin, lion$Tcmax), lty = 2) # survivable limits
 ```
-![](images/img34.png)
+![](images/img33b.png)
 
-In full sun, the lion's predicted PET at midday rises as much as 25 °C above air temperature at 30 cm. Shade reduces this difference, but PET can still exceed air temperature by up to 16 °C. Blocking the direct beam does not remove radiation emitted or reflected by the hot ground. At night, PET drops a few degrees below air temperature as the animal loses radiant heat to the cooler sky.
+In full sun, the lion's predicted PET at midday rises as much as 30 °C above air temperature at 30 cm. Shade reduces this difference, but PET can still exceed air temperature by up to 18 °C. Blocking the direct beam does not remove radiation emitted or reflected by the hot ground. At night, PET drops up to 7 °C below air temperature as the animal loses radiant heat to the cooler sky. The lower panel shows the lion's core temperature. On most days it rises above the highest the lion can survive (upper dashed line), in shade as well as in sun, and `EndothermPET` gives a warning. This is consistent with `Endotherm`: at the hours when the lion cannot evaporate as much as it needs to, its core temperature rises.
 
-The lower panel compares the evaporative water loss *required* to maintain the assumed fixed core temperature with the maximum rate available through the modelled cooling mechanisms (dashed line). For much of the middle of the day, the requirement exceeds that capacity in both sun and shade. At midday in sun, for example, the model predicts a requirement of roughly 9 litres per day against a capacity of about 3.2 litres per day. These are equivalent instantaneous rates, not the amount lost over an entire day. Where required evaporation exceeds capacity, the assumed steady core temperature cannot be maintained under these conditions. The animal would need to reduce heat gain, for example by resting on cooler ground in deeper shade, or allow core temperature to rise.
-
-This is intentionally a simplified endotherm model. It holds core temperature fixed and uses a single body geometry and coat representation. A more detailed treatment could allow for changing posture, regional variation in the coat and transient body heat storage, as in the endotherm model implemented in `NicheMapR` (Kearney et al. 2021). For humans, related approaches underpin indices including PET, the Universal Thermal Climate Index and Wet Bulb Globe Temperature; simpler temperature–humidity indices are also widely used for livestock.
+The endotherm models are intentionally simplified. `Endotherm` holds core temperature fixed, `EndothermPET` borrows its responses to heat and cold from a model of the human body, and both assume the coat is uniformly thick over the whole body. A more detailed treatment would allow for transient body heat storage, or permit a more complex geometric body shape to be represented as in the endotherm model implemented in `NicheMapR` (Kearney et al. 2021).
 
 ## Microclimate models
 
@@ -3443,6 +3382,8 @@ Buckley LB, Briones Ortiz BA, Caruso I, John A, Levy O, Meyer AV, Riddell EA, Sa
 
 Calders K, Brede B, Newnham G, Culvenor D, Armston J, Bartholomeus H, Griebel A, Hayward J, Junttila S, Lau A, Levick S, Morrone R, Origo N, Pfeifer M, Verbesselt J and Herold M (2023) StrucNet: a global network for automated vegetation structure monitoring. *Remote Sensing in Ecology and Conservation* 9: 587–598.
 
+Freeman MT, Czenze ZJ, Schoeman K & McKechnie AE (2020) Extreme hyperthermia tolerance in the world's most abundant wild bird. *Scientific Reports* 10: 13098.
+
 Hedstrom NR & Pomeroy JW (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611-1625.
 
 Höppe P (1999) The physiological equivalent temperature – a universal index for the biometeorological assessment of the thermal environment. *International Journal of Biometeorology* 43: 71–75.
@@ -3464,6 +3405,8 @@ Maclean IMD & Klinges DH (2021) Microclimc: A mechanistic model of above, below 
 Maclean IMD, Mosedale JR, Bennie JJ (2019) Microclima: An r package for modelling meso- and microclimate. *Methods in Ecology and Evolution* 10: 280-90.
 
 Maia ASC, da Silva RG, de Souza Junior JBF, da Silva RB & Domingos HGT (2009) Effective thermal conductivity of the hair coat of Holstein cows in a tropical environment. *Revista Brasileira de Zootecnia* 38: 2218–2223.
+
+Minnaar IA, Bennett NC, Chimimba CT & McKechnie AE (2014) Summit metabolism and metabolic expansibility in Wahlberg's epauletted fruit bats (*Epomophorus wahlbergi*): seasonal acclimatisation and effects of captivity. *Journal of Experimental Biology* 217: 1363–1369.
 
 Scholander PF, Walters V, Hock R & Irving L (1950) Body insulation of some arctic and tropical mammals and birds. *Biological Bulletin* 99: 225–236.
 

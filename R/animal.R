@@ -440,10 +440,32 @@ tissueresistance <- function(volume, area, kflesh, tair, pk) {
   rt <- rcp * R / (2 * kflesh)
   return(rt)
 }
+# Heat lost by evaporation (W m^-2) into air at temperature ta and vapour pressure
+# e, for core and skin at temperatures Tc and Tsk and metabolic rate M. Vapour
+# leaves the skin through coat and boundary layer, and breathing removes it as
+# inhaled air leaves saturated at core temperature (20.1 kJ per litre of oxygen,
+# 20 percent of the oxygen used). The evaporation the animal seeks, Ed, comes from
+# sweat or from panting, each limited by what the air can take up
+.endoevap <- function(p, Tc, Tsk, Ed, ta, e, rHa, rc, M, pk) {
+  vapdens <- function(e, tc) e * 1000 * 0.018015 / (8.314 * (tc + 273.15)) # kg m^-3
+  airperJ <- 1 / (20.1e6 * 0.2095 * 0.2) # m^3 of air per J
+  Eskinmax <- (1 - p$confrac) * rhoair(ta, pk) * latvap(Tsk) * max(satvap(Tsk) - e, 0) /
+    ((rc + rHa) * pk)
+  Eresp0 <- M * airperJ * latvap(Tc) / 0.018015 *
+    max(vapdens(satvap(Tc), Tc) - vapdens(e, ta), 0)
+  if (p$sweat) {
+    Eskin <- min(max(Ed, p$wetfrac * Eskinmax), Eskinmax)
+    Eresp <- Eresp0
+  } else {
+    Eskin <- p$wetfrac * Eskinmax
+    Eresp <- min(Eresp0 + Ed, p$pantmax * Eresp0)
+  }
+  c(skin = Eskin, resp = Eresp)
+}
 #' @title Endotherm heat balance
 #' @description Calculates what a bird or mammal must do to hold its core at body
-#' temperature at a single time step, and the physiologically equivalent
-#' temperature of its surroundings.
+#' temperature at a single time step: the metabolic heat it must produce when it
+#' is cold, or the heat it must lose by evaporation when it is hot.
 #' @param endo_params a list of endotherm parameters as returned by [create_endop()]
 #' @param tme POSIXlt object indicating date and time in UTC
 #' @param microcdata a list of microclimate variables with the following entries:
@@ -462,8 +484,6 @@ tissueresistance <- function(volume, area, kflesh, tair, pk) {
 #'   }
 #' @param lat latitude (decimal degrees)
 #' @param long longitude (decimal degrees)
-#' @param uref wind speed of the reference setting for the physiologically
-#' equivalent temperature (m s^-1). Default 0.1.
 #' @param evapunits units in which evaporation is returned: \code{"W"} (heat
 #' lost by evaporation, the default), \code{"L/day"} (water evaporated, litres
 #' per day) or \code{"percent"} (water evaporated as a percentage of body mass
@@ -473,38 +493,33 @@ tissueresistance <- function(volume, area, kflesh, tair, pk) {
 #'   \item{regime}{\code{"cold"}, \code{"thermoneutral"} or \code{"hot"}}
 #'   \item{Mreq}{metabolic rate required to hold body temperature (W)}
 #'   \item{Mbasal}{basal metabolic rate (W)}
-#'   \item{Ereq}{evaporation required to hold body temperature, from breathing
-#'   and skin together, in \code{evapunits}}
-#'   \item{Emax}{most the animal can evaporate, panting at its fastest and, if it
-#'   sweats, with its skin fully wet, in \code{evapunits}}
+#'   \item{Mmax}{the highest metabolic rate the animal can sustain (W)}
+#'   \item{Lreq}{heat that must be lost by evaporation to hold body temperature,
+#'   in \code{evapunits}}
+#'   \item{Lmax}{the most the animal can evaporate, in \code{evapunits}}
 #'   \item{Tskin}{skin temperature (degrees C)}
 #'   \item{Tsurf}{coat surface temperature (degrees C)}
 #'   \item{Te}{operative temperature (degrees C)}
-#'   \item{PET}{physiologically equivalent temperature (degrees C)}
 #' }
 #' @details The animal is a core held at body temperature. Heat passes through
 #' the tissue between core and skin, which the animal regulates through blood flow
 #' to the skin, and then by two routes side by side: over most of the body through
 #' the coat to the surroundings (boundary layer and radiation in parallel), and
 #' where the body touches the ground through the layer between skin and ground to
-#' the ground surface. Some heat is also lost by breathing,
-#' as inhaled air leaves saturated at body temperature; the air breathed rises
-#' with metabolic rate, 20 percent of the oxygen in it being used (as in
-#' NicheMapR). If heat lost with blood flow at its lowest still exceeds what basal
-#' metabolism can supply, the animal is cold and must raise its metabolic rate. If
-#' heat lost with blood flow at its highest is less than basal metabolism, it is
-#' hot and must evaporate the rest. Between the two it is thermoneutral. Panting
-#' raises the rate of breathing up to \code{pantmax} times; an animal that sweats
-#' can wet its whole skin, and vapour then passes through the coat and boundary
-#' layer, which are taken to resist vapour as they resist heat.
+#' the ground surface. If heat lost with blood flow at its lowest still exceeds
+#' basal metabolism, the animal is cold and must raise its metabolic rate. If heat
+#' lost with blood flow at its highest is less than basal metabolism, it is hot
+#' and must lose the rest by evaporation. Between the two it is thermoneutral.
 #'
-#' The physiologically equivalent temperature is the air temperature of a
-#' reference setting (shade, surroundings at air temperature, wind \code{uref}) in
-#' which the animal would have the same core and skin temperature, and so the same
-#' heat flux from the skin, as in the actual conditions. Evaporation is the same in
-#' both settings, so humidity does not enter it.
+#' The highest metabolic rate is \code{metmax} times basal. The most the animal
+#' can evaporate is from panting at its fastest (\code{pantmax} times the resting
+#' rate of breathing) and from its skin, fully wet if it sweats; it depends on air
+#' humidity. A warning is given when the animal would need more than either, as it
+#' then cannot hold its body temperature.
+#' @seealso [EndothermPET()] for how hot or cold the surroundings feel to the
+#' animal
 #' @export
-Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapunits = "W") {
+Endotherm <- function(endo_params, tme, microcdata, lat, long, evapunits = "W") {
   p <- endo_params
   Tair <- microcdata$Tair
   pk <- microcdata$pk
@@ -517,15 +532,6 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
   Rabs <- animalRabs(p, solp, microcdata)
   d <- chardim(microcdata$winddir, p$height, p$width, p$len, p$adir, p$atilt, p$position,
                solp$zen, solp$azi)
-
-  # Heat lost by breathing, as a share of metabolic rate: air breathed per joule
-  # of metabolism (20.1 kJ per litre of oxygen, 20 percent of the oxygen used)
-  # leaves saturated at body temperature, carrying the latent heat of the water
-  vapdens <- function(e, tc) e * 1000 * 0.018015 / (8.314 * (tc + 273.15)) # kg m^-3
-  ea <- satvap(Tair) * microcdata$relhum / 100
-  airperJ <- 1 / (20.1e6 * 0.2095 * 0.2) # m^3 of air per J
-  lakg <- latvap(p$Tb) / 0.018015 # latent heat (J kg^-1)
-  fresp <- airperJ * lakg * max(vapdens(satvap(p$Tb), p$Tb) - vapdens(ea, Tair), 0)
 
   # Resistances of coat, of the layer between skin and ground where the body
   # touches it, and of tissue at lowest and highest blood flow, and basal
@@ -553,15 +559,15 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
     Tenv <- ro * ((1 - cf) * Te / (rc + re) + cf * microcdata$Tsurf / rg)
     # Dry heat loss for a given tissue resistance (W m^-2)
     Q <- function(rt) rcp * (p$Tb - Tenv) / (rt + ro)
-    if (Q(rtmax) >= Mb * (1 - fresp)) {
+    if (Q(rtmax) >= Mb) {
       # Cold: blood flow at its lowest, metabolism makes up the loss
       regime <- "cold"
       rt <- rtmax
-      Mreq <- Q(rt) / (1 - fresp)
-    } else if (Q(rtmin) >= Mb * (1 - fresp)) {
+      Mreq <- Q(rt)
+    } else if (Q(rtmin) >= Mb) {
       # Thermoneutral: blood flow set so that basal metabolism balances the loss
       regime <- "thermoneutral"
-      rt <- rcp * (p$Tb - Tenv) / (Mb * (1 - fresp)) - ro
+      rt <- rcp * (p$Tb - Tenv) / Mb - ro
       Mreq <- Mb
     } else {
       # Hot: blood flow at its highest, evaporation removes the rest
@@ -569,7 +575,7 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
       rt <- rtmin
       Mreq <- Mb
     }
-    Ereq <- Mreq - Q(rt)
+    Lreq <- Mreq - Q(rt)
     # Skin temperature, from the share of the drop from core to surroundings that
     # lies outside the tissue, and coat surface temperature, from the share of the
     # drop from skin to operative temperature that lies outside the coat
@@ -577,41 +583,188 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
     Tsurf <- Te + (Tskin - Te) * re / (rc + re)
   }
 
-  # Most the animal can evaporate (W m^-2): breathing at its fastest, and vapour
-  # from the wetted share of the exposed skin through coat and boundary layer
-  wet <- if (p$sweat) 1 else p$wetfrac
-  Eskin <- (1 - cf) * wet * rhoair(Tair, pk) * latvap(Tskin) * max(satvap(Tskin) - ea, 0) /
-    ((rc + rHa) * pk)
-  Emax <- p$pantmax * fresp * Mreq + Eskin
-
-  # Physiologically equivalent temperature: the still-air temperature that drives
-  # the same heat flux from skin at the same temperature through coat and
-  # reference boundary layer, and through the contact to ground at that temperature
-  Qdry <- Q(rt)
-  PET <- Tair
-  Tsr <- Tsurf
-  for (i in 1:10) {
-    rHr <- animalrHa(PET, Tsr - PET, uref, d)
-    rer <- operativetemp(p$em * 5.67e-8 * (PET + 273.15)^4, PET, rHr, p$em, pk)$re
-    ror <- 1 / ((1 - cf) / (rc + rer) + cf / rg)
-    PET <- Tskin - Qdry * ror / rcp
-    Tsr <- PET + (Tskin - PET) * rer / (rc + rer)
+  # The animal's limits: its highest sustainable metabolic rate, and the most it
+  # can evaporate into the surrounding air at basal metabolism by panting at its
+  # fastest and, if it sweats, from fully wet skin
+  Mmax <- p$metmax * p$basmet
+  ea <- satvap(Tair) * microcdata$relhum / 100
+  Lmax <- sum(.endoevap(p, p$Tb, Tskin, Inf, Tair, ea, rHa, rc, Mb, pk))
+  if (Mreq * A > Mmax) {
+    warning("metabolic rate required exceeds the animal's maximum: it cannot hold its body temperature")
+  }
+  if (Lreq > Lmax) {
+    warning("evaporation required exceeds the most the animal can achieve: it cannot hold its body temperature")
   }
 
   # Evaporation for the whole animal, in the units asked for
-  E <- c(Ereq, Emax) * A
+  L <- c(Lreq, Lmax) * A
+  lakg <- latvap(p$Tb) / 0.018015 # latent heat (J kg^-1)
   if (evapunits == "L/day") {
-    E <- E / lakg * 86400
+    L <- L / lakg * 86400
   } else if (evapunits == "percent") {
-    E <- 100 * E / lakg * 86400 / (geo$Volume * p$rho)
+    L <- 100 * L / lakg * 86400 / (geo$Volume * p$rho)
   } else if (evapunits != "W") stop("evapunits must be W, L/day or percent")
 
-  out <- list(regime = regime, Mreq = Mreq * A, Mbasal = p$basmet, Ereq = E[1], Emax = E[2],
-              Tskin = Tskin, Tsurf = Tsurf, Te = Te, PET = PET)
+  out <- list(regime = regime, Mreq = Mreq * A, Mbasal = p$basmet, Mmax = Mmax,
+              Lreq = L[1], Lmax = L[2], Tskin = Tskin, Tsurf = Tsurf, Te = Te)
   return(out)
 }
+#' @title Physiologically equivalent temperature of an endotherm
+#' @description Calculates how hot or cold the surroundings feel to a bird or
+#' mammal at a single time step, as a physiologically equivalent temperature
+#' (PET): the air temperature of a reference setting in which the animal would
+#' have the same core and skin temperatures as in its actual surroundings.
+#' @param endo_params a list of endotherm parameters as returned by [create_endop()]
+#' @param tme POSIXlt object indicating date and time in UTC
+#' @param microcdata a list of microclimate variables as for [Endotherm()]
+#' @param lat latitude (decimal degrees)
+#' @param long longitude (decimal degrees)
+#' @param metmult metabolic rate of the animal, as a multiple of its basal rate.
+#' Default 2.
+#' @param uref wind speed of the reference setting (m s^-1). Default 0.1.
+#' @param eref vapour pressure of the reference setting (kPa). Default 1.2.
+#' @return a list with:
+#' \describe{
+#'   \item{PET}{physiologically equivalent temperature (degrees C)}
+#'   \item{Tcore}{core temperature in the actual surroundings (degrees C)}
+#'   \item{Tskin}{skin temperature in the actual surroundings (degrees C)}
+#' }
+#' @details The calculation follows Hoppe (1999) in two steps. First, metabolism
+#' is held at \code{metmult} times its basal rate and the core and skin settle at
+#' whatever temperatures balance the heat the animal makes against what it loses
+#' in its actual surroundings. The body is that of [Endotherm()]: core, tissue,
+#' coat and surroundings, with contact to the ground. Blood flow to the skin and
+#' evaporation respond to core and skin temperature by the rules of Hoppe's model
+#' of the human body, taken relative to the animal's normal temperatures: its body
+#' temperature \code{Tb} for the core, and for the skin the temperature it has at
+#' basal metabolism with blood flow midway between its limits. Blood flow rises as
+#' the core warms and falls as the skin cools, within the limits set by
+#' \code{kmin} and \code{kmax}. The water the animal seeks to evaporate rises with
+#' body temperature. An animal that sweats evaporates it from its skin, and one
+#' that does not pants, up to \code{pantmax} times its resting rate of breathing;
+#' either way no faster than the coat, boundary layer and humidity allow. Skin that
+#' is always wet (\code{wetfrac}) and breathing at rest also lose water. A warning
+#' is given when core temperature is above \code{Tcmax} or below \code{Tcmin},
+#' which the animal would not survive.
+#'
+#' Second, the animal is placed in the reference setting: shade, with sky and
+#' ground at air temperature, wind \code{uref} and vapour pressure \code{eref}.
+#' Core and skin keep their temperatures, so blood flow and the water the animal
+#' seeks to evaporate are unchanged, and metabolism stays the same. PET is the air
+#' temperature there at which the animal loses heat as fast as it makes it.
+#' @references Hoppe P (1999) The physiological equivalent temperature: a
+#' universal index for the biometeorological assessment of the thermal
+#' environment. International Journal of Biometeorology 43: 71-75.
+#' @seealso [Endotherm()] for what the animal must do to hold its body
+#' temperature constant
+#' @export
+EndothermPET <- function(endo_params, tme, microcdata, lat, long, metmult = 2, uref = 0.1,
+                         eref = 1.2) {
+  p <- endo_params
+  Tair <- microcdata$Tair
+  pk <- microcdata$pk
+  rcp <- rhoair(Tair, pk) * cpair(Tair)
+  ea <- satvap(Tair) * microcdata$relhum / 100
+
+  # Body size, the radiation the body absorbs and its size as the wind meets it
+  solp <- sunposition(tme, lat, long)
+  geo <- silhouette(solp$zen, solp$azi, p$height, p$width, p$len, p$adir, p$atilt, p$position)
+  A <- geo$SurfArea
+  Rabs <- animalRabs(p, solp, microcdata)
+  d <- chardim(microcdata$winddir, p$height, p$width, p$len, p$adir, p$atilt, p$position,
+               solp$zen, solp$azi)
+
+  # Resistances of coat and of the layer between skin and ground, conductance of
+  # the tissue from core to skin with vessels near the skin constricted and
+  # dilated (W m^-2 K^-1), and basal and actual metabolism per unit body surface
+  rc <- coatresistance(p$coat, p$kcoat, Tair, pk)
+  rg <- coatresistance(p$contactdepth, p$kcontact, Tair, pk)
+  R <- 3 * geo$Volume / A
+  Kmin <- 2 * p$kmin / R
+  Kmax <- 2 * p$kmax / R
+  Mb <- p$basmet / A
+  M <- metmult * Mb
+  cf <- p$confrac
+
+  # Normal temperatures: core at body temperature, and skin at the temperature
+  # basal metabolism gives with blood flow midway between its limits
+  Tcset <- p$Tb
+  Tskset <- p$Tb - Mb * (1 / Kmin + 1 / Kmax) / 2
+
+  # Responses from Hoppe's model of the human body. Blood flow to the skin
+  # (L m^-2 h^-1) rises as the core warms and falls as the skin cools, each
+  # litre carrying 3640 J per degree from core to skin. The sweat sought
+  # (g m^-2 h^-1) rises with a mean body temperature weighted to the core, each
+  # gram taking 2420 J to evaporate
+  respond <- function(Tc, Tsk) {
+    warm <- max(Tc - Tcset, 0)
+    cool <- max(Tskset - Tsk, 0)
+    blood <- min((6.3 + 75 * warm) / (1 + 0.5 * cool), 90)
+    K <- min(Kmin + blood * 3640 / 3600, Kmax)
+    a <- 0.0418 + 0.745 / (blood + 0.585) # share of the body at skin temperature
+    Tbody <- a * Tsk + (1 - a) * Tc
+    sweat <- min(304.94 * max(Tbody - (0.1 * Tskset + 0.9 * Tcset), 0), 500)
+    list(K = K, Ed = 2420 * sweat / 3600)
+  }
+
+  # Step 1, actual surroundings. The core balances when the heat it makes, less
+  # that lost by breathing, crosses the tissue to the skin; the skin balances
+  # when that heat leaves it by dry exchange and evaporation. For each trial core
+  # temperature the skin temperature that balances the skin is found, and the
+  # core temperature is then adjusted until the core balances too. The boundary
+  # layer depends on coat surface temperature, so all is repeated until that
+  # settles
+  Tsurf <- Tair
+  for (i in 1:5) {
+    rHa <- animalrHa(Tair, Tsurf - Tair, microcdata$windspeed, d)
+    ot <- operativetemp(Rabs / (1 - cf), Tair, rHa, p$em, pk)
+    ro <- 1 / ((1 - cf) / (rc + ot$re) + cf / rg)
+    Tenv <- ro * ((1 - cf) * ot$Te / (rc + ot$re) + cf * microcdata$Tsurf / rg)
+    skin <- function(Tc) {
+      skinbalance <- function(Tsk) {
+        r <- respond(Tc, Tsk)
+        E <- .endoevap(p, Tc, Tsk, r$Ed, Tair, ea, rHa, rc, M, pk)
+        r$K * (Tc - Tsk) - rcp * (Tsk - Tenv) / ro - E[["skin"]]
+      }
+      uniroot(skinbalance, c(-80, 80), tol = 1e-4)$root
+    }
+    corebalance <- function(Tc) {
+      Tsk <- skin(Tc)
+      r <- respond(Tc, Tsk)
+      E <- .endoevap(p, Tc, Tsk, r$Ed, Tair, ea, rHa, rc, M, pk)
+      M - E[["resp"]] - r$K * (Tc - Tsk)
+    }
+    Tc <- uniroot(corebalance, c(-80, 80), tol = 1e-4)$root
+    Tsk <- skin(Tc)
+    Tsurf <- ot$Te + (Tsk - ot$Te) * ot$re / (rc + ot$re)
+  }
+  if (Tc > p$Tcmax) {
+    warning("core temperature of ", round(Tc, 1), " degrees C is above what the animal can survive")
+  }
+  if (Tc < p$Tcmin) {
+    warning("core temperature of ", round(Tc, 1), " degrees C is below what the animal can survive")
+  }
+
+  # Step 2, reference setting. With core and skin at the same temperatures, PET
+  # is the air temperature at which dry exchange and evaporation together remove
+  # the heat the animal makes. Surroundings at air temperature make the
+  # operative temperature equal to it
+  r <- respond(Tc, Tsk)
+  PET <- Tair
+  Tsr <- Tsurf
+  for (i in 1:20) {
+    rHr <- animalrHa(PET, Tsr - PET, uref, d)
+    rer <- operativetemp(p$em * 5.67e-8 * (PET + 273.15)^4, PET, rHr, p$em, pk)$re
+    ror <- 1 / ((1 - cf) / (rc + rer) + cf / rg)
+    E <- .endoevap(p, Tc, Tsk, r$Ed, PET, eref, rHr, rc, M, pk)
+    PET <- Tsk - ror * (M - sum(E)) / rcp
+    Tsr <- PET + (Tsk - PET) * rer / (rc + rer)
+  }
+  return(list(PET = PET, Tcore = Tc, Tskin = Tsk))
+}
 #' @title Endotherm parameters
-#' @description Creates a list of parameters for [Endotherm()] for a bird or
+#' @description Creates a list of parameters for [Endotherm()] and
+#' [EndothermPET()] for a bird or
 #' mammal from its size and coat. Physiological values are typical ones from the
 #' literature, so that only things that can be seen or measured need be given.
 #' Any value can be changed in the returned list.
@@ -654,13 +807,30 @@ Endotherm <- function(endo_params, tme, microcdata, lat, long, uref = 0.1, evapu
 #'   NicheMapR}
 #'   \item{pantmax}{most by which panting raises the rate of breathing: 5, as in
 #'   NicheMapR}
+#'   \item{metmax}{highest metabolic rate the animal can sustain, as a multiple of
+#'   basal: 6. The highest rates of heat production measured in the cold are
+#'   mostly 4 to 8 times basal in mammals, and similar in birds (Minnaar et al.
+#'   2014).}
+#'   \item{Tcmax, Tcmin}{highest and lowest core temperatures the animal can
+#'   survive (degrees C). \code{Tcmax} is 5 degrees above the default \code{Tb}:
+#'   42 for mammals and 46 for birds, whose core temperatures rarely exceed 46
+#'   (Freeman et al. 2020). \code{Tcmin} is 20, below which the hearts of mammals
+#'   that do not hibernate fail. Change \code{Tcmax} with \code{Tb}.}
 #' }
 #' @references Kearney MR, Briscoe NJ, Mathewson PD, Porter WP (2021) NicheMapR:
 #' an R package for biophysical modelling: the endotherm model. Ecography 44:
 #' 1595-1605.
 #'
+#' Freeman MT, Czenze ZJ, Schoeman K, McKechnie AE (2020) Extreme hyperthermia
+#' tolerance in the world's most abundant wild bird. Scientific Reports 10: 13098.
+#'
 #' Kleiber M (1947) Body size and metabolic rate. Physiological Reviews 27:
 #' 511-541.
+#'
+#' Minnaar IA, Bennett NC, Chimimba CT, McKechnie AE (2014) Summit metabolism and
+#' metabolic expansibility in Wahlberg's epauletted fruit bats (Epomophorus
+#' wahlbergi): seasonal acclimatisation and effects of captivity. Journal of
+#' Experimental Biology 217: 1363-1369.
 #'
 #' Maia ASC, da Silva RG, de Souza Junior JBF, da Silva RB, Domingos HGT (2009)
 #' Effective thermal conductivity of the hair coat of Holstein cows in a
@@ -696,6 +866,10 @@ create_endop <- function(height, width, len, coat, type = "mammal", sweat = FALS
               adir = adir, atilt = atilt, position = position, refl = refl, em = 0.97,
               rho = 1000, Tb = if (type == "bird") 41 else 37, basmet = basmet,
               kmin = 0.9, kmax = 2.8, kcoat = kcoat, wetfrac = 0.005, pantmax = 5,
-              confrac = confrac, contactdepth = contactdepth, kcontact = kcontact)
+              metmax = 6, confrac = confrac, contactdepth = contactdepth,
+              kcontact = kcontact)
+  # Survivable core temperatures
+  out$Tcmax <- out$Tb + 5
+  out$Tcmin <- 20
   return(out)
 }
