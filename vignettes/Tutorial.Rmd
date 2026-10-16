@@ -106,7 +106,7 @@ Some components of microclimate are tightly coupled. For example, surface temper
 The vignette concludes with a section introducing a set of microclimate modelling packages aimed at ecologists, including micropoint, microclimf, and NicheMapR, and outlining what each is designed to do (and not do). All three rely on underlying compiled code (C++ or Fortran) to run these calculations efficiently. micropoint is particularly closely aligned with microclimlearn, mirroring its structure and calculations but implemented in C++ for improved performance. microclimf is designed for applying similar methods across landscapes to generate gridded outputs. NicheMapR, by contrast, is a point-based biophysical modelling framework built around a Fortran core, linking microclimate to organism heat and water balance, but it does not explicitly resolve below-canopy microclimate in the way the approaches developed here are intended to.
 
 ### Getting started
-Install both packages from Github and load them as follows
+Install both packages from GitHub and load them as follows:
 
 ```{r eval=FALSE}
 require(devtools) # Install from CRAN if not already installed
@@ -147,7 +147,7 @@ plot(Rabs ~ tme, type = "l",
 ```
 ![](images/img1.png)
 
-The next input we need to calculate is the bulk surface aerodynamic resistance to heat loss, a coefficient that determines how readily heat is transferred from the surface to the air. It decreases with increasing wind speed but also depends on the shape of the vertical wind-speed profile. To describe this profile, we must first calculate two key parameters: the zero-plane displacement height (the height above the ground at which wind flow effectively interacts with a vegetation canopy) and the roughness length for momentum, a surface property that controls how wind velocity changes with height. In addition, we calculate the roughness length for heat, which is related to the momentum roughness but specifically governs heat transfer. These terms are explained in more detail in the Sensible Heat section below; in essence, the first two describe the wind profile’s shape, while the third determines how efficiently heat is lost from the surface. All three tend to show a very consistent relationship with vegetation height. Below we use a simplified approach. A more comprehensive treatment is detailed in the Sensible Heat section
+The next input we need to calculate is the bulk surface aerodynamic resistance to heat loss, a coefficient that determines how readily heat is transferred from the surface to the air. It decreases with increasing wind speed but also depends on the shape of the vertical wind-speed profile. To describe this profile, we must first calculate two key parameters: the zero-plane displacement height (the height above the ground at which wind flow effectively interacts with a vegetation canopy) and the roughness length for momentum, a surface property that controls how wind velocity changes with height. In addition, we calculate the roughness length for heat, which is related to the momentum roughness but specifically governs heat transfer. These terms are explained in more detail in the Sensible Heat section below; in essence, the first two describe the wind profile’s shape, while the third determines how efficiently heat is lost from the surface. All three tend to show a very consistent relationship with vegetation height. Below we use a simplified approach. A more comprehensive treatment is detailed in the Sensible Heat section.
 
 ```{r eval=FALSE}
 # Calculate resistance to heat loss
@@ -165,9 +165,9 @@ rHa <- (log((zref - d) / zm) * log((zref - d) / zh)) /
        (ka^2 * u2)  # resistance to heat loss
 ```
 
-One point to note is that the line of code that computes `rHa` makes the assumption that macroclimate data provided as an input is above canopy (it is not possible to compute the log of a negative value). Most weather stations are located 1-2m above ground so this assumption will be violated for forest vegetation. The issue is quite hard to deal with and involves making some assumptions the nature of the surface in which a weather station is located and then computing the the vertical profiles in temperature, humidity, pressure and wind to derive expected values at some desired height above canopy. For simplicity the tutorial package always assumes that macroclimate data used to drive the microclimate models are above canopy. The `micropoint` package, however, includes a specific function for dealing with this issue - see `micropoint::weatherhgt_adjust`. The function only requires that a data.frame of weather inputs is provided and the latitude and longitude and desired height are specific by the user, so it can be applied easily to other datasets.  
+One point to note is that the line of code that computes `rHa` makes the assumption that macroclimate data provided as an input is above canopy (it is not possible to compute the log of a negative value). Most weather stations are located 1-2m above ground so this assumption will be violated for forest vegetation. The issue is quite hard to deal with and involves making some assumptions about the nature of the surface in which a weather station is located and then computing the vertical profiles in temperature, humidity, pressure and wind to derive expected values at some desired height above canopy. For simplicity the tutorial package always assumes that macroclimate data used to drive the microclimate models are above canopy. The `micropoint` package, however, includes a specific function for dealing with this issue - see `micropoint::weatherhgt_adjust`. The function only requires that a data.frame of weather inputs is provided and the latitude and longitude and desired height are specified by the user, so it can be applied easily to other datasets.  
 
-This point aside, next, we calculate the bulk surface stomatal resistance, which is the inverse of the total stomatal conductance of all leaves in the canopy, scaled to the ground surface, and represents the overall restriction to vapour flux imposed by stomata, which control how plants transpirate. Plant transpiration is a complex and adaptive phenomenon, governed by the interaction between physiological regulation and environmental drivers: stomata open and close in response to light, humidity, temperature, and soil moisture, balancing the need for carbon uptake with the risk of excessive water loss. As a result, canopy-scale transpiration reflects both the physical environment and the dynamic behaviour of plants in maintaining water balance. This is tackled in more detail in the Latent Heat section, but here we adopt a simplified approach, which assumes that our surface is not water-stressed and that the main control on stomatal resistance is the flux density of photosynthetically active radiation, which when low, is assumed to increase stomatal resistance thereby inhibiting water loss. The assumed relationship between the two, while not whole implausible, is somewhat arbitrary. 
+This point aside, next, we calculate the bulk surface stomatal resistance, which is the inverse of the total stomatal conductance of all leaves in the canopy, scaled to the ground surface, and represents the overall restriction to vapour flux imposed by stomata, which control how plants transpire. Plant transpiration is a complex and adaptive phenomenon, governed by the interaction between physiological regulation and environmental drivers: stomata open and close in response to light, humidity, temperature, and soil moisture, balancing the need for carbon uptake with the risk of excessive water loss. As a result, canopy-scale transpiration reflects both the physical environment and the dynamic behaviour of plants in maintaining water balance. This is tackled in more detail in the Latent Heat section, but here we adopt a simplified approach, which assumes that our surface is not water-stressed and that the main control on stomatal resistance is the flux density of photosynthetically active radiation, which when low, is assumed to increase stomatal resistance thereby inhibiting water loss. The assumed relationship between the two, while not wholly implausible, is somewhat arbitrary. 
 
 ```{r eval=FALSE}
 # Calculate bulk surface stomatal resistance (rS)
@@ -196,11 +196,11 @@ Ts1 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
                           Rabs, rHa, rS, G, em = 0.97,
                           method = "uniroot", iters = 1)
 par(mfrow = c(2, 1))
-plot(Ts1 ~ tme, type = "l", col = "red",
-     ylab = "Temperature", ylim = c(-10, 65))
+plot(Ts1 ~ tme, type = "l", col = "firebrick",
+     xlab = "Month", ylab = "Temperature", ylim = c(-10, 65))
 par(new = TRUE)
 plot(climdata$temp ~ tme, type = "l", lwd = 2, col = "gray",
-     ylim = c(-10, 65), ylab = "")
+     ylim = c(-10, 65), xlab = "", ylab = "")
 
 # Compare with Penman-Monteith solution
 Ts2 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
@@ -209,14 +209,14 @@ Ts2 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
 plot(Ts1 ~ Ts2, pch = 15, cex = 0.5,
      xlim = c(-10, 80), ylim = c(-10, 80),
      xlab = "Penman-Monteith", ylab = "uniroot")
-abline(a = 0, b = 1, col = "red")
+abline(a = 0, b = 1, col = "firebrick")
 
 # Improve Penman-Monteith solution by iterating
 Ts2 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
                           Rabs, rHa, rS, G, em = 0.97,
                           method = "Penman", iters = 4)
 par(new = TRUE)
-plot(Ts1 ~ Ts2, pch = 15, cex = 0.5, col = "blue",
+plot(Ts1 ~ Ts2, pch = 15, cex = 0.5, col = "steelblue",
      xlim = c(-10, 80), ylim = c(-10, 80),
      xlab = "", ylab = "")
 ```
@@ -245,12 +245,12 @@ z <- seq(0.12, 2, length.out = 100)
 Tz <- Ts - (H / (ka * ph * cp * uf[hr])) * log((z - d) / zh)
 
 par(mfrow = c(1, 1))
-plot(z ~ Tz, type = "l",
+plot(z ~ Tz, type = "l", lwd = 2,
      xlab = "Temperature", ylab = "Height")
 ```
 ![](images/img3.png)
 
-We now describe the radiation, sensible and latent heat component of the energy budget in more detail, beginning with the simpler case of deriving microclimate conditions above the canopy, before turning to the more complex situation below the canopy. We then turn to modelling ground heat flux, which itself requires modelling of soil water content.
+We now describe the radiation, sensible and latent heat components of the energy budget in more detail, beginning with the simpler case of deriving microclimate conditions above the canopy, before turning to the more complex situation below the canopy. We then turn to modelling ground heat flux, which itself requires modelling of soil water content.
 
 ## Above canopy
 ### Radiation and albedo
@@ -289,16 +289,16 @@ plot(k1 ~ solp2$zen, pch = 15, col = "black",
      xlim = c(0, 90), ylim = c(0, 12),
      xlab = "Zenith angle", ylab = "Extinction coefficient")
 par(new = TRUE)
-plot(k2 ~ solp2$zen, pch = 15, col = "blue",
+plot(k2 ~ solp2$zen, pch = 15, col = "steelblue",
      xlim = c(0, 90), ylim = c(0, 12),
      xlab = "", ylab = "")
 par(new = TRUE)
-plot(k3 ~ solp2$zen, pch = 15, col = "red",
+plot(k3 ~ solp2$zen, pch = 15, col = "firebrick",
      xlim = c(0, 90), ylim = c(0, 12),
      xlab = "", ylab = "")
 
 legend("topleft", legend = c("x = 1", "x = 0.1", "x = 10"),
-       col = c("black", "blue", "red"), pch = 15, bty = "n")
+       col = c("black", "steelblue", "firebrick"), pch = 15, bty = "n")
 ```
 ![](images/img5.png)
 
@@ -399,7 +399,7 @@ Z <- do.call(cbind, z_list)
 UZ <- do.call(cbind, uz_list)
 
 # Plot wind profiles
-cols <- c("red", "black", "blue")
+cols <- c("firebrick", "black", "steelblue")
 
 matplot(UZ, Z, type = "l", lwd = 2, col = cols, lty = 1,
         xlab = "Wind speed (m s-1)",
@@ -414,7 +414,7 @@ legend("topleft",
 ```
 ![](images/img8.png)
 
-A further complication is that friction velocity and resistance to heat loss both depend on thermally generated turbulence, quantified using diabatic corrections for momentum and heat. These corrections require that the sensible heat flux is known, yet estimating that flux also depends on diabatic coefficients, creating a circular problem that must be solved iteratively. I.e. when a surface is heated, the air above it becomes more turbulent and it loses heat more readily, and when it is cooled, the opposite occurs, but in both instances the degree of heat and cooling depends on how much turbulence there is. The `micropoint` package handles this iterative process automatically. The wind profiles above ignore the diabatic corrections, and in the example below we show how vegetation height influences the shape of the temperature profile in the same way. This is the default behaviour of the functions, which assume neutral conditions unless told otherwise. Below that we show how the diabatic corrections can be derived iteratively and influence the shape of the profiles.
+A further complication is that friction velocity and resistance to heat loss both depend on thermally generated turbulence, quantified using diabatic corrections for momentum and heat. These corrections require that the sensible heat flux is known, yet estimating that flux also depends on diabatic coefficients, creating a circular problem that must be solved iteratively. I.e. when a surface is heated, the air above it becomes more turbulent and it loses heat more readily, and when it is cooled, the opposite occurs, but in both instances the degree of heating and cooling depends on how much turbulence there is. The `micropoint` package handles this iterative process automatically. The wind profiles above ignore the diabatic corrections, and in the example below we show how vegetation height influences the shape of the temperature profile in the same way. This is the default behaviour of the functions, which assume neutral conditions unless told otherwise. Below that we show how the diabatic corrections can be derived iteratively and influence the shape of the profiles.
 
 In the code below we set the air temperature and pressure at the reference height, assume a sensible heat flux of 200 W per square metre, and calculate the volumetric heat capacity of air. We then compute the resistance to zref for each canopy and use this to estimate its heat-exchange surface temperature. Next, we obtain resistances for each height vector and, together with the surface temperatures, derive temperature–height profiles, which are then plotted.
 
@@ -573,12 +573,12 @@ plot(z ~ uz1, type = "l", lwd = 2,
      ylab = "Height (m)")
 
 par(new = TRUE)
-plot(z ~ uz2, type = "l", lwd = 2, col = "red",
+plot(z ~ uz2, type = "l", lwd = 2, col = "firebrick",
      xlim = c(0, 3), ylim = c(0, 2),
      xlab = "", ylab = "")
 
 legend("topleft", legend = c("Neutral", "Diabatic"),
-       col = c("black", "red"), lwd = 2, bty = "n")
+       col = c("black", "firebrick"), lwd = 2, bty = "n")
 
 plot(z ~ uz3, type = "l", lwd = 2,
      xlim = c(0, 3), ylim = c(0, 2),
@@ -586,12 +586,12 @@ plot(z ~ uz3, type = "l", lwd = 2,
      ylab = "Height (m)")
 
 par(new = TRUE)
-plot(z ~ uz4, type = "l", lwd = 2, col = "blue",
+plot(z ~ uz4, type = "l", lwd = 2, col = "steelblue",
      xlim = c(0, 3), ylim = c(0, 2),
      xlab = "", ylab = "")
 
 legend("topleft", legend = c("Neutral", "Diabatic"),
-       col = c("black", "blue"), lwd = 2, bty = "n")
+       col = c("black", "steelblue"), lwd = 2, bty = "n")
 
 # Compare temperature profiles
 plot(z ~ tz1, type = "l", lwd = 2,
@@ -600,12 +600,12 @@ plot(z ~ tz1, type = "l", lwd = 2,
      ylab = "Height (m)")
 
 par(new = TRUE)
-plot(z ~ tz2, type = "l", lwd = 2, col = "red",
+plot(z ~ tz2, type = "l", lwd = 2, col = "firebrick",
      xlim = c(15, 24), ylim = c(0, 2),
      xlab = "", ylab = "")
 
 legend("topright", legend = c("Neutral", "Diabatic"),
-       col = c("black", "red"), lwd = 2, bty = "n")
+       col = c("black", "firebrick"), lwd = 2, bty = "n")
 
 plot(z ~ tz3, type = "l", lwd = 2,
      xlim = c(10, 15), ylim = c(0, 2),
@@ -613,21 +613,21 @@ plot(z ~ tz3, type = "l", lwd = 2,
      ylab = "Height (m)")
 
 par(new = TRUE)
-plot(z ~ tz4, type = "l", lwd = 2, col = "blue",
+plot(z ~ tz4, type = "l", lwd = 2, col = "steelblue",
      xlim = c(10, 15), ylim = c(0, 2),
      xlab = "", ylab = "")
 
 legend("topleft", legend = c("Neutral", "Diabatic"),
-       col = c("black", "blue"), lwd = 2, bty = "n")
+       col = c("black", "steelblue"), lwd = 2, bty = "n")
 ```
 ![](images/img10.png)
 
 When the surface is heated, buoyancy adds to turbulence, producing a slight increase in friction velocity (`uf`). The air is mixed more thoroughly, so wind speed is more uniform with height than under neutral conditions and is higher close to the canopy. When the surface is cooled, buoyancy suppresses turbulence, reducing `uf`, and wind speed close to the canopy is lower and increases more steadily with height. The temperature profiles behave similarly: under heating, resistance to heat loss is reduced, lowering canopy-top temperatures relative to the neutral case and confining the steepest part of the temperature gradient to the air just above the canopy. Under cooling, resistance to heat loss increases, so the canopy and the air close to it are colder than in the neutral case and the temperature difference extends further up the profile.
 
 #### Low wind speeds
-The calculations above run into difficulty when there is very little wind. As wind speed approaches zero, friction velocity and turbulent heat exchange also decline, causing resistance to heat loss to become very large. Sun-heated surfaces then attain unrealistically high modelled temperatures. In reality, a hot surface generates its own air movement: the air warmed by the surface rises and draws in cooler air.This process, known as free convection, maintains heat exchange even in still conditions.
+The calculations above run into difficulty when there is very little wind. As wind speed approaches zero, friction velocity and turbulent heat exchange also decline, causing resistance to heat loss to become very large. Sun-heated surfaces then attain unrealistically high modelled temperatures. In reality, a hot surface generates its own air movement: the air warmed by the surface rises and draws in cooler air. This process, known as free convection, maintains heat exchange even in still conditions.
 
-The function `effectivewind` accounts for free convection by estimating the velocity of the rising air from the sensible heat flux and combining it with the measured wind speed.This effective wind speed replaces the measured wind speed when calculating friction velocity. When heat flows from the air to the surface, free convection does not occur and the measured wind speed is used unchanged. Because the calculation depends on sensible heat flux, effective wind speed is updated iteratively alongside the Obukhov length.
+The function `effectivewind` accounts for free convection by estimating the velocity of the rising air from the sensible heat flux and combining it with the measured wind speed. This effective wind speed replaces the measured wind speed when calculating friction velocity. When heat flows from the air to the surface, free convection does not occur and the measured wind speed is used unchanged. Because the calculation depends on sensible heat flux, effective wind speed is updated iteratively alongside the Obukhov length.
 
 The code below calculates the temperature of a strongly heated canopy across a range of wind speeds, using the same approach as the heated surface example above. We compare results with and without free convection and plot the differences.
 
@@ -668,10 +668,10 @@ th2 <- sapply(uref, canopytemp, convection = TRUE)  # with convection
 
 plot(th1 ~ uref, type = "l", lwd = 2, ylim = c(20, 90),
      xlab = "Wind speed (m/s)", ylab = "Canopy temperature")
-lines(th2 ~ uref, lwd = 2, col = "red")
+lines(th2 ~ uref, lwd = 2, col = "firebrick")
 
 legend("topright", legend = c("Measured wind", "Effective wind"),
-       col = c("black", "red"), lwd = 2, bty = "n")
+       col = c("black", "firebrick"), lwd = 2, bty = "n")
 ```
 ![](images/img10a.png)
 
@@ -706,18 +706,18 @@ zw <- d + 2 * (h - d)
 plot(z ~ uz1, type = "l", lwd = 2,
      xlim = c(1, 3), ylim = c(h, zref),
      xlab = "Wind speed (m/s)", ylab = "Height (m)")
-lines(z ~ uz2, lwd = 2, col = "red")
+lines(z ~ uz2, lwd = 2, col = "firebrick")
 abline(h = zw, lty = 2)
 
 legend("topleft", legend = c("Standard", "Roughness sublayer"),
-       col = c("black", "red"), lwd = 2, bty = "n")
+       col = c("black", "firebrick"), lwd = 2, bty = "n")
 ```
 ![](images/img10b.png)
 
 Within the roughness sublayer the more effective mixing means that wind speed changes less steeply with height, so the wind at the canopy top is slightly stronger. Above the sublayer both profiles are logarithmic and converge on the wind speed at the reference height. The effects of the roughness sublayer on heat exchange are covered later.
 
 ### Latent heat and stomatal conductance
-In our simple microclimate example, bulk surface stomatal resistance to vapour loss is calculated using a basic approach in which stomata respond only to photosynthetically active radiation. In reality, transpiration is a dynamic, regulated process: stomata respond to light, humidity, temperature, and soil moisture, balancing carbon uptake against the risk of excessive water loss. Capturing this behaviour requires a more detailed representation of stomatal resistance. The model presented below is an analytical stomatal-optimisation scheme developed as part of the xylem-hydraulics component of the Joint UK Land Environment Simulator (JULES) land-surface model (Eller et al., 2020).
+In our simple microclimate example, bulk surface stomatal resistance to vapour loss is calculated using a basic approach in which stomata respond only to photosynthetically active radiation. In reality, transpiration is a dynamic, regulated process: stomata respond to light, humidity, temperature, and soil moisture, balancing carbon uptake against the risk of excessive water loss. Capturing this behaviour requires a more detailed representation of stomatal resistance. The model presented below is an analytical stomatal-optimisation scheme developed as part of the xylem-hydraulics component of the Joint UK Land Environment Simulator (JULES) land-surface model (Eller et al. 2020).
 
 This model is relatively parameter-rich, so a table of values for major plant functional types is included with the tutorial package. The helper function createplant_inputs() extracts the relevant values and returns a ready-to-use list of vegetation parameters for a chosen plant functional type. The available plant functional types (see ?PFTtable) are intentionally broad and are best treated as starting points for more detailed, site- or species-specific parameterisation. For example, a nominal vegetation height is provided, but users will often have better information for their target vegetation. Many of the remaining traits correspond to those available in the TRY database.
 
@@ -739,7 +739,7 @@ gs <- stomatalcond_calc(Ca, Rswabs = 500, tair = 20, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ Ca, type = "l",
+plot(gs ~ Ca, type = "l", lwd = 2,
      xlab = expression(CO[2] ~ "concentration (ppm)"),
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -751,7 +751,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs, tair = 20, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ Rswabs, type = "l",
+plot(gs ~ Rswabs, type = "l", lwd = 2,
      xlab = expression("Absorbed radiation (W " * m^-2 * ")"),
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -763,7 +763,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair, tleaf = 25,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ tair, type = "l",
+plot(gs ~ tair, type = "l", lwd = 2,
      xlab = expression("Air temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -775,7 +775,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf,
                         rh = 75, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ tleaf, type = "l",
+plot(gs ~ tleaf, type = "l", lwd = 2,
      xlab = expression("Leaf temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -787,7 +787,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
                         rh, pk = 101.3, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ rh, type = "l",
+plot(gs ~ rh, type = "l", lwd = 2,
      xlab = "Relative humidity (%)",
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -799,14 +799,14 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
                         rh = 75, pk, psi_r = -0.005,
                         vegparams, z, C3 = TRUE)
 
-plot(gs ~ pk, type = "l",
+plot(gs ~ pk, type = "l", lwd = 2,
      xlab = "Atmospheric pressure (kPa)",
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
 ```
 ![](images/img11.png)
 
-Stomatal conductance declines modestly with increasing CO2, as higher ambient concentrations allow the same rate of carbon assimilation with a smaller stomatal aperture. It rises steeply with radiation at low light levels, reflecting light limitation of photosynthesis, but soon saturates, changing little once the leaf absorbs more than about 100 W m^-2^. The temperature panels reflect both a direct effect of temperature on photosynthetic rates and a strong indirect effect through VPD: as the difference between leaf and air temperature changes, so does the vapour pressure deficit, altering the hydraulic cost of transpiration. Where the prescribed combination of leaf and air temperature drives VPD toward zero, stomatal conductance rises sharply to its anatomical maximum, and it remains there when the leaf is at or below the dewpoint of the air, as there is then no vapour pressure deficit and so no water to be lost by opening the stomata. In practice these conditions are very rarely encountered because leaf temperature almost invariably exceeds air temperature during the day, maintaining a positive VPD. Above the dewpoint, stomatal conductance declines with increasing leaf temperature as higher leaf temperatures drive greater VPD. Conductance increases with relative humidity and shows weak sensitivity to atmospheric pressure.
+Stomatal conductance declines modestly with increasing CO2, as higher ambient concentrations allow the same rate of carbon assimilation with a smaller stomatal aperture. It rises steeply with radiation at low light levels, reflecting light limitation of photosynthesis, but soon saturates, changing little once the leaf absorbs more than about 100 W m^-2^. The temperature panels reflect both a direct effect of temperature on photosynthetic rates and a strong indirect effect through VPD: as the difference between leaf and air temperature changes, so does the vapour pressure deficit, altering the hydraulic cost of transpiration. Where the prescribed combination of leaf and air temperature drives VPD towards zero, stomatal conductance rises sharply to its anatomical maximum, and it remains there when the leaf is at or below the dewpoint of the air, as there is then no vapour pressure deficit and so no water to be lost by opening the stomata. In practice these conditions are very rarely encountered because leaf temperature almost invariably exceeds air temperature during the day, maintaining a positive VPD. Above the dewpoint, stomatal conductance declines with increasing leaf temperature as higher leaf temperatures drive greater VPD. Conductance increases with relative humidity and shows weak sensitivity to atmospheric pressure.
 
 The final environmental input is soil water potential, which captures drought stress. Because most ecologists are more familiar with volumetric soil moisture, the package includes a helper function to convert moisture to water potential. This conversion requires three soil parameters: saturated volumetric water content, a shape parameter (`b`), and the air-entry water potential (`psi_e`). Lookup values for these parameters are provided in the built-in `soilparams` dataset in the `micropoint` package; in the example below, we use values for clay loam. 
 
@@ -829,7 +829,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
 
 par(mfrow = c(1, 1))
 
-plot(gs ~ theta, type = "l",
+plot(gs ~ theta, type = "l", lwd = 2,
      xlab = expression("Volumetric water content (m"^3 * " m"^-3 * ")"),
      ylab = "Stomatal conductance",
      ylim = c(0, 0.5))
@@ -904,12 +904,12 @@ ratio <- gS / gs
 
 par(mar = c(6, 6, 3, 3))
 
-plot(ratio ~ PAI, type = "l",
-     cex.axis = 2, cex.lab = 2,
+plot(ratio ~ PAI, type = "l", lwd = 2,
+     cex.axis = 1.3, cex.lab = 1.3,
      xlab = "Plant area index",
      ylab = expression(g[S] / g[s]))
 
-abline(h = 1, lty = 2, col = "red")
+abline(h = 1, lty = 2, col = "firebrick")
 ```
 ![](images/img13.png)
 
@@ -1010,12 +1010,12 @@ plot(Tz ~ tmem, type = "l",
      xlab = "Date",
      ylab = "",
      ylim = c(5, 35),
-     col = "red")
+     col = "firebrick")
 
 legend("topright",
        legend = c("Reference air temperature",
                   "Microclimate temperature"),
-       col = c(rgb(0, 0, 0, 0.5), "red"),
+       col = c(rgb(0, 0, 0, 0.5), "firebrick"),
        lwd = 2,
        bty = "n")
 ```
@@ -1044,7 +1044,7 @@ paii <- micropoint::PAIgeometry(PAI = vegp$pai,
 
 z <- ((1:1000) / 1000) * vegp$h # height above ground (m)
 
-plot(z ~ paii, type = "l",
+plot(z ~ paii, type = "l", lwd = 2,
      xlab = "Plant area index of each layer",
      ylab = "Height (m)",
      main = paste0("Total PAI: ", round(sum(paii), 2)))
@@ -1074,13 +1074,13 @@ groundp <- micropoint::groundparams
 tsmod <- twostream(vegp, groundp, paii,
                    swdown, difrad, solp)
 
-plot(z ~ tsmod$Rdirdown, type = "l", col = "red", lwd = 2,
+plot(z ~ tsmod$Rdirdown, type = "l", col = "firebrick", lwd = 2,
      xlab = expression("Radiation flux (W " * m^-2 * ")"),
      ylab = "Height (m)",
      xlim = c(0, 750), ylim = c(0, 10))
 
 par(new = TRUE)
-plot(z ~ tsmod$Rdifdown, type = "l", col = "blue", lwd = 2,
+plot(z ~ tsmod$Rdifdown, type = "l", col = "steelblue", lwd = 2,
      xlab = "", ylab = "",
      xlim = c(0, 750), ylim = c(0, 10))
 
@@ -1090,7 +1090,7 @@ plot(z ~ tsmod$Rswup, type = "l", col = "black", lwd = 2,
      xlim = c(0, 750), ylim = c(0, 10))
 
 par(new = TRUE)
-plot(z ~ tsmod$Rleafabs, type = "l", col = "darkgreen", lwd = 2,
+plot(z ~ tsmod$Rleafabs, type = "l", col = "forestgreen", lwd = 2,
      xlab = "", ylab = "",
      xlim = c(0, 750), ylim = c(0, 10))
 
@@ -1099,7 +1099,7 @@ legend("bottomright",
                   "Diffuse downward",
                   "Upward shortwave",
                   "Leaf absorption"),
-       col = c("red", "blue", "black", "darkgreen"),
+       col = c("firebrick", "steelblue", "black", "forestgreen"),
        lwd = 2,
        bty = "n")
 ```
@@ -1131,18 +1131,18 @@ lwb <- longwavebelow(paii,
                      vegem = 0.97)
 
 # Plot longwave radiation fluxes
-plot(z ~ lwb$Rlwdown, type = "l", col = "red", lwd = 2,
+plot(z ~ lwb$Rlwdown, type = "l", col = "firebrick", lwd = 2,
      xlab = expression("Radiation flux (W " * m^-2 * ")"),
      ylab = "Height (m)",
      xlim = c(250, 450), ylim = c(0, 10))
 
 par(new = TRUE)
-plot(z ~ lwb$Rlwup, type = "l", col = "blue", lwd = 2,
+plot(z ~ lwb$Rlwup, type = "l", col = "steelblue", lwd = 2,
      xlab = "", ylab = "",
      xlim = c(250, 450), ylim = c(0, 10))
 
 par(new = TRUE)
-plot(z ~ lwb$RlwLabs, type = "l", col = "darkgreen", lwd = 2,
+plot(z ~ lwb$RlwLabs, type = "l", col = "forestgreen", lwd = 2,
      xlab = "", ylab = "",
      xlim = c(250, 450), ylim = c(0, 10))
 
@@ -1150,7 +1150,7 @@ legend("bottomleft",
        legend = c("Downward longwave",
                   "Upward longwave",
                   "Leaf absorption"),
-       col = c("red", "blue", "darkgreen"),
+       col = c("firebrick", "steelblue", "forestgreen"),
        lwd = 2,
        bty = "n")
 ```
@@ -1181,36 +1181,36 @@ z <- ((1:100) - 0.5) / 100 * 25 # height of the middle of each layer (m)
 par(mfrow = c(1, 2))
 
 # Foliage profiles
-plot(z ~ paii_skew, type = "l", lwd = 2, col = "darkgreen",
+plot(z ~ paii_skew, type = "l", lwd = 2, col = "forestgreen",
      xlab = "Plant area index of each layer",
      ylab = "Height (m)",
      xlim = c(0, 0.06))
 
 par(new = TRUE)
-plot(z ~ paii_unif, type = "l", lwd = 2, col = "blue",
+plot(z ~ paii_unif, type = "l", lwd = 2, col = "steelblue",
      xlab = "", ylab = "",
      xlim = c(0, 0.06))
 
 legend("topright",
        legend = c("Skewed profile", "Uniform profile"),
-       col = c("darkgreen", "blue"),
+       col = c("forestgreen", "steelblue"),
        lwd = 2,
        bty = "n")
 
 # Wind profiles
-plot(z ~ wind_skew, type = "l", lwd = 2, col = "darkgreen",
+plot(z ~ wind_skew, type = "l", lwd = 2, col = "forestgreen",
      xlab = expression("Wind speed (m s"^-1 * ")"),
      ylab = "Height (m)",
      xlim = c(0, 3))
 
 par(new = TRUE)
-plot(z ~ wind_unif, type = "l", lwd = 2, col = "blue",
+plot(z ~ wind_unif, type = "l", lwd = 2, col = "steelblue",
      xlab = "", ylab = "",
      xlim = c(0, 3))
 
 legend("bottomright",
        legend = c("Skewed profile", "Uniform profile"),
-       col = c("darkgreen", "blue"),
+       col = c("forestgreen", "steelblue"),
        lwd = 2,
        bty = "n")
 ```
@@ -1248,17 +1248,17 @@ uf_bare <- 0.41 * uref / log(zref / 0.004)
 KH_bare <- thermaldiffusivity(z, uf_bare, h = 0, pai = 0)
 
 # Plot the three profiles
-plot(z ~ KH_dense, type = "l", lwd = 2, col = "darkgreen",
+plot(z ~ KH_dense, type = "l", lwd = 2, col = "forestgreen",
      xlab = expression("Thermal diffusivity (" * m^2 ~ s^-1 * ")"),
      ylab = "Height (m)",
      xlim = c(0, 2.5))
-lines(z ~ KH_sparse, lwd = 2, col = "orange")
+lines(z ~ KH_sparse, lwd = 2, col = "darkorange")
 lines(z ~ KH_bare, lwd = 2, col = "black", lty = 2)
 abline(h = h, lty = 3) # canopy height
 
 legend("bottomright",
        legend = c("Dense canopy", "Sparse canopy", "Bare ground"),
-       col = c("darkgreen", "orange", "black"),
+       col = c("forestgreen", "darkorange", "black"),
        lty = c(1, 1, 2), lwd = 2, bty = "n")
 ```
 ![](images/img17a.png)
@@ -1367,7 +1367,7 @@ tleaf <- SolveEnergyBalance(tair,
 
 # ---------------------- Plot leaf temperature profile -------------------- #
 par(mfrow = c(1, 1))
-plot(z ~ tleaf, type = "l", lwd = 2, col = "darkgreen",
+plot(z ~ tleaf, type = "l", lwd = 2, col = "forestgreen",
      xlab = expression("Leaf temperature (" * degree * "C)"),
      ylab = "Height (m)",
      xlim = c(24, 28))
@@ -1380,9 +1380,9 @@ Leaves are warmer than the surrounding air throughout the canopy, with temperatu
 
 In the earlier examples, air temperature and humidity were treated as known inputs when calculating leaf temperature and longwave radiation. Here we calculate them from the exchange of heat and water vapour within the canopy.
 
-Air temperature at any height depends on heat released by foliage throughout the canopy, not just at that height. The functions `temp_below` and `relhum_below` account for this using Raupach's (1989a,b) localized near-field approach, which separates the influence of nearby foliage (the **near field**) from that of heat and water vapour transported through the canopy as a whole (the **far field**). Together, these determine the vertical profiles of air temperature and humidity.
+Air temperature at any height depends on heat released by foliage throughout the canopy, not just at that height. The functions `temp_below` and `relhum_below` account for this using Raupach's (1989a,b) localised near-field approach, which separates the influence of nearby foliage (the **near field**) from that of heat and water vapour transported through the canopy as a whole (the **far field**). Together, these determine the vertical profiles of air temperature and humidity.
 
-We illustrate the two components separately using `farfield` and `nearfield`. Both require the heat released by each canopy layer. Later we calculate this from leaf temperature, but for now we make the simplifying assumption that half the radiation absorbed by each layer is released as sensible heat. We use 500 W m^-2^ of radiation at canopy top, giving a total sensible heat flux of about 200 W m^-2^. Rather than the smooth foliage profiles used previously, we use the inbuilt dataset `wythampai`, a plant area profile measured by laser scanning at Wytham Woods, Oxfordshire, by Calders *et al.* (2023). This has the uneven vertical distribution of foliage characteristic of real woodland.
+We illustrate the two components separately using `farfield` and `nearfield`. Both require the heat released by each canopy layer. Later we calculate this from leaf temperature, but for now we make the simplifying assumption that half the radiation absorbed by each layer is released as sensible heat. We use 500 W m^-2^ of radiation at canopy top, giving a total sensible heat flux of about 200 W m^-2^. Rather than the smooth foliage profiles used previously, we use the inbuilt dataset `wythampai`, a plant area profile measured by laser scanning at Wytham Woods, Oxfordshire, by Calders et al. (2023). This has the uneven vertical distribution of foliage characteristic of real woodland.
 
 #### The far field
 
@@ -1422,10 +1422,10 @@ tfar <- farfield(Hz, hgt, pai, uf,
 
 # ---------------------------- Plot results ------------------------------- #
 par(mfrow = c(1, 2))
-plot(z ~ paii, type = "l", lwd = 2, col = "darkgreen",
+plot(z ~ paii, type = "l", lwd = 2, col = "forestgreen",
      xlab = "Plant area index of layer",
      ylab = "Height (m)")
-plot(zall ~ tfar, type = "l", lwd = 2, col = "red",
+plot(zall ~ tfar, type = "l", lwd = 2, col = "firebrick",
      xlab = expression("Far-field temperature (" * degree * "C)"),
      ylab = "Height (m)")
 ```
@@ -1451,16 +1451,16 @@ tair <- tfar + tnear
 
 # ---------------------------- Plot results ------------------------------- #
 par(mfrow = c(1, 2))
-plot(zall ~ tnear, type = "l", lwd = 2, col = "blue",
+plot(zall ~ tnear, type = "l", lwd = 2, col = "steelblue",
      xlab = expression("Near-field temperature (" * degree * "C)"),
      ylab = "Height (m)")
 plot(zall ~ tair, type = "l", lwd = 2, col = "black",
      xlab = expression("Air temperature (" * degree * "C)"),
      ylab = "Height (m)")
-lines(zall ~ tfar, lwd = 2, col = "red", lty = 2)
+lines(zall ~ tfar, lwd = 2, col = "firebrick", lty = 2)
 legend("left",
        legend = c("Far + near", "Far only"),
-       col = c("black", "red"),
+       col = c("black", "firebrick"),
        lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8)
 ```
 
@@ -1639,19 +1639,19 @@ while (error > 1e-3) {
 # ----------------------------- Plot results ------------------------------ #
 par(mfrow = c(1, 2))
 # Temperature profiles
-plot(z ~ tleaf, type = "l", col = "darkgreen", lwd = 2,
+plot(z ~ tleaf, type = "l", col = "forestgreen", lwd = 2,
      xlim = c(24, 32),
      xlab = expression("Temperature (" * degree * "C)"),
      ylab = "Height (m)")
-lines(z ~ tair, col = "blue", lwd = 2)
+lines(z ~ tair, col = "steelblue", lwd = 2)
 legend("bottomright",
        legend = c("Leaf", "Air"),
-       col = c("darkgreen", "blue"),
+       col = c("forestgreen", "steelblue"),
        lwd = 2,
        bty = "n")
 
 # Relative humidity profile of the air
-plot(z ~ rh, type = "l", col = "blue", lwd = 2,
+plot(z ~ rh, type = "l", col = "steelblue", lwd = 2,
      xlim = c(50, 65),
      xlab = "Relative humidity (%)",
      ylab = "Height (m)")
@@ -1661,7 +1661,7 @@ plot(z ~ rh, type = "l", col = "blue", lwd = 2,
 
 Leaves are 1.5–4.3 °C warmer than the surrounding air, with the highest temperatures around 15 m, where radiation absorption is greatest. Air temperature varies much less, rising from 25.9 °C at canopy top to 26.5 °C near 15 m before falling towards the cooler ground. Relative humidity remains close to 53% through most of the canopy, reaching a minimum where the air is warmest, then rising to 63% near the moist ground as the air cools and water evaporates from the soil.
 
-Here ground temperature is prescribed and the gorund heat flux is approximated. The next section shows how both can be calculated explicitly.
+Here ground temperature is prescribed and the ground heat flux is approximated. The next section shows how both can be calculated explicitly.
 
 ## Ground heat storage
 
@@ -1693,10 +1693,10 @@ Ch <- heatCapacity(Vq, Vm, Vo, Vw,
 
 # Plot both against water content
 par(mfrow = c(1, 2))
-plot(k ~ Vw, type = "l", lwd = 2, col = "blue",
+plot(k ~ Vw, type = "l", lwd = 2, col = "steelblue",
      xlab = expression("Volumetric water fraction (m"^3 * " m"^-3 * ")"),
      ylab = expression("Thermal conductivity (W m"^-1 * " K"^-1 * ")"))
-plot(Ch ~ Vw, type = "l", lwd = 2, col = "red",
+plot(Ch ~ Vw, type = "l", lwd = 2, col = "firebrick",
      xlab = expression("Volumetric water fraction (m"^3 * " m"^-3 * ")"),
      ylab = expression("Volumetric heat capacity (MJ m"^-3 * " K"^-1 * ")"))
 ```
@@ -1747,7 +1747,7 @@ error <- 1e99   # difference from previous iteration
 Told <- 0       # temperature in previous iteration
 itr <- 1        # iteration counter
 
-cols <- adjustcolor(colorRampPalette(c("red", "blue"))(12),
+cols <- adjustcolor(colorRampPalette(c("firebrick", "steelblue"))(12),
                     alpha.f = 0.25)
 
 while (error > 1e-3) {
@@ -1768,7 +1768,7 @@ while (error > 1e-3) {
 
   # Plot diurnal temperature on each iteration
   if (itr == 1) {
-    plot(Ts ~ tt, type = "l", col = "red",
+    plot(Ts ~ tt, type = "l", col = "firebrick",
          ylim = c(10, 40),
          xlab = "Hour",
          ylab = expression("Temperature (" * degree * "C)"),
@@ -1795,7 +1795,7 @@ while (error > 1e-3) {
 }
 
 # ---------------------- Plot final converged temperature ----------------- #
-lines(Ts ~ tt, col = "blue", lwd = 2)
+lines(Ts ~ tt, col = "steelblue", lwd = 2)
 ```
 
 ![](images/img22.png)
@@ -1820,20 +1820,20 @@ Tz20 <- Tav + A0 * exp(z / DampDepth) *
 Tz0 <- Tav + A0 * sin(om * (tt - hrmx) + pi / 2)
 
 # ----------------------------- Plot results ----------------------------- #
-plot(Ts ~ tt, type = "l", col = "red",
+plot(Ts ~ tt, type = "l", col = "firebrick",
      ylim = c(10, 40),
      xlab = "Hour",
      ylab = expression("Temperature (" * degree * "C)"),
      lwd = 2)
-lines(Tz0 ~ tt, col = "red", lwd = 2, lty = 2)
+lines(Tz0 ~ tt, col = "firebrick", lwd = 2, lty = 2)
 lines(Tz5 ~ tt, col = "black", lwd = 2)
-lines(Tz20 ~ tt, col = "blue", lwd = 2)
+lines(Tz20 ~ tt, col = "steelblue", lwd = 2)
 legend("topleft",
        legend = c("Surface temperature",
                   "Sinusoidal approximation",
                   "5 cm depth",
                   "20 cm depth"),
-       col = c("red", "red", "black", "blue"),
+       col = c("firebrick", "firebrick", "black", "steelblue"),
        lty = c(1, 2, 1, 1),
        lwd = 2,
        bty = "n")
@@ -1963,12 +1963,12 @@ par(mfrow = c(2, 2))
 tmec <- as.POSIXct(tme, tz = "UTC")
 
 # Soil surface temperature
-plot(Tsurface ~ tmec, type = "l", lwd = 2, col = "red",
+plot(Tsurface ~ tmec, type = "l", lwd = 2, col = "firebrick",
      xlab = "Date",
      ylab = expression("Temperature (" * degree * "C)"))
 
 # Ground heat flux
-plot(Gflux ~ tmec, type = "l", lwd = 2, col = "blue",
+plot(Gflux ~ tmec, type = "l", lwd = 2, col = "steelblue",
      xlab = "Date",
      ylab = expression("Ground heat flux (W " * m^-2 * ")"))
 
@@ -1997,8 +1997,8 @@ plotdailycycle <- function(v, clr) {
 }
 
 # Plot daily cycles for surface temperature and ground heat flux
-plotdailycycle(Tsurface, rgb(1, 0, 0, 0.5))
-plotdailycycle(Gflux, rgb(0, 0, 1, 0.5))
+plotdailycycle(Tsurface, rgb(0.7, 0.13, 0.13, 0.5))
+plotdailycycle(Gflux, rgb(0.27, 0.51, 0.71, 0.5))
 ```
 
 ![](images/img24.png)
@@ -2046,22 +2046,22 @@ plot(theta, log10(-psiw1),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
-     cex.lab = 2,
-     cex.axis = 2)
+     cex.lab = 1.3,
+     cex.axis = 1.3)
 lines(theta, log10(-psiw2),
-      col = "red",
+      col = "firebrick",
       lwd = 2)
 exps <- 0:4
 axis(2,
      at = log10(10^exps),
-     cex.axis = 2,
+     cex.axis = 1.3,
      labels = paste0("-", 10^exps))
 legend("bottomright",
        legend = c("Campbell", "van Genuchten"),
-       col = c("black", "red"),
+       col = c("black", "firebrick"),
        lwd = 2,
        bty = "n",
-       cex = 1.5)
+       cex = 1.1)
 ```
 
 ![](images/img24a.png)
@@ -2097,22 +2097,22 @@ plot(theta, log10(-psiw1),
      yaxt = "n",
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression(psi[w] ~ "(J kg"^-1 * ")"),
-     cex.lab = 2,
-     cex.axis = 2)
+     cex.lab = 1.3,
+     cex.axis = 1.3)
 lines(theta, log10(-psiw2),
-      col = "red",
+      col = "firebrick",
       lwd = 2)
 exps <- -1:10
 axis(2,
      at = log10(10^exps),
-     cex.axis = 2,
+     cex.axis = 1.3,
      labels = paste0("-", 10^exps))
 legend("bottomright",
        legend = c("Clay", "Sand"),
-       col = c("black", "red"),
+       col = c("black", "firebrick"),
        lwd = 2,
        bty = "n",
-       cex = 1.5)
+       cex = 1.1)
 ```
 
 ![](images/img24b.png)
@@ -2148,17 +2148,17 @@ plot(theta, Ks1,
      ylim = c(1e-14, 1e-5),
      xlab = expression(theta ~ "(m"^3 * " m"^-3 * ")"),
      ylab = expression("Conductivity (kg s m"^-3 * ")"),
-     cex.axis = 2,
-     cex.lab = 2)
+     cex.axis = 1.3,
+     cex.lab = 1.3)
 lines(theta, Ks2,
-      col = "red",
+      col = "firebrick",
       lwd = 2)
 legend("bottomright",
        legend = c("Campbell", "van Genuchten"),
-       col = c("black", "red"),
+       col = c("black", "firebrick"),
        lwd = 2,
        bty = "n",
-       cex = 1.5)
+       cex = 1.1)
 ```
 
 ![](images/img24c.png)
@@ -2305,27 +2305,27 @@ tmec <- as.POSIXct(tme, tz = "UTC")
 # Soil temperature time series
 plot(Tsurface ~ tmec, type = "l",
      lwd = 2,
-     col = "red",
+     col = "firebrick",
      ylim = c(5, 30),
      xlab = "Date",
      ylab = expression("Temperature (" * degree * "C)"))
-lines(T10cm ~ tmec, lwd = 2, col = "blue")
+lines(T10cm ~ tmec, lwd = 2, col = "steelblue")
 legend("topright",
        legend = c("Surface", "10 cm"),
-       col = c("red", "blue"),
+       col = c("firebrick", "steelblue"),
        lwd = 2,
        bty = "n")
 # Soil moisture time series
 plot(theta_surface ~ tmec, type = "l",
      lwd = 2,
-     col = "red",
+     col = "firebrick",
      ylim = c(0, 0.5),
      xlab = "Date",
      ylab = expression(theta ~ "(m"^3 * " m"^-3 * ")"))
-lines(theta_10cm ~ tmec, lwd = 2, col = "blue")
+lines(theta_10cm ~ tmec, lwd = 2, col = "steelblue")
 legend("topright",
        legend = c("Surface", "10 cm"),
-       col = c("red", "blue"),
+       col = c("firebrick", "steelblue"),
        lwd = 2,
        bty = "n")
 ```
@@ -2353,7 +2353,7 @@ snowage <- seq(0, 60 * 24, length.out = 500) # age of the snow (hours)
 alb <- SnowAlbedo(snowage)
 par(mfrow = c(1, 1))
 plot(alb ~ I(snowage / 24), type = "l",
-     col = "blue",
+     col = "steelblue",
      lwd = 2,
      ylim = c(0, 1),
      xlab = "Snow age (days)",
@@ -2525,7 +2525,7 @@ tmec <- as.POSIXct(tme, tz = "UTC")
 
 # Snow depth
 plot(I(snowdepth * 100) ~ tmec, type = "l",
-     col = "blue",
+     col = "steelblue",
      lwd = 2,
      xlab = "Date",
      ylab = "Snow depth (cm)")
@@ -2536,26 +2536,26 @@ plot(weather$temp ~ tmec, type = "l",
      ylim = c(-16, 6),
      xlab = "Date",
      ylab = expression("Temperature (" * degree * "C)"))
-lines(surfacetemp ~ tmec, col = "blue")
-lines(soiltemp ~ tmec, col = "red", lwd = 2)
+lines(surfacetemp ~ tmec, col = "steelblue")
+lines(soiltemp ~ tmec, col = "firebrick", lwd = 2)
 legend("bottomright",
        legend = c("Air", "Surface", "Soil surface"),
-       col = c("grey", "blue", "red"),
+       col = c("grey", "steelblue", "firebrick"),
        lwd = c(1, 1, 2),
        bty = "n")
 
 # Water added as snow, melted, and leaving the base of the snow
 plot(cumsum(snowfall) ~ tmec, type = "l",
-     col = "blue",
+     col = "steelblue",
      lwd = 2,
      ylim = c(0, 65),
      xlab = "Date",
      ylab = "Cumulative water (mm)")
-lines(cumsum(melt) ~ tmec, col = "red", lwd = 2)
+lines(cumsum(melt) ~ tmec, col = "firebrick", lwd = 2)
 lines(cumsum(drainage) ~ tmec, col = "black", lwd = 2, lty = 2)
 legend("topleft",
        legend = c("Snowfall", "Melt", "Drainage"),
-       col = c("blue", "red", "black"),
+       col = c("steelblue", "firebrick", "black"),
        lty = c(1, 1, 2),
        lwd = 2,
        bty = "n")
@@ -2609,7 +2609,7 @@ In this section we present some simple approaches for computing the body tempera
 The following sections describe how these components are calculated. We first consider radiation absorption, including the role of body orientation in determining interception of direct solar radiation. We then derive the resistance to heat loss via convection, followed by formulations for metabolic heat production. These components are finally combined to solve for body temperature in ectotherms and, in endotherms, for the heat production or evaporation needed to hold body temperature near-constant, together with a physiologically equivalent temperature.
 
 ### Radiation absorption
-In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, so absorption depends on the area of the body projected perpendicular to the solar beam. This is equivalent to the size of the shadow cast onto a surface perpendicular to the sunlight. For example, a standing person casts a small shadow into the ground when the sun is overhead, but a  larger one onto a wall behind them when facing the evening sun. We account for this using the `silhouette` function, which calculates the ratio of projected area to total body surface area from solar geometry and body orientation. This dimensionless coefficient determines the fraction of direct solar radiation, expressed relative to a surface perpendicular to the beam, intercepted per unit body surface area.
+In our animal models, absorbed radiation is calculated from upward and downward shortwave and longwave fluxes, with absorption determined by surface reflectance and body geometry. Diffuse shortwave and longwave radiation are treated as hemispheric fluxes: the upper half of the body receives the downward fluxes from the sky, and the lower half the upward fluxes reflected and emitted by the ground, except where the body touches the ground, which exchanges heat with it by conduction instead. In contrast, direct shortwave radiation is directional, so absorption depends on the area of the body projected perpendicular to the solar beam. This is equivalent to the size of the shadow cast onto a surface perpendicular to the sunlight. For example, a standing person casts a small shadow onto the ground when the sun is overhead, but a larger one onto a wall behind them when facing the evening sun. We account for this using the `silhouette` function, which calculates the ratio of projected area to total body surface area from solar geometry and body orientation. This dimensionless coefficient determines the fraction of direct solar radiation, expressed relative to a surface perpendicular to the beam, intercepted per unit body surface area.
 
 The example below illustrates how interception of direct solar radiation varies over a midsummer day for a person standing upright and facing south (`adir = 180`). Solar zenith and azimuth angles are calculated for daylight hours, and the body is represented using typical adult dimensions (height = 170 cm, width = 45 cm, length = 25 cm), with width corresponding to shoulder breadth and length to front–back depth. Body tilt is set to zero (upright). The `silhouette` function calculates how the interception coefficient changes as the sun moves across the sky. Note that the geometry is symmetric: exchanging height and length and setting body tilt to 90° gives an equivalent configuration, since interception depends on the orientation of the body's principal axes relative to the sun, rather than how those axes are labelled.
 
@@ -2646,7 +2646,7 @@ svals <- silhouette(solp$zen,
 par(mfrow = c(1, 1))
 plot(svals$SolarCoef ~ as.POSIXct(tme),
      type = "l",
-     col = "red",
+     col = "firebrick",
      lwd = 2,
      ylim = c(0, 0.5),
      xlab = "Hour",
@@ -2713,7 +2713,7 @@ The characteristic dimension and hence also the resistance to heat loss is lowes
 ### Metabolic rates
 Metabolic heat production forms one component of the animal energy balance. In ectotherms it is often small relative to radiative and convective fluxes, but can still influence body temperature, particularly in larger or more active animals. In endotherms, by contrast, metabolism is typically the dominant heat source and must offset environmental heat loss.
 
-In the tutorial, the metabolic rate is calculated using the `metabolic_rate` function and  depends on body mass and body temperature. Mass is obtained from volume and density. The function returns metabolic heat production in watts, which the energy balance divides by surface area so that it is comparable with the other terms.
+In the tutorial, the metabolic rate is calculated using the `metabolic_rate` function and depends on body mass and body temperature. Mass is obtained from volume and density. The function returns metabolic heat production in watts, which the energy balance divides by surface area so that it is comparable with the other terms.
 
 For ectotherms, metabolic rate is controlled by four parameters: a normalisation constant (`a0`), a mass-scaling exponent (`b`), a temperature sensitivity (`Q10`), and a reference temperature (`Tref`). The exponent `b` determines how metabolism scales with body size and typically lies close to 0.7–0.8. The parameter `Q10` controls how rapidly metabolism increases with temperature, with values around 2–3 common for ectotherms, implying an approximate doubling or tripling of metabolic rate per 10 °C. The normalisation constant `a0` sets the overall magnitude of metabolic rate at the reference temperature, and therefore captures differences among taxa and activity levels. Together, these parameters define how strongly metabolic heat production responds to both size and temperature.
 
@@ -2756,7 +2756,7 @@ met_rate <- with(ecto_params,
 par(mfrow = c(1, 1))
 plot(met_rate ~ Tbody,
      type = "l",
-     col = "red",
+     col = "firebrick",
      lwd = 2,
      xlab = expression("Body temperature (" * degree * "C)"),
      ylab = expression("Metabolic rate (W)"))
@@ -3003,21 +3003,21 @@ plot(
   xlab = "",
   ylab = "",
   ylim = c(0, 50),
-  col = "red"
+  col = "firebrick"
 )
 
 # Add legend
 legend(
   "topleft",
   legend = c("Air temperature", "Body temperature"),
-  col = c(rgb(0, 0, 0, 0.5), "red"),
+  col = c(rgb(0, 0, 0, 0.5), "firebrick"),
   lwd = 2,
   bty = "n"
 )
 ```
 ![](images/img33.png)
 
-In the plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. The two differ because its mciroenvironment differs from macroclimate and the animal's body itself is an anergy budget, for example being heated by sunlight. 
+In the plot, the red line shows predicted body temperature and the grey line the air temperature at 2 m from the weather data. The two differ because its microenvironment differs from macroclimate and the animal's body itself has an energy budget, for example being heated by sunlight. 
 
 ### Endotherms
 Birds and mammals maintain a relatively stable core temperature by regulating heat production and loss. Their thermal balance differs from that of an ectotherm because the temperature of the body surface can be very different from that of the core. We provide two endotherm models, which look at the same animal from complementary perspectives. The first, `Endotherm`, assumes the animal holds its core temperature constant and asks what that costs: how much extra metabolic heat it must expend when it is cold, or how much latent heat it must lose by evaporation when it is hot, and whether either is more than it can achieve. The latent heat loss can optionally be expressed as the water this requires. The second, `EndothermPET`, instead holds the animal's heat production fixed and lets its core and skin temperatures respond to its surroundings. From those temperatures it calculates how hot or cold the surroundings feel to the animal, expressed as a physiologically equivalent temperature (PET). Both models treat the body in the same way: heat flows from the core, through tissue and coat, to the surroundings and to the ground. We first describe the parts they share, then each model in turn.
@@ -3213,12 +3213,12 @@ for (hr in 1:720) {
 
 # ----------------------------- Plot results ------------------------------ #
 tmec <- as.POSIXct(tme)
-plot(E_sun ~ tmec, type = "l", col = "red", ylim = c(0, 20),
+plot(E_sun ~ tmec, type = "l", col = "firebrick", ylim = c(0, 20),
      xlab = "Date", ylab = expression("Evaporation (L day"^-1 * ")"))
-lines(E_shade ~ tmec, col = "blue")
+lines(E_shade ~ tmec, col = "steelblue")
 lines(Emax ~ tmec, lty = 2) # most the lion can evaporate
 legend("topleft", legend = c("Required, sun", "Required, shade", "Maximum"),
-       col = c("red", "blue", "black"), lty = c(1, 1, 2), bty = "n", cex = 0.8)
+       col = c("firebrick", "steelblue", "black"), lty = c(1, 1, 2), bty = "n", cex = 0.8)
 ```
 ![](images/img33a.png)
 
@@ -3247,16 +3247,16 @@ for (hr in 1:720) {
 
 # ----------------------------- Plot results ------------------------------ #
 par(mfrow = c(2, 1))
-plot(PET_sun ~ tmec, type = "l", col = "red", ylim = c(10, 80),
+plot(PET_sun ~ tmec, type = "l", col = "firebrick", ylim = c(10, 80),
      xlab = "Date", ylab = expression("Temperature (" * degree * "C)"))
-lines(PET_shade ~ tmec, col = "blue")
+lines(PET_shade ~ tmec, col = "steelblue")
 lines(Tz_all ~ tmec, col = "darkgrey")
 legend("topleft", legend = c("Equivalent temperature, sun",
                               "Equivalent temperature, shade", "Air temperature"),
-       col = c("red", "blue", "darkgrey"), lwd = 1, bty = "n", cex = 0.8)
-plot(Tc_sun ~ tmec, type = "l", col = "red", ylim = c(15, 60),
+       col = c("firebrick", "steelblue", "darkgrey"), lwd = 1, bty = "n", cex = 0.8)
+plot(Tc_sun ~ tmec, type = "l", col = "firebrick", ylim = c(15, 60),
      xlab = "Date", ylab = expression("Core temperature (" * degree * "C)"))
-lines(Tc_shade ~ tmec, col = "blue")
+lines(Tc_shade ~ tmec, col = "steelblue")
 abline(h = c(lion$Tcmin, lion$Tcmax), lty = 2) # survivable limits
 ```
 ![](images/img33b.png)
@@ -3268,38 +3268,39 @@ The endotherm models are intentionally simplified. `Endotherm` holds core temper
 ## Microclimate models
 
 ### micropoint
-The `micropoint` package most closely replicates the modelling approaches outlined in this vignette. It is designed to derive microclimatic conditions or ectotherm body temperatures at single point locations and the majority of the functions are R wrappers for C++ code that replicates the R functions detailed in this vignette. It can thus be thought of as a fast version of the `microlearn` package designed for practical use. It supersedes the `microclimc` package (Maclean & Klinges 2021), updating the treatment of below-canopy microclimate processes and improving computational efficiency through the use of underlying C++ implementations.
+The `micropoint` package most closely replicates the modelling approaches outlined in this vignette. It is designed to derive microclimatic conditions or ectotherm body temperatures at single point locations and the majority of the functions are R wrappers for C++ code that replicates the R functions detailed in this vignette. It can thus be thought of as a fast version of the `microclimlearn` package designed for practical use. It supersedes the `microclimc` package (Maclean & Klinges 2021), updating the treatment of below-canopy microclimate processes and improving computational efficiency through the use of underlying C++ implementations.
 
-The package is still in development, but is available for use with the disclaimer that, as the codebase is still evolving, stability and backward compatibility cannot yet be fully guaranteed.Currently two parallel versions of the package exist:
-
-(1) a new version that uses the full multi-layer soil heat and water models described in this vignette. A tutorial for this version of the package is available from [here](https://rpubs.com/ilyamaclean/micropointnew).
-
-(2) an older version of the package that implements the simpler approach to deriving ground heat flux described above, in which ground heat flux is assumed to follow a sinusoidal cycle that scales with the amplitude of the diurnal cycle in soil surface temperature. This version of the package also uses a simpler method for estimating stomatal conductance, relying on fewer vegetation parameters and assuming limitation primarily by photosynthetically active radiation rather than soil moisture. A tutorial for this version of the package is available form [here](https://rpubs.com/ilyamaclean/1262923)
-
-Both versions of the package are bundled together and installed as detailed below. They simply use different functions to evoke the different versions
+The package is still being developed, so its functions may occasionally change. It is installed as follows, and the last line opens a tutorial bundled with the package:
 
 ```{r eval=FALSE}
 require(devtools) # Install from CRAN if not already installed
 devtools::install_github("ilyamaclean/micropoint")
 library(micropoint)
+vignette("new_model_tutorial", package = "micropoint")
 ```
 
-An example output generated by the new version of the package is shown below. Here microclimatic temperatures conditions are derived 5 cm above ground for a 10 cm grassland using the `micropoint::RunMicro` function over the course of a year (red) using the inbuilt climate dataset. Macroclimatic temperatures 2m above ground are shown in grey.
+An example output generated by the package is shown below. Here microclimatic temperatures are derived 5 cm above ground for a 10 cm grassland using the `micropoint::RunMicro` function over the course of a year (red) using the inbuilt climate dataset. Macroclimatic temperatures 2m above ground are shown in grey.
 
 ![](images/img35.png)
 
 ### microclimf
-The `microclimf` package (Maclean 2026) extends `micropoint` to gridded applications and supersedes the microclimate components of the older package `microclima` (Maclean *et al* 2019) by modelling microclimate entirely form first principles. It allows microclimate models to be run efficiently across landscapes. A key challenge is that conventional microclimate models require iterative solutions at each location, which becomes computationally expensive when applied to many grid cells. The `microclimf` model addresses this by exploiting a near-linear relationship between errors in non-iterative surface temperature estimates and the corresponding air–surface temperature difference. In practice, the model is run iteratively at a single reference location, and the resulting relationships are then used to estimate temperatures across the rest of the grid without iteration. Additional efficiencies are achieved in the treatment of vegetation. Rather than resolving detailed vertical canopy structure, microclimf assumes that total sensible and latent heat fluxes can be represented at the canopy scale, and that vertical transfer profiles follow a generalised analytical form. This avoids the need for explicit multilayer canopy representation while retaining the key effects of vegetation on below-canopy microclimate.
+The `microclimf` package (Maclean 2026) extends `micropoint` to gridded applications and supersedes the microclimate components of the older package `microclima` (Maclean et al. 2019) by modelling microclimate entirely from first principles. It allows microclimate models to be run efficiently across landscapes. A key challenge is that conventional microclimate models require iterative solutions at each location, which becomes computationally expensive when applied to many grid cells. The `microclimf` model addresses this by exploiting a near-linear relationship between errors in non-iterative surface temperature estimates and the corresponding air–surface temperature difference. In practice, the model is run iteratively at a single reference location, and the resulting relationships are then used to estimate temperatures across the rest of the grid without iteration. Additional efficiencies are achieved in the treatment of vegetation. Rather than resolving detailed vertical canopy structure, microclimf assumes that total sensible and latent heat fluxes can be represented at the canopy scale, and that vertical transfer profiles follow a generalised analytical form. This avoids the need for explicit multilayer canopy representation while retaining the key effects of vegetation on below-canopy microclimate.
 
-Detailed instructions for using the package are provided [here](https://rpubs.com/ilyamaclean/runningmicroclimf). It is installed as follows:
+The latest version of the package is installed as follows:
 
 ```{r eval=FALSE}
 require(devtools) # Install from CRAN if not already installed
-devtools::install_github("ilyamaclean/microclimf")
+devtools::install_github("ilyamaclean/microclimf", ref = "dev")
 library(microclimf)
 ```
 
-An example output generated using `microclimf::runmicro_big` function the is shown below. Heretemperatures 5 cm above ground at 2 pm on 1 June 2017, modelled at 1m resolution for a 1×1km area around Caerthillian Cove, Cornwall, UK (49.968°N, 5.215°W). 
+Detailed instructions for using the package are bundled with it as a tutorial vignette:
+
+```{r eval=FALSE}
+vignette("running-microclimf", package = "microclimf")
+```
+
+An example output generated using `microclimf::rungridmodelbig` function is shown below. Here temperatures 5 cm above ground at 2 pm on 1 June 2017 are modelled at 1m resolution for a 1×1km area around Caerthillian Cove, Cornwall, UK (49.968°N, 5.215°W). 
 
 ![](images/img36.png)
 
@@ -3308,7 +3309,7 @@ So far, we have focused on the principles of microclimate modelling, deliberatel
 
 The `mesoclim` package is designed for climate downscaling. It provides functions to account for processes such as cold-air drainage, as well as elevation and water-body effects on climatic conditions measured at weather stations. It also includes tools for temporal downscaling of climate datasets and for bias correction of future climate projections. It also contains a range of functions for basic processing of climate datasets such as infilling of coastal grid cells. In effect, it provides the necessary climate forcing data required to run microclimate models. 
 
-Detailed instructions for using the package are provided [here](to be added). It is installed as follows:
+Detailed instructions for using the package are provided on its website, <https://ilyamaclean.github.io/mesoclim/>, as a series of four tutorials covering data preparation, spatial downscaling, temporal downscaling and bias correction. It is installed as follows:
 
 ```{r eval=FALSE}
 require(devtools) # Install from CRAN if not already installed
@@ -3316,7 +3317,7 @@ devtools::install_github("ilyamaclean/mesoclim")
 library(mesoclim)
 ```
 
-Below is an example figure generated with the aid of the the `mesoclim` package. It shows side-by-side comparisons of mesoclim output downscaled to 100 m resolution and the original 1 km HadCRU data from the UK Met Office. The maps depict the fraction of years in which the Isles of Scilly (a small island archipelago off southwest UK; 49.9°N, 6.3°W) experience a subtropical climate (defined as at least eight months with a mean temperature of 10^\circ C or above). In addition to resolving fine-scale spatial structure, the mesoclim output fills gaps where coarse-resolution data are absent, particularly around coastlines and small islands, producing spatially continuous and more realistic climatic surfaces.
+Below is an example figure generated with the aid of the `mesoclim` package. It shows side-by-side comparisons of mesoclim output downscaled to 100 m resolution and the original 1 km HadCRU data from the UK Met Office. The maps depict the fraction of years in which the Isles of Scilly (a small island archipelago off southwest UK; 49.9°N, 6.3°W) experience a subtropical climate (defined as at least eight months with a mean temperature of 10 °C or above). In addition to resolving fine-scale spatial structure, the mesoclim output fills gaps where coarse-resolution data are absent, particularly around coastlines and small islands, producing spatially continuous and more realistic climatic surfaces.
 
 ![](images/img37.png)
 
@@ -3347,18 +3348,35 @@ The NicheMapR package (Kearney & Porter 2017) is a comprehensive biophysical mod
 
 The package comprises three main components. The microclimate model (Kearney & Porter 2017) predicts hourly above- and below-ground environmental conditions from meteorological, terrain and soil inputs, including soil temperature and moisture profiles. It also includes an explicit treatment of snow, allowing simulation of snow accumulation and melt and their effects on ground temperatures and thermal buffering during winter. The underlying processes and formulations are very similar to those described in this vignette—particularly for soil heat and water dynamics. The main difference is that below-canopy microclimate is not resolved explicitly; instead, canopy effects are represented more simply through a shading factor that modifies the amount of radiation reaching the ground. These outputs form the environmental inputs for the organism models.
 
-
 The ectotherm model uses these microclimate predictions to solve the heat and water balance of ectothermic organisms, estimating body temperature, activity, water loss and behavioural responses based on specified morphological and physiological traits (Kearney & Porter 2019). The underlying heat balance is formulated in a very similar way to that described in this vignette. The model can also represent transient heat exchange, including single- and two-compartment (“lumped”) formulations that allow internal temperature gradients to be represented, which is important for larger organisms. It can be coupled to Dynamic Energy Budget (DEB) theory to simulate growth, development and reproduction through time. In simple terms, DEB models describe how organisms acquire energy from food and then use it—first to meet basic maintenance costs, and then, if sufficient energy remains, to support growth and reproduction—allowing physiological performance to be linked directly to environmental conditions.
 
-The endotherm model extends this approach to homeothermic organisms, solving for the metabolic rate and water loss required to maintain a stable core body temperature under given environmental conditions (Kearney & Porter 2021). As in this vignette, it represents heat exchange between the organism and its environment, but goes further in its treatment of endotherm-specific physiology, explicitly accounting for traits such as fur or feather insulation and the temperatures of the body surface and insulating layer. Rather than providing a simple index of thermal stress, it is designed to predict the physiological requirements needed to maintain thermal balance under specified environmental conditions.
+The endotherm model extends this approach to homeothermic organisms, solving for the metabolic rate and water loss required to maintain a stable core body temperature under given environmental conditions (Kearney et al. 2021). As in this vignette, it represents heat exchange between the organism and its environment, but goes further in its treatment of endotherm-specific physiology, explicitly accounting for traits such as fur or feather insulation and the temperatures of the body surface and insulating layer. Rather than providing a simple index of thermal stress, it is designed to predict the physiological requirements needed to maintain thermal balance under specified environmental conditions.
 
 Together, these components provide a flexible framework for linking climate to physiological performance and species distributions. However, as a point-based modelling system, NicheMapR is typically applied at individual locations rather than across spatial grids.
 
-The package is extensively tested and documented and instructions detailed instructions for downloading, installing and using it are provided [here](https://mrke.github.io/).
+The package is extensively tested and documented and detailed instructions for downloading, installing and using it are provided [here](https://mrke.github.io/).
+
+NicheMapR is now being rewritten in Julia, a programming language that is as easy to use as R but runs at speeds comparable to compiled languages such as Fortran or C++. The new framework, NicheMapper.jl (<https://github.com/BiophysicalEcology/NicheMapper.jl>), comprises a set of linked packages: Microclimate.jl, a conversion of the NicheMapR microclimate model; HeatExchange.jl, which calculates heat exchange between organisms and their environment; and MicroclimateMapper.jl, which runs the models across gridded environmental datasets as well as at single points. The below-canopy model of `micropoint` is also being incorporated, so the Julia version will resolve below-canopy microclimate explicitly. The packages are still at an early stage of development.
+
+Because these packages are written in Julia, and are not yet registered as Julia packages, they are installed and used differently from the R packages described here. Some tips for getting started:
+
+1. Install Julia from <https://julialang.org/downloads/>. Code can be typed into the Julia console or written as scripts, for example in VS Code with its Julia extension.
+2. The simplest way to install the packages is to download the BiophysicalEcologyEnv repository (<https://github.com/BiophysicalEcology/BiophysicalEcologyEnv>), which records a set of package versions that work together, and activate it from Julia:
+
+```julia
+using Pkg
+Pkg.activate("path/to/BiophysicalEcologyEnv") # the folder the repository was downloaded to
+Pkg.instantiate()                             # installs the packages: needed the first time only
+using Microclimate, HeatExchange
+```
+
+3. The first time a function is used in a session, Julia compiles it, so the first run is slow and later runs are fast.
+4. Help on a function is shown by typing `?` followed by its name in the Julia console. Documentation for Microclimate.jl is at <https://BiophysicalEcology.github.io/Microclimate.jl/dev>.
+5. Julia can also be called from R using the `JuliaCall` package, though it is generally simpler to work in Julia directly.
 
 ### TrenchR
 
-The TrenchR package (Buckley *et al.* 2023) provides a set of functions for modelling thermal environments and organismal heat exchange, primarily aimed at teaching and exploratory analyses. It implements relatively simple and modular microclimate and biophysical calculations, allowing users to examine how environmental conditions influence body temperature and heat fluxes under different scenarios.
+The TrenchR package (Buckley et al. 2023) provides a set of functions for modelling thermal environments and organismal heat exchange, primarily aimed at teaching and exploratory analyses. It implements relatively simple and modular microclimate and biophysical calculations, allowing users to examine how environmental conditions influence body temperature and heat fluxes under different scenarios.
 
 Unlike NicheMapR and the workflow described in this vignette, TrenchR does not provide a fully integrated microclimate modelling framework. Instead, it offers modular functions for calculating individual processes (e.g. radiative and convective heat exchange), typically using simplified formulations. This makes it a useful educational resource, as assumptions and parameter dependencies are transparent and easy to explore.
 
@@ -3378,13 +3396,15 @@ library(TrenchR)
 ```
 
 ## References
-Buckley LB, Briones Ortiz BA, Caruso I, John A, Levy O, Meyer AV, Riddell EA, Sakairi Y and Simonis JL (2023) TrenchR: An R package for modular and accessible microclimate and biophysical ecology. *PLOS Climate* 2: e0000139.
+Buckley LB, Briones Ortiz BA, Caruso I, John A, Levy O, Meyer AV, Riddell EA, Sakairi Y & Simonis JL (2023) TrenchR: An R package for modular and accessible microclimate and biophysical ecology. *PLOS Climate* 2: e0000139.
 
-Calders K, Brede B, Newnham G, Culvenor D, Armston J, Bartholomeus H, Griebel A, Hayward J, Junttila S, Lau A, Levick S, Morrone R, Origo N, Pfeifer M, Verbesselt J and Herold M (2023) StrucNet: a global network for automated vegetation structure monitoring. *Remote Sensing in Ecology and Conservation* 9: 587–598.
+Calders K, Brede B, Newnham G, Culvenor D, Armston J, Bartholomeus H, Griebel A, Hayward J, Junttila S, Lau A, Levick S, Morrone R, Origo N, Pfeifer M, Verbesselt J & Herold M (2023) StrucNet: a global network for automated vegetation structure monitoring. *Remote Sensing in Ecology and Conservation* 9: 587–598.
+
+Eller CB, Rowland L, Mencuccini M, Rosas T, Williams K, Harper A, Medlyn BE, Wagner Y, Klein T, Teodoro GS, Oliveira RS, Matos IS, Rosado BHP, Fuchs K, Wohlfahrt G, Montagnani L, Meir P, Sitch S & Cox PM (2020) Stomatal optimization based on xylem hydraulics (SOX) improves land surface model simulation of vegetation responses to climate. *New Phytologist* 226: 1622–1637.
 
 Freeman MT, Czenze ZJ, Schoeman K & McKechnie AE (2020) Extreme hyperthermia tolerance in the world's most abundant wild bird. *Scientific Reports* 10: 13098.
 
-Hedstrom NR & Pomeroy JW (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611-1625.
+Hedstrom NR & Pomeroy JW (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611–1625.
 
 Höppe P (1999) The physiological equivalent temperature – a universal index for the biometeorological assessment of the thermal environment. *International Journal of Biometeorology* 43: 71–75.
 
@@ -3394,20 +3414,26 @@ Kearney MR & Porter WP (2019) NicheMapR – an R package for biophysical modelli
 
 Kearney MR, Briscoe NJ, Mathewson PD & Porter WP (2021) NicheMapR – an R package for biophysical modelling: the endotherm model. *Ecography* 44: 1595–1605.
 
+Kelliher FM, Leuning R, Raupach MR & Schulze E-D (1995) Maximum conductances for evaporation from global vegetation types. *Agricultural and Forest Meteorology* 73: 1–16.
+
 Kleiber M (1947) Body size and metabolic rate. *Physiological Reviews* 27: 511–541.
 
-Klinges DH, Duffy JP, Kearney MR and Maclean IMD (2022) mcera5: Driving microclimate models with ERA5 global gridded climate data. *Methods in Ecology and Evolution* 13: 1402-11.
+Klinges DH, Duffy JP, Kearney MR & Maclean IMD (2022) mcera5: Driving microclimate models with ERA5 global gridded climate data. *Methods in Ecology and Evolution* 13: 1402–1411.
 
-Maclean IMD (2026) Microclimf: Fast modelling of microclimate across real landscapes in R. *Methods in Ecology and Evolution* 17: 1112-23.
+Maclean IMD (2026) Microclimf: Fast modelling of microclimate across real landscapes in R. *Methods in Ecology and Evolution* 17: 1112–1123.
 
 Maclean IMD & Klinges DH (2021) Microclimc: A mechanistic model of above, below and within-canopy microclimate. *Ecological Modelling* 451: 109567.
 
-Maclean IMD, Mosedale JR, Bennie JJ (2019) Microclima: An r package for modelling meso- and microclimate. *Methods in Ecology and Evolution* 10: 280-90.
+Maclean IMD, Mosedale JR & Bennie JJ (2019) Microclima: An R package for modelling meso- and microclimate. *Methods in Ecology and Evolution* 10: 280–290.
 
 Maia ASC, da Silva RG, de Souza Junior JBF, da Silva RB & Domingos HGT (2009) Effective thermal conductivity of the hair coat of Holstein cows in a tropical environment. *Revista Brasileira de Zootecnia* 38: 2218–2223.
 
 Minnaar IA, Bennett NC, Chimimba CT & McKechnie AE (2014) Summit metabolism and metabolic expansibility in Wahlberg's epauletted fruit bats (*Epomophorus wahlbergi*): seasonal acclimatisation and effects of captivity. *Journal of Experimental Biology* 217: 1363–1369.
 
+Raupach MR (1989a) Applying Lagrangian fluid mechanics to infer scalar source distributions from concentration profiles in plant canopies. *Agricultural and Forest Meteorology* 47: 85–108.
+
+Raupach MR (1989b) A practical Lagrangian method for relating scalar concentrations to source distributions in vegetation canopies. *Quarterly Journal of the Royal Meteorological Society* 115: 609–632.
+
 Scholander PF, Walters V, Hock R & Irving L (1950) Body insulation of some arctic and tropical mammals and birds. *Biological Bulletin* 99: 225–236.
 
-Sturm M, Taras B, Liston GE, Derksen C, Jonas T & Lea J (2010) Estimating snow water equivalent using snow depth data and climate classes. *Journal of Hydrometeorology* 11: 1380-1394.
+Sturm M, Taras B, Liston GE, Derksen C, Jonas T & Lea J (2010) Estimating snow water equivalent using snow depth data and climate classes. *Journal of Hydrometeorology* 11: 1380–1394.
