@@ -742,7 +742,7 @@ gs <- stomatalcond_calc(Ca, Rswabs = 500, tair = 20, tleaf = 25,
 plot(gs ~ Ca, type = "l", lwd = 2,
      xlab = expression(CO[2] ~ "concentration (ppm)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 
 # Shortwave radiation
 Rswabs <- 0:1000 # radiation absorbed by the leaf (W m^-2), of which 48% is taken to be PAR
@@ -754,7 +754,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs, tair = 20, tleaf = 25,
 plot(gs ~ Rswabs, type = "l", lwd = 2,
      xlab = expression("Absorbed radiation (W " * m^-2 * ")"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 
 # Air temperature
 tair <- (100:300) / 10 # air temperature (°C)
@@ -766,7 +766,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair, tleaf = 25,
 plot(gs ~ tair, type = "l", lwd = 2,
      xlab = expression("Air temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 
 # Leaf temperature
 tleaf <- (100:300) / 10 # leaf temperature (°C)
@@ -778,7 +778,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf,
 plot(gs ~ tleaf, type = "l", lwd = 2,
      xlab = expression("Leaf temperature (" * degree * "C)"),
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 
 # Relative humidity
 rh <- 50:100 # relative humidity (%)
@@ -790,7 +790,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
 plot(gs ~ rh, type = "l", lwd = 2,
      xlab = "Relative humidity (%)",
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 
 # Atmospheric pressure
 pk <- c(980:1040) / 10 # pressure (kPa)
@@ -802,7 +802,7 @@ gs <- stomatalcond_calc(Ca = 400, Rswabs = 500, tair = 20, tleaf = 25,
 plot(gs ~ pk, type = "l", lwd = 2,
      xlab = "Atmospheric pressure (kPa)",
      ylab = "Stomatal conductance",
-     ylim = c(0, 0.5))
+     ylim = c(0, 1))
 ```
 ![](images/img11.png)
 
@@ -913,7 +913,7 @@ abline(h = 1, lty = 2, col = "firebrick")
 ```
 ![](images/img13.png)
 
-We can see that bulk stomatal conductance rises almost in proportion to plant area index. It falls a little short of doing so because of self-shading: as plant area increases, a greater share of the leaves are shaded and receive less light. The effect is small, as stomatal conductance saturates at low light levels, so shaded leaves conduct almost as much as sunlit ones. When PAI = 4, bulk stomatal conductance is 3.5 times leaf conductance.
+We can see that bulk stomatal conductance rises almost in proportion to plant area index. It falls a little short of doing so because of self-shading: as plant area increases, a greater share of the leaves are shaded and receive less light. The effect is small, as stomatal conductance saturates at low light levels, so shaded leaves conduct almost as much as sunlit ones. When PAI = 4, bulk stomatal conductance is 3.6 times leaf conductance.
 
 ### A more complex microclimate model
 We now combine the concepts described previously to simulate canopy microclimate using the `solve_wholecanopy` function. For each hour, this function calculates absorbed radiation using `calcRabs`, iteratively solves for diabatic coefficients, friction velocity, and bulk surface stomatal resistance, and updates canopy temperature until convergence. Soil water content and ground heat storage are specified using simplified inputs. Because calculations are performed independently for each hour, the function must be called sequentially to generate a time series; here we illustrate this for June.
@@ -1652,14 +1652,14 @@ legend("bottomright",
 
 # Relative humidity profile of the air
 plot(z ~ rh, type = "l", col = "steelblue", lwd = 2,
-     xlim = c(50, 65),
+     xlim = c(50, 70),
      xlab = "Relative humidity (%)",
      ylab = "Height (m)")
 ```
 
 ![](images/img19.png)
 
-Leaves are 1.5–4.3 °C warmer than the surrounding air, with the highest temperatures around 15 m, where radiation absorption is greatest. Air temperature varies much less, rising from 25.9 °C at canopy top to 26.5 °C near 15 m before falling towards the cooler ground. Relative humidity remains close to 53% through most of the canopy, reaching a minimum where the air is warmest, then rising to 63% near the moist ground as the air cools and water evaporates from the soil.
+Leaves are 0.5–3.5 °C warmer than the surrounding air, with the highest temperatures around 15 m, where radiation absorption is greatest. Air temperature varies much less, rising from 25.9 °C at canopy top to 26.4 °C near 15 m before falling to 25.8 °C towards the cooler ground. Relative humidity remains close to 53% through the upper canopy, then rises to 64% near the moist ground as the air cools and water evaporates from the soil.
 
 Here ground temperature is prescribed and the ground heat flux is approximated. The next section shows how both can be calculated explicitly.
 

@@ -3,7 +3,7 @@
 #' Vegetation parameter values for main plant function types
 #'
 #' @format ## `PFTtable`
-#' A data frame with 23 rows and 13 columns:
+#' A data frame with 22 rows and 13 columns:
 #' \describe{
 #'   \item{varname}{Short-hand name of vegetation parameter}
 #'   \item{Description}{Long-hand description of vegetation parameter}

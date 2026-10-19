@@ -58,8 +58,7 @@ createplant_inputs <- function(PFT) {
     Tup     = v[["Tup"]],     # upper temperature limit of photosynthesis (deg C)
     Tlw     = v[["Tlow"]],    # lower temperature limit of photosynthesis (deg C)
     alpha   = v[["alpha"]],   # quantum efficiency (mol CO2 / mol PAR)
-    Kxmx    = v[["Kxmx"]],    # maximum xylem hydraulic conductance
-    hv      = v[["hv"]],      # Huber value (m^2 / m^2)
+    rpmin   = v[["rpmin"]],   # minimum whole-plant hydraulic resistance (m^2 s MPa / mol)
     fd      = v[["fd"]],      # dark respiration as a fraction of Vcmax
     psi50   = v[["psi50"]],   # water potential at which half of hydraulic conductance is lost (MPa)
     apsi    = v[["apsi"]],    # shape of the loss of hydraulic conductance as water potential falls
@@ -71,22 +70,6 @@ createplant_inputs <- function(PFT) {
     root95  = v[["root95"]]   # depth above which 95 percent of all roots lie (m)
   )
   return(plant_inputs)
-}
-# Minimum resistance of a plant to the flow of water from root to leaf, from
-# its height, Huber value and maximum xylem conductivity (Eller et al. 2020)
-.rpmin_calc <- function(h, hv = 0.002, Kxmx) {
-  n_ext <- 2 # number of daughter branches produced by each parent branch
-  Lpet <- 0.04 # petiole length
-  r_intpet <- 10 # petiole conduit radius (micro m)
-  r_intref <- 22 # radius of conduits of the terminal branches
-  Nh <- (3 * log(1 - (h/Lpet) * (1 - n_ext^(1/3)))) / log(n_ext)  # Number of branching levels
-  Nh[Nh < 1] <- 1
-  Chi_1 <- 2.888503
-  Chi_h <- (6.6e-13 * Nh^1.85) / (7.2e-13 * Nh^1.32)
-  Chi_tap <- Chi_h / Chi_1 # tapering factor
-  Kpmx <- Kxmx * (r_intpet / r_intref)^2  # maximum petiole level hydraulic conductivity (mol / m / s / MPa)
-  rpmin <- h / (Kpmx * hv  * Chi_tap) # minimum m^2 s MPa mol^-1 H20
-  return(rpmin)
 }
 # Shape of the loss of hydraulic conductance as water potential falls, from the
 # water potential at which half of conductance is lost
@@ -111,7 +94,7 @@ createplant_inputs <- function(PFT) {
 #' @param plant_inputs a list of vegetation parameters as returned by [createplant_inputs()]
 #' @param z height above ground
 #' @param C3 optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway
-#' @returns stomatal conductance (mol / m^2 / s)
+#' @returns stomatal conductance to water vapour (mol / m^2 / s)
 #' @export
 stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inputs, z, C3 = TRUE) {
   # Photosynthetic capacity at leaf temperature. It doubles with every 10 degrees
@@ -159,12 +142,11 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
     }
   }
 
-  # Gain in assimilation per unit of CO2 from opening the stomata: from the point
-  # at which CO2 stops limiting to stomata fully open, when the CO2 concentration
-  # inside the leaf equals that of the air
+  # Gain in assimilation per unit mole fraction of CO2 from opening the stomata, from
+  # the point at which CO2 stops limiting to CO2 inside the leaf equal to that of the air
   Aca <- assimilation(ca)
   Acol <- assimilation(cicol)
-  dadc <- (Aca - Acol) / (ca - cicol)
+  dadc <- P * (Aca - Acol) / (ca - cicol)
 
   # Water potential of the leaf before dawn: that of the root zone less the pull
   # of gravity on the water column below the leaf (MPa)
@@ -177,13 +159,13 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
   apsi <- plant_inputs$apsi
   if (apsi < 0) apsi <- .psi50toa(psi_50)
   K_psi_pd <- 1 / (1 + (psi_pd / psi_50)^apsi)
-  K_50f <- 0.5 / (1 + ((psi_pd + psi_50) / psi_50)^apsi)
   psi_50f <- (psi_pd + psi_50) / 2
+  K_50f <- 1 / (1 + (psi_50f / psi_50)^apsi)
   dKdpKi <- ((K_psi_pd - K_50f) / (psi_pd - psi_50f)) * (1 / K_psi_pd)
 
-  # Resistance of the plant to the flow of water from root to leaf
-  rpmin <- .rpmin_calc(plant_inputs$h, plant_inputs$hv, plant_inputs$Kxmx) # mol^-1 m^2 s MPa
-  rp <- rpmin / K_psi_pd
+  # Resistance of the plant to the flow of water from root to leaf, which rises
+  # as the xylem loses conductance
+  rp <- plant_inputs$rpmin / K_psi_pd
 
   # Cost in lost water supply of the carbon gained by opening the stomata, which
   # rises as the air dries. A leaf at or below the dew point has no deficit
@@ -202,7 +184,9 @@ stomatalcond_calc <- function(Ca, Rswabs, tair, tleaf, rh, pk, psi_r, plant_inpu
   gsmax <- plant_inputs$Vcmax25 * 1e4
   gs <- pmin(gs, gsmax)
   gs[rep_len(Rswabs <= 0, length(gs))] <- 0
-  return(gs)
+
+  # Water vapour diffuses through the stomata 1.6 times as fast as CO2
+  return(1.6 * gs)
 }
 #' Calculate bulk surface stomatal resistance
 #' @param solp a list of solar positions as returned by [sunposition()]
