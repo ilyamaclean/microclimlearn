@@ -1,7 +1,14 @@
-inst/doc
 .Rproj.user
 .Rhistory
 .Rdata
 .httr-oauth
 .DS_Store
 .quarto
+Rplots.pdf
+
+# Local working material, not part of the package
+CLAUDE.md
+Claude_working/
+usefulcode/
+vignettes/Equations_old.Rmd
+vignettes/rsconnect/
