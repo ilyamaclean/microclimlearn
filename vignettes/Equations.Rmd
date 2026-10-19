@@ -81,18 +81,30 @@ knitr::opts_chunk$set(
   + [Note 1: The Penman-Monteith equation](#symbols-penman)
   + [Note 2: Radiation fluxes](#symbols-radiation)
   + [Note 3: Sensible heat fluxes](#symbols-sensible)
+  + [Note 4: Latent heat fluxes](#symbols-latent)
+  + [Note 5: Soil heat storage](#symbols-soil-heat)
+  + [Note 6: Soil hydrology](#symbols-soil-water)
+  + [Note 7: Snow](#symbols-snow)
 * [References](#references)
 
 ## Glossary of terms {#glossary}
 **Albedo.** The proportion of incoming solar radiation that a surface reflects back into the atmosphere. Albedo ranges from 0 to 1, where 0 means all radiation is absorbed and 1 means all radiation is reflected. Dark surfaces such as forests usually have low albedo, whereas snow and pale rock have high albedo.
 
-**Boundary layer.** A thin layer of relatively still air adjacent to a surface or organism through which heat, water vapour, and other gases must diffuse before mixing with the surrounding air. Boundary layer thickness depends mainly on wind speed and surface characteristics, and strongly influences rates of heat and mass exchange.
+**Atmospheric stability.** The tendency of the air to suppress or enhance vertical mixing. Air warmed from below (unstable) mixes vigorously, whereas air cooled from below (stable), as on clear nights, mixes weakly.
 
-**Diabatic correction coefficients.** Adjustment terms used in aerodynamic equations to account for the effects of atmospheric stability on turbulence and heat transfer. They modify wind and temperature profiles under stable or unstable conditions.
+**Boundary layer.** The layer of fluid next to a surface whose flow is modified by that surface. The term is used at two very different scales. Around a leaf or animal, the boundary layer is a thin region, typically millimetres thick, of slowed and often laminar airflow, which heat, water vapour and other gases cross largely by molecular diffusion before mixing with the surrounding air. Its thickness, and hence its resistance to heat and vapour transfer, depends mainly on wind speed and the size and shape of the surface. At the landscape scale, the atmospheric (or planetary) boundary layer is the lowest part of the atmosphere, typically a few hundred metres to a few kilometres deep, in which friction and heating or cooling by the ground drive turbulent mixing. In this guide the term refers to the former unless stated otherwise.
+
+**Damping depth.** The depth at which the amplitude of a periodic temperature cycle, such as the daily or annual cycle, falls to about 37% of its surface value. The cycle at this depth also lags that at the surface by about one-sixth of its period.
+
+**Diabatic correction coefficients.** Also called stability correction functions. Adjustment terms used in aerodynamic equations to account for the effects of atmospheric stability on turbulence and heat transfer. They modify wind and temperature profiles under stable or unstable conditions.
+
+**Direct and diffuse radiation.** Direct radiation travels in a straight line from the sun. Diffuse radiation has been scattered by the atmosphere, clouds or surrounding surfaces and arrives from many directions.
 
 **Emissivity.** A measure of how effectively a surface emits thermal (longwave infrared) radiation relative to an ideal emitter called a black body. Emissivity ranges from 0 to 1. Most natural surfaces, including vegetation and soil, have high emissivity values (typically >0.9).
 
 **Energy balance.** The balance between rates of energy gain, energy loss, and heat storage within a system. For organisms and surfaces, energy is exchanged through radiation, sensible heat exchange, latent heat exchange, metabolism, and heat storage. Under steady-state conditions the balance sums to zero at the temperature where energy gains equal energy losses.
+
+**(Canopy) extinction coefficient.** The rate at which radiation is attenuated per unit of leaf or plant area as it passes down through a canopy. Under Beer's law, the fraction transmitted declines exponentially with cumulative leaf area.
 
 **Forced convection.** Heat transfer between a surface and the surrounding fluid driven by externally generated fluid movement, such as wind or flowing water. Stronger airflow generally increases the rate of heat exchange.
 
@@ -104,6 +116,22 @@ knitr::opts_chunk$set(
 
 **Latent heat of vaporisation.** The energy required per unit mass to convert water from liquid to vapour without changing its temperature.
 
+**Leaf angle distribution.** A statistical description of the orientation of leaves in a canopy, usually summarised by a single parameter giving the ratio of horizontal to vertical projections of foliage.
+
+**Leaf area index and plant area index.** The one-sided area of leaves, or of all plant material including stems and branches, per unit area of ground (m² m⁻²). Plant area density is the same quantity per unit volume of canopy (m² m⁻³).
+
+**Monin–Obukhov similarity theory.** The standard framework describing how wind, temperature and humidity vary with height near the surface, depending on surface roughness and atmospheric stability.
+
+**Near-field and far-field.** In localised near-field theory, the near field is the influence of nearby leaves on the air at a point, which decays rapidly with distance, and the far field the accumulated, diffusive influence of the rest of the canopy.
+
+**Penman–Monteith equation.** An analytical solution of the surface energy balance, obtained by linearising its temperature-dependent terms, that gives surface temperature or evaporation directly without iteration.
+
+**Photosynthetically active radiation (PAR).** Shortwave radiation at wavelengths of 400–700 nm, which plants use for photosynthesis.
+
+**Physiological equivalent temperature (PET).** The air temperature of a reference indoor environment at which an organism's heat balance would equal that experienced outdoors; a single measure of how hot or cold conditions feel.
+
+**Resistance and conductance.** Measures of how readily heat or vapour is transferred between a surface and the air. Conductance is the reciprocal of resistance; a high resistance, as in still air or with closed stomata, slows exchange.
+
 **Roughness length for heat.** A parameter describing the effective height above a surface at which air temperature is theoretically equal to the surface temperature when extrapolating the vertical temperature profile. It reflects the efficiency of heat transfer between the surface and the atmosphere.
 
 **Roughness length for momentum.** A parameter describing the effective height above a surface at which wind speed theoretically becomes zero when extrapolating the vertical wind profile. It reflects the aerodynamic roughness of the surface and depends on features such as vegetation height and structure.
@@ -112,7 +140,23 @@ knitr::opts_chunk$set(
 
 **Sensible heat.** Heat energy exchanged between a surface and the surrounding air that causes a change in temperature and can be measured directly with a thermometer. Sensible heat transfer occurs mainly through conduction and convection.
 
+**Shortwave and longwave radiation.** Shortwave radiation is solar radiation, at wavelengths of roughly 0.3–3 µm. Longwave (thermal) radiation is emitted by the atmosphere and by surfaces at Earth-like temperatures, at roughly 3–100 µm. The two barely overlap, so they can be treated separately.
+
+**Sky view factor.** The fraction of the sky hemisphere visible from a point, which determines how much diffuse and longwave radiation it receives from the sky rather than from surrounding terrain or vegetation.
+
 **Specific heat capacity.** The amount of energy required to raise the temperature of a unit mass (typically kg) of a substance by 1 °C (or 1 K). It describes how much energy a material needs to warm up. Materials with high specific heat capacity, such as water, warm and cool more slowly than materials with low specific heat capacity.
+
+**Steady state and transient.** In a steady state, temperature is assumed to adjust instantly so that energy gains equal losses; a transient treatment follows the gradual change in temperature as heat is stored or released.
+
+**Stomatal conductance.** The ease with which CO₂ and water vapour pass through the stomata, regulated by plants in response to light, humidity, temperature and water supply.
+
+**Thermal conductivity.** The rate at which heat is conducted through a material per unit temperature gradient (W m⁻¹ K⁻¹). In soils it rises steeply with water content.
+
+**Transpiration.** The loss of water vapour from plants, mainly through stomata.
+
+**Two-stream model.** A model of radiation transfer through a canopy that simplifies scattering to one upward and one downward diffuse flux, alongside the direct beam.
+
+**Vapour pressure and vapour pressure deficit.** Vapour pressure is the partial pressure exerted by water vapour in air. The deficit is the difference between the saturation vapour pressure and the actual vapour pressure, and measures the drying power of the air.
 
 **Volumetric heat capacity.** The amount of energy required to raise the temperature of a unit volume (typically m³) of a material by 1 °C (or 1 K). Volumetric heat capacity equals specific heat capacity multiplied by density, and therefore describes how much heat can be stored within a given volume of soil, vegetation, water, or air.
 
