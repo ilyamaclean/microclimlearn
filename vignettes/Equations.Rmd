@@ -76,6 +76,7 @@ knitr::opts_chunk$set(
 * [Snow](#snow)
   + [Note 7.1: Snow mass balance](#snow-mass-note)
   + [Note 7.2: Snow energy balance](#snow-energy-note)
+  + [Note 7.3: Snow interception](#snow-interception-note)
 * [Symbols and units](#symbols)
   + [Note 1: The Penman-Monteith equation](#symbols-penman)
   + [Note 2: Radiation fluxes](#symbols-radiation)
@@ -966,126 +967,139 @@ where $\small \psi_e$ is the air entry potential and $\small b$ is a pore size d
 
 ### Note 7.1: Snow mass balance {#snow-mass-note}
 
-Snow water equivalent (\(S\), kg m\(^{-2}\)) is represented as a set of \(n\) layers, where \(S_i\) is the snow water equivalent (kg m\(^{-2}\)) of layer \(i\), numbered from top to bottom. Total snow water equivalent is thus
+Snow water equivalent ($\small S$, kg m$^{-2}$) is represented as a set of $\small n$ layers, where $\small S_i$ is the snow water equivalent of layer $\small i$, numbered from top to bottom. Total snow water equivalent is thus
 
 $$S=\sum_{i=1}^{n} S_i$$
 
-The change in total snow water equivalent over a timestep (\(\Delta S\), kg m\(^{-2}\)) is given by
+The change in total snow water equivalent over a timestep ($\small \Delta S$, kg m$^{-2}$) is given by
 
-$$\Delta S = P_s - \sum_{i=1}^{n} M_i - E - M_r$$
+$$\Delta S = P_s - \sum_{i=1}^{n} M_i - E - M_r + F$$
 
-where \(P_s\) is snowfall, \(M_i\) is melt from layer \(i\), \(E\) is sublimation (positive upward, negative for deposition), and \(M_r\) is rain-induced melt (Anderson, 1976; Kearney, 2020).
+where $\small P_s$ is snowfall, $\small M_i$ is melt from layer $\small i$, $\small E$ is sublimation (positive upward, negative for deposition), $\small M_r$ is rain-induced melt and $\small F$ is liquid water that refreezes within the pack (Anderson 1976; Kearney 2020). Sublimation is driven by the difference in vapour pressure between the snow surface, where the air is saturated with respect to ice, and the air above (Note 4.1):
 
-Precipitation is partitioned into snowfall (\(P_s\)) and rainfall (\(P_r\)) according to air temperature (\(T_a\)) as
+$$E=\frac{M_w}{R\left(T_a+273.15\right)}\frac{e_{sat}(T_s)-e_a}{r_{Ha}}\Delta t$$
+
+where $\small T_s$ is the temperature of the snow surface, $\small e_{sat}(T_s)$ the saturated vapour pressure over ice at that temperature (Note 1), $\small e_a$ the vapour pressure of the air, both in Pa, $\small r_{Ha}$ the aerodynamic resistance (Note 7.2), $\small T_a$ air temperature ($\small ^\circ$C), $\small \Delta t$ the duration of the timestep, and $\small M_w$ and $\small R$ are as in Note 4.1.
+
+Precipitation is commonly partitioned into snowfall ($\small P_s$) and rainfall ($\small P_r$) according to air temperature ($\small T_a$) as
 
 $$P_s=f_sP,\quad P_r=(1-f_s)P$$
 
-where \(P\) is total precipitation and \(f_s\) is the fraction falling as snow, given by
+where $\small P$ is total precipitation and $\small f_s$ is the fraction falling as snow, given by
 
-$$f_s=\begin{cases}1, & T_a\le T_s\\0, & T_a\ge T_r\\
-\dfrac{T_r-T_a}{T_r-T_s}, & T_s<T_a<T_r\end{cases}$$
+$$f_s=\begin{cases}1, & T_a\le T_{snow}\\0, & T_a\ge T_{rain}\\
+\dfrac{T_{rain}-T_a}{T_{rain}-T_{snow}}, & T_{snow}<T_a<T_{rain}\end{cases}$$
 
-where \(T_s=0\,^\circ\mathrm{C}\) and \(T_r=2\,^\circ\mathrm{C}\) (Jennings et al., 2018). Snowfall is added to the uppermost layer. Melt within a layer \(i\) is calculated from the thermal energy content of that layer as
+where $\small T_{snow}$ and $\small T_{rain}$ are the temperatures below which all precipitation falls as snow and above which it all falls as rain, typically around 0 and 2 $\small ^\circ$C (Jennings *et al.* 2018). Snowfall forms a new layer at the surface. Melt within a layer $\small i$ can be calculated from the thermal energy content of that layer as
 
 $$M_i=\min\left(S_i,\frac{c_{ice}T_i^{+}}{L_f}S_i\right)$$
 
-where \(M_i\) is melt from layer \(i\) (kg m\(^{-2}\)), \(T_i^{+}=\max(T_i,0)\), \(c_{ice}=2100\,\mathrm{J\,kg^{-1}\,K^{-1}}\) and \(L_f=3.34\times10^{5}\,\mathrm{J\,kg^{-1}}\). Rainfall also generates additional melt at the snow surface, given by
+where $\small M_i$ is melt from layer $\small i$ (kg m$^{-2}$), $\small T_i^{+}=\max(T_i,0)$, $\small c_{ice}=2100$ J kg$^{-1}$ K$^{-1}$ is the specific heat of ice and $\small L_f=3.34\times10^{5}$ J kg$^{-1}$ is the latent heat of fusion. Heat in excess of that needed to melt a layer passes to the layer beneath. Rain falling on snow gives up heat as it cools to 0 $\small ^\circ$C, which melts snow at the surface:
 
 $$M_r=k_rT_aP_r$$
 
-where \(M_r\) is rain-induced melt (kg m\(^{-2}\)) and \(k_r=0.0125\) (Kearney, 2020).
+where $\small M_r$ is rain-induced melt (kg m$^{-2}$) and $\small k_r=c_w/L_f=0.0125$ K$^{-1}$ is the specific heat of water over the latent heat of fusion (Kearney 2020).
 
-Snow depth (\(D_s\), m) is related to snow water equivalent and snow density as
+Rain and melt water form a store of liquid water ($\small W$, kg m$^{-2}$) within the pack. Where it meets snow colder than 0 $\small ^\circ$C it refreezes, releasing latent heat that warms the snow, until the layer reaches 0 $\small ^\circ$C or the water is used up. The water refrozen in layer $\small i$ is
+
+$$F_i=\min\left(W,\frac{-C_iT_i}{L_f}\right),\qquad T_i<0$$
+
+where $\small C_i$ is the heat capacity of the layer (J m$^{-2}$ K$^{-1}$), the volumetric heat capacity of snow $\small C_s$ (Note 7.2) times the thickness of the layer, and $\small F=\sum_iF_i$. Liquid water that remains is held in the pack up to a fraction $\small f_l$ of its snow water equivalent, typically about 0.05, so that $\small W\le f_lS$, and the excess drains from the base of the pack (Anderson 1976).
+
+Snow depth ($\small D_s$, m) is related to snow water equivalent and snow density ($\small \rho_s$, kg m$^{-3}$) as
 
 $$D_s=\frac{S}{\rho_s}$$
 
-where \(S\) is snow water equivalent (kg m\(^{-2}\)). Snow density is calculated as a function of snow depth and snow age:
+Snow density increases as snow settles under the weight of the snow above it and with time. Sturm *et al.* (2010) describe bulk density as
 
-$$\rho_s=\left[(\rho_{\max}-\rho_0)\left(1-\exp\left(-k_dD_s-k_at_s\right)\right)+\rho_0\right]\times1000$$
+$$\rho_s=(\rho_{\max}-\rho_0)\left[1-\exp\left(-k_dD_s-k_at_s\right)\right]+\rho_0$$
 
-where \(\rho_{\max}\) and \(\rho_0\) are the upper and initial snow densities (g cm\(^{-3}\)), \(k_d\) is the depth-dependent densification coefficient (m\(^{-1}\)), \(k_a\) is the age-dependent densification coefficient (day\(^{-1}\)), and \(t_s\) is snow age (days) (Sturm et al., 2010). Parameter values for the snow density function for different snow environments are shown below.
+where $\small \rho_{\max}$ and $\small \rho_0$ are the upper and initial snow densities (kg m$^{-3}$), $\small k_d$ is the depth-dependent densification coefficient (m$^{-1}$), $\small k_a$ is the age-dependent densification coefficient (day$^{-1}$), and $\small t_s$ is time since the start of the snow season (days). Applied to individual layers, $\small D_s$ becomes the depth of snow down to the base of the layer and $\small t_s$ the age of the layer. Parameter values for different snow environments are given in Table S5.
 
-**Table S5.** Snow density model parameters for different snow environments.
+**Table S5.** Snow density parameters for different snow environments (Sturm *et al.* 2010).
 
-| Snow environment | $\rho_{\max}$ (g cm$^{-3}$) | $\rho_0$ (g cm$^{-3}$) | $k_d$ (m$^{-1}$) | $k_a$ (day$^{-1}$) |
-|------------------|-----------------------------|------------------------|------------------|--------------------|
-| Alpine           | 0.5975                      | 0.2237                 | 0.0012           | 0.0038             |
-| Maritime         | 0.5979                      | 0.2578                 | 0.0010           | 0.0038             |
-| Prairie          | 0.5940                      | 0.2332                 | 0.0016           | 0.0031             |
-| Tundra           | 0.3630                      | 0.2425                 | 0.0029           | 0.0049             |
-| Taiga            | 0.2170                      | 0.2170                 | 0.0000           | 0.0000             |
+| Snow environment | $\rho_{\max}$ (kg m$^{-3}$) | $\rho_0$ (kg m$^{-3}$) | $k_d$ (m$^{-1}$) | $k_a$ (day$^{-1}$) |
+|:--|--:|--:|--:|--:|
+| Alpine | 597.5 | 223.7 | 0.12 | 0.0038 |
+| Maritime | 597.9 | 257.8 | 0.10 | 0.0038 |
+| Prairie | 594.0 | 233.2 | 0.16 | 0.0031 |
+| Tundra | 363.0 | 242.5 | 0.29 | 0.0049 |
+| Taiga | 217.0 | 217.0 | 0.00 | 0.0000 |
 
-The parameterisation broadly follows the treatment of snow accumulation and evolution described by Hedstrom & Pomeroy (1998) and Kearney (2020).
+The parameterisation broadly follows the treatment of snow accumulation and evolution described by Anderson (1976) and Kearney (2020).
 
 ### Note 7.2: Snow energy balance {#snow-energy-note}
 
-As for a vegetated surface, we need to compute the energy balance of the snow surface in order to derive its temperature. The implementation broadly follows the snow model described by Kearney (2020), itself based largely on Anderson (2006).
+As for a vegetated surface, the temperature of the snow surface is derived from its energy balance. The approach described here broadly follows Kearney (2020), itself based largely on Anderson (2006).
 
-Shortwave radiation absorbed by the snow surface depends on snow albedo (\(\alpha_s\)), which is a function of snow age (\(t_s\), hours):
+Shortwave radiation absorbed by the snow surface depends on snow albedo ($\small \alpha_s$), which declines with snow age ($\small t_s$, days) as
 
-$$\alpha_s = \frac{-9.8740 \ln\left(\frac{t_s}{24}\right) + 78.3434}{100}$$
+$$\alpha_s = \frac{-9.8740 \ln t_s + 78.3434}{100}$$
 
-$$0.1 \le \alpha_s \le 0.97$$
+$$0.1 \le \alpha_s \le 0.85$$
 
-following regressions derived from Anderson (2006). Directional absorption of direct radiation is reduced relative to a planar surface to account for the small-scale roughness of snow, which weakens the dependence of absorption on the angle of incidence. For a planar surface, absorption scales with the cosine of the incidence angle:
+following regressions derived from Anderson (2006).
 
-$$\mu = \cos\theta_z \cos\beta + \sin\theta_z \sin\beta \cos(\phi - \gamma)$$
-
-where \(\mu\) is the cosine of the incidence angle, \(\theta_z\) is the solar zenith angle, \(\phi\) is solar azimuth, \(\beta\) is slope, and \(\gamma\) is aspect.
-
-For snow, this angular dependence is reduced using a modified projection term \(G\), given by
-
-$$G =\begin{cases}
-\mu, & y=0 \\
-0.5, & y=1 \\
-\mu \dfrac{\sqrt{x^2 + \tan^2(\cos^{-1}\mu)}}{x + 1.774(x + 1.182)^{-0.733}}, & 0<y<1
-\end{cases}$$
-
-$$x=\frac{1}{y}$$
-
-where \(y\) controls the strength of the angular dependence, with \(y=0\) corresponding to the planar case and \(y=1\) to isotropic absorption. Generally \(y \approx 0.7\). The projection function approximation derives from Campbell (1986).
-
-Sensible heat exchange with the snow surface is calculated as for other surfaces using an aerodynamic resistance formulation, but the roughness length and zero-plane displacement height are adjusted for the presence of snow. Where snow depth (\(D_s\)) is less than vegetation height (\(h\)), the exposed canopy height is reduced to \(h-D_s\), and plant area index is reduced proportionally. The zero-plane displacement height (\(d\)) and roughness length for momentum (\(z_m\)) are then recalculated for the reduced canopy.
+Sensible heat exchange with the snow surface is calculated as for other surfaces using an aerodynamic resistance (Notes 3.2--3.3), but the roughness length and zero-plane displacement height are adjusted for the presence of snow. Where snow depth ($\small D_s$) is less than vegetation height ($\small h$), the exposed canopy height is reduced to $\small h-D_s$, and plant area index is reduced proportionally. The zero-plane displacement height ($\small d$) and roughness length for momentum ($\small z_M$) are then recalculated for the reduced canopy, with heights measured from the snow surface.
 
 If snow depth exceeds vegetation height, the surface is treated as bare snow, with
 
 $$d=0$$
 
-and a roughness length for heat and momentum of
+and roughness lengths for momentum and heat of
 
-$$z_h = 0.2z_m = 0.2\left(0.002\exp(\psi_h)\right)$$
+$$z_M\approx0.002\ \mathrm{m},\qquad z_H = 0.2z_M$$
 
-The aerodynamic resistance to heat transfer (\(r_{Ha}\), s m\(^{-1}\)) is then calculated using the adjusted values of \(d\), \(z_m\) and \(z_h\).
+The aerodynamic resistance to heat transfer ($\small r_{Ha}$, s m$^{-1}$) is then calculated using the adjusted values of $\small d$, $\small z_M$ and $\small z_H$.
 
-Latent heat exchange from the snow surface is calculated without a surface (stomatal) resistance, i.e. the snowpack is treated as freely evaporating/sublimating.
+Latent heat exchange from the snow surface is calculated without a surface resistance, i.e. the snowpack is treated as freely sublimating, with $\small \lambda$ taken as the latent heat of sublimation below 0 $\small ^\circ$C (Note 1).
 
-Longwave emission from the snow surface assumes a fixed emissivity, with \(\varepsilon_s = 0.99\).
+Longwave emission from the snow surface assumes a fixed emissivity, with $\small \varepsilon_s = 0.99$. The snow surface cannot warm above 0 $\small ^\circ$C: energy that would warm it further melts snow instead (Note 7.1).
 
-Snow temperature calculation must accommodate the rate of heat storage by solving the heat diffusion equation across the combined snow–soil column:
+Snow temperature must account for heat storage, by solving the heat conduction equation across the combined snow--soil column (Note 5):
 
 $$c(z)\frac{\partial T}{\partial t}=\frac{\partial}{\partial z}\left(k(z)\frac{\partial T}{\partial z}\right)$$
 
-where \(T\) is temperature (\(^\circ\)C), \(c(z)\) is volumetric heat capacity, and \(k(z)\) is thermal conductivity, both varying with depth across snow and soil layers.
+where $\small T$ is temperature, $\small c(z)$ is volumetric heat capacity, and $\small k(z)$ is thermal conductivity, both varying with depth across snow and soil layers.
 
-Snow thermal conductivity (\(k_s\), W m\(^{-1}\) K\(^{-1}\)) is calculated from snow density (\(\rho_s\), kg m\(^{-3}\)) as
+Snow thermal conductivity ($\small k_s$, W m$^{-1}$ K$^{-1}$) is calculated from snow density ($\small \rho_s$, kg m$^{-3}$) as
 
 $$k_s = 0.0442\exp(5.181\rho_g)$$
 
-where \(\rho_g=\rho_s/1000\) is snow density expressed in g cm\(^{-3}\), following Anderson (2006).
+where $\small \rho_g=\rho_s/1000$ is snow density expressed in g cm$^{-3}$, following Anderson (2006), and is no greater than the conductivity of ice (about 2.2 W m$^{-1}$ K$^{-1}$).
 
-Snow volumetric heat capacity (\(C_s\), J m\(^{-3}\) K\(^{-1}\)) is calculated as a mixture of ice and air, with liquid water content assumed to be zero:
+Snow volumetric heat capacity ($\small C_s$, J m$^{-3}$ K$^{-1}$) is calculated as a mixture of ice and air, with liquid water content assumed to be zero:
 
-$$C_s = V_iC_i + V_aC_a$$
+$$C_s = V_{ice}C_{ice} + V_aC_a$$
 
-where \(V_i=\rho_s/\rho_i\) is the volumetric fraction of ice, \(V_a=1-V_i\) is the volumetric fraction of air, and \(\rho_i=917\) kg m\(^{-3}\) is the density of ice. The volumetric heat capacity of ice (\(C_i\)) is given by
+where $\small V_{ice}=\rho_s/\rho_{ice}$ is the volumetric fraction of ice, $\small V_a=1-V_{ice}$ is the volumetric fraction of air, and $\small \rho_{ice}=917$ kg m$^{-3}$ is the density of ice. The volumetric heat capacity of ice ($\small C_{ice}$) declines slightly with temperature below 0 $\small ^\circ$C:
 
-$$C_i = 1.93\times10^6 + 0.0067\times10^6 T_s$$
+$$C_{ice} = 1.93\times10^6 + 0.0067\times10^6 \min(T,0)$$
 
-for \(T_s<0\), and
+where $\small T$ is snow temperature ($\small ^\circ$C). The volumetric heat capacity of air ($\small C_a$) is the product of air density and the specific heat capacity of air.
+### Note 7.3: Snow interception {#snow-interception-note}
 
-$$C_i = 2.1\times10^6$$
+Snow falling onto vegetation may be intercepted by leaves, stems and branches, where it remains until it falls to the ground, sublimates or melts. Following Hedstrom & Pomeroy (1998), the amount intercepted during a snowfall of $\small P_s$ (kg m$^{-2}$) is given by
 
-for \(T_s\ge 0\), where \(T_s\) is snow temperature (\(^\circ\)C). The volumetric heat capacity of air (\(C_a\)) is calculated as the product of air density and the specific heat capacity of air.
+$$I_1=\left(L^*-L_0\right)\left[1-\exp\left(-\frac{C_pP_s}{L^*}\right)\right]$$
+
+where $\small L_0$ is the initial snow load and $\small L^*$ the maximum load the canopy can hold (both kg m$^{-2}$). As the canopy fills, the proportion of falling snow intercepted decreases. The coefficient $\small C_p$ represents the maximum area of snow--foliage contact per unit ground area. For vertically falling snow, this approximates canopy cover $\small C_c$, but wind increases interception by carrying snow horizontally into the canopy. Thus,
+
+$$C_p=\frac{C_c}{1-C_cuh/(wJ)}$$
+
+where $\small u$ is wind speed, $\small w$ the fall velocity of snow (approximately 0.8 m s$^{-1}$), $\small h$ canopy height and $\small J$ the mean downwind length of canopy between gaps. The maximum snow load depends on leaf area index $\small L_{AI}$:
+
+$$L^*=S_b\left(0.27+\frac{46}{\rho_f}\right)L_{AI}$$
+
+where $\small S_b$ is the maximum snow load per unit branch area (approximately 6.6 kg m$^{-2}$ for pine and 5.9 kg m$^{-2}$ for spruce) and $\small \rho_f$ is the density of fresh snow (kg m$^{-3}$), estimated from air temperature $\small T_a$ ($^\circ$C) as
+
+$$\rho_f=67.92+51.25\exp\left(T_a/2.59\right)$$
+
+Snow gradually unloads from the canopy, with the rate of loss proportional to the amount remaining:
+
+$$I=I_1e^{-Ut}$$
+
+where $\small U$ is the unloading rate coefficient and $\small t$ is time since snowfall. Hedstrom & Pomeroy (1998) estimated that approximately 68% of intercepted snow remains after one week. Snow passing through or unloading from the canopy contributes to the ground snowpack (Note 7.1).
 
 ## Symbols and units {#symbols}
 
@@ -1404,11 +1418,77 @@ for \(T_s\ge 0\), where \(T_s\) is snow temperature (\(^\circ\)C). The volumetri
 | $z$ | Height, positive upwards | m |
 | $z_i$ | Position of node $i$ | m |
 
+### Note 7: Snow {#symbols-snow}
+
+| Symbol | Definition | Units |
+|:--|:--|:--|
+| $\alpha_s$ | Snow albedo | – |
+| $\Delta t$ | Duration of a time step | s |
+| $\varepsilon_s$ | Emissivity of snow (0.99) | – |
+| $\lambda$ | Latent heat of sublimation | J mol$^{-1}$ |
+| $\rho_f$ | Density of fresh snow | kg m$^{-3}$ |
+| $\rho_s$ | Snow density | kg m$^{-3}$ |
+| $\rho_{\max}$, $\rho_0$ | Upper and initial snow density | kg m$^{-3}$ |
+| $\rho_{ice}$ | Density of ice (917) | kg m$^{-3}$ |
+| $c(z)$, $k(z)$ | Volumetric heat capacity and thermal conductivity at depth $z$ in the snow–soil column | J m$^{-3}$ K$^{-1}$; W m$^{-1}$ K$^{-1}$ |
+| $c_w$ | Specific heat of water | J kg$^{-1}$ K$^{-1}$ |
+| $c_{ice}$ | Specific heat of ice (2100) | J kg$^{-1}$ K$^{-1}$ |
+| $C_c$ | Canopy cover | – |
+| $C_i$ | Heat capacity of snow layer $i$ | J m$^{-2}$ K$^{-1}$ |
+| $C_p$ | Maximum plan area of snow–leaf contact per unit area of ground | – |
+| $C_s$ | Volumetric heat capacity of snow | J m$^{-3}$ K$^{-1}$ |
+| $C_{ice}$, $C_a$ | Volumetric heat capacity of ice and of air | J m$^{-3}$ K$^{-1}$ |
+| $d$ | Zero-plane displacement height | m |
+| $D_s$ | Snow depth | m |
+| $e_a$ | Vapour pressure of the air | Pa |
+| $e_{sat}(T)$ | Saturated vapour pressure (over ice below 0 °C) at temperature $T$ | Pa |
+| $E$ | Sublimation (negative for deposition) | kg m$^{-2}$ |
+| $f_l$ | Liquid water holding capacity as a fraction of snow water equivalent | – |
+| $f_s$ | Fraction of precipitation falling as snow | – |
+| $F$, $F_i$ | Liquid water refrozen within the pack and within layer $i$ | kg m$^{-2}$ |
+| $h$ | Vegetation height | m |
+| $I$ | Snow held by the canopy after unloading | kg m$^{-2}$ |
+| $I_1$ | Snow intercepted by the canopy during a snowfall | kg m$^{-2}$ |
+| $J$ | Mean downwind length of canopy between gaps | m |
+| $k_a$ | Age-dependent densification coefficient | day$^{-1}$ |
+| $k_d$ | Depth-dependent densification coefficient | m$^{-1}$ |
+| $k_r$ | Rain melt coefficient, $c_w/L_f$ | K$^{-1}$ |
+| $k_s$ | Thermal conductivity of snow | W m$^{-1}$ K$^{-1}$ |
+| $L^*$ | Maximum snow load the canopy can hold | kg m$^{-2}$ |
+| $L_0$ | Snow load on the canopy at the start of a snowfall | kg m$^{-2}$ |
+| $L_f$ | Latent heat of fusion ($3.34\times10^5$) | J kg$^{-1}$ |
+| $L_{AI}$ | Leaf area index | m$^2$ m$^{-2}$ |
+| $M_i$ | Melt from layer $i$ | kg m$^{-2}$ |
+| $M_r$ | Rain-induced melt | kg m$^{-2}$ |
+| $M_w$ | Molar mass of water ($0.018015$) | kg mol$^{-1}$ |
+| $P$ | Total precipitation | kg m$^{-2}$ |
+| $P_s$, $P_r$ | Snowfall and rainfall | kg m$^{-2}$ |
+| $r_{Ha}$ | Aerodynamic resistance to heat transfer | s m$^{-1}$ |
+| $R$ | Universal gas constant ($8.314$) | J mol$^{-1}$ K$^{-1}$ |
+| $S$ | Snow water equivalent of the pack | kg m$^{-2}$ |
+| $S_b$ | Maximum snow load per unit branch area | kg m$^{-2}$ |
+| $S_i$ | Snow water equivalent of layer $i$ | kg m$^{-2}$ |
+| $t$ | Time since snowfall | s |
+| $t_s$ | Snow age | days |
+| $T$ | Snow temperature | °C |
+| $T_a$ | Air temperature | °C |
+| $T_i$ | Temperature of snow layer $i$ | °C |
+| $T_s$ | Snow surface temperature | °C |
+| $T_{snow}$, $T_{rain}$ | Temperatures below which all precipitation is snow and above which all is rain | °C |
+| $u$ | Wind speed | m s$^{-1}$ |
+| $U$ | Unloading rate coefficient | s$^{-1}$ |
+| $V_{ice}$, $V_a$ | Volume fractions of ice and air in snow | m$^3$ m$^{-3}$ |
+| $w$ | Fall velocity of snow | m s$^{-1}$ |
+| $W$ | Liquid water held within the pack | kg m$^{-2}$ |
+| $z_M$, $z_H$ | Roughness lengths for momentum and heat | m |
+
 ## References
 
 Allen R.G., Pereira L.S., Raes D. & Smith M. (1998) *Crop evapotranspiration: Guidelines for computing crop water requirements*. FAO Irrigation and Drainage Paper 56. Food and Agriculture Organization of the United Nations, Rome.
 
 Anderson E.A. (1976) *A point energy and mass balance model of a snow cover*. NOAA Technical Report NWS 19. National Oceanic and Atmospheric Administration, Silver Spring, Maryland.
+
+Anderson E.A. (2006) *Snow Accumulation and Ablation Model -- SNOW-17*. US National Weather Service, Silver Spring, Maryland.
 
 Beljaars A.C.M. (1995) The parametrization of surface fluxes in large-scale models under free convection. *Quarterly Journal of the Royal Meteorological Society* 121: 255–270.
 
