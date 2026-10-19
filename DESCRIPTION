@@ -1,7 +1,7 @@
 Package: microclimlearn
 Type: Package
 Title: Tutorial Package for Learning Microclimate Modelling
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Ilya", "Maclean", email = "i.m.d.maclean@exeter.ac.uk", role = c("aut", "cre")),
     person("Lydia", "Soifer", role = "aut"),

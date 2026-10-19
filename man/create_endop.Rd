@@ -14,7 +14,8 @@ create_endop(
   refl = 0.2,
   adir = 0,
   atilt = 0,
-  position = "randomdir"
+  position = "randomdir",
+  posture = "standing"
 )
 }
 \arguments{
@@ -38,11 +39,20 @@ create_endop(
 
 \item{position}{assumption about body orientation. See [silhouette()].
 Default \code{"randomdir"}.}
+
+\item{posture}{one of \code{"standing"} (the default), touching the ground
+through the feet, or \code{"lying"}, touching it with the underside of the body}
 }
 \value{
 a list of parameters:
 \describe{
   \item{height, width, len, coat, sweat, adir, atilt, position, refl}{as given}
+  \item{confrac}{share of the body surface in contact with the ground: 0.02
+  standing, the soles of the feet; 0.2 lying}
+  \item{contactdepth, kcontact}{length (cm) and conductivity (W m^-1 K^-1) of
+  the path heat takes between skin and ground. Standing, the legs: as long as
+  the body is high, with 0.5, the conductivity of flesh with little blood
+  flow. Lying, the coat pressed to half its depth, with conductivity \code{kcoat}.}
   \item{em}{longwave emissivity of the coat: 0.97}
   \item{rho}{body density (kg m^-3): 1000}
   \item{Tb}{core body temperature (degrees C): 37 for mammals, as in NicheMapR;
@@ -60,10 +70,20 @@ a list of parameters:
   NicheMapR}
   \item{pantmax}{most by which panting raises the rate of breathing: 5, as in
   NicheMapR}
+  \item{metmax}{highest metabolic rate the animal can sustain, as a multiple of
+  basal: 6. The highest rates of heat production measured in the cold are
+  mostly 4 to 8 times basal in mammals, and similar in birds (Minnaar et al.
+  2014).}
+  \item{Tcmax, Tcmin}{highest and lowest core temperatures the animal can
+  survive (degrees C). \code{Tcmax} is 5 degrees above the default \code{Tb}:
+  42 for mammals and 46 for birds, whose core temperatures rarely exceed 46
+  (Freeman et al. 2020). \code{Tcmin} is 20, below which the hearts of mammals
+  that do not hibernate fail. Change \code{Tcmax} with \code{Tb}.}
 }
 }
 \description{
-Creates a list of parameters for [Endotherm()] for a bird or
+Creates a list of parameters for [Endotherm()] and
+[EndothermPET()] for a bird or
 mammal from its size and coat. Physiological values are typical ones from the
 literature, so that only things that can be seen or measured need be given.
 Any value can be changed in the returned list.
@@ -73,8 +93,16 @@ Kearney MR, Briscoe NJ, Mathewson PD, Porter WP (2021) NicheMapR:
 an R package for biophysical modelling: the endotherm model. Ecography 44:
 1595-1605.
 
+Freeman MT, Czenze ZJ, Schoeman K, McKechnie AE (2020) Extreme hyperthermia
+tolerance in the world's most abundant wild bird. Scientific Reports 10: 13098.
+
 Kleiber M (1947) Body size and metabolic rate. Physiological Reviews 27:
 511-541.
+
+Minnaar IA, Bennett NC, Chimimba CT, McKechnie AE (2014) Summit metabolism and
+metabolic expansibility in Wahlberg's epauletted fruit bats (Epomophorus
+wahlbergi): seasonal acclimatisation and effects of captivity. Journal of
+Experimental Biology 217: 1363-1369.
 
 Maia ASC, da Silva RG, de Souza Junior JBF, da Silva RB, Domingos HGT (2009)
 Effective thermal conductivity of the hair coat of Holstein cows in a

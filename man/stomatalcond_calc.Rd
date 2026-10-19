@@ -39,7 +39,7 @@ stomatalcond_calc(
 \item{C3}{optional logical indicating whether vegetation has C3 or C4 photosynthetic pathway}
 }
 \value{
-stomatal conductance (mol / m^2 / s)
+stomatal conductance to water vapour (mol / m^2 / s)
 }
 \description{
 Calculate leaf stomatal conductance

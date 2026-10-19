@@ -4,7 +4,7 @@
 \alias{Endotherm}
 \title{Endotherm heat balance}
 \usage{
-Endotherm(endo_params, tme, microcdata, lat, long, uref = 0.1, evapunits = "W")
+Endotherm(endo_params, tme, microcdata, lat, long, evapunits = "W")
 }
 \arguments{
 \item{endo_params}{a list of endotherm parameters as returned by [create_endop()]}
@@ -14,6 +14,7 @@ Endotherm(endo_params, tme, microcdata, lat, long, uref = 0.1, evapunits = "W")
 \item{microcdata}{a list of microclimate variables with the following entries:
 \describe{
   \item{Tair}{Air temperature (degrees C).}
+  \item{Tsurf}{Temperature of the ground surface the animal stands or lies on (degrees C).}
   \item{relhum}{Air relative humidity (percentage).}
   \item{pk}{Atmospheric pressure (kPa).}
   \item{windspeed}{Wind speed at animal height (m s^-1).}
@@ -29,9 +30,6 @@ Endotherm(endo_params, tme, microcdata, lat, long, uref = 0.1, evapunits = "W")
 
 \item{long}{longitude (decimal degrees)}
 
-\item{uref}{wind speed of the reference setting for the physiologically
-equivalent temperature (m s^-1). Default 0.1.}
-
 \item{evapunits}{units in which evaporation is returned: \code{"W"} (heat
 lost by evaporation, the default), \code{"L/day"} (water evaporated, litres
 per day) or \code{"percent"} (water evaporated as a percentage of body mass
@@ -43,39 +41,38 @@ a list with:
   \item{regime}{\code{"cold"}, \code{"thermoneutral"} or \code{"hot"}}
   \item{Mreq}{metabolic rate required to hold body temperature (W)}
   \item{Mbasal}{basal metabolic rate (W)}
-  \item{Ereq}{evaporation required to hold body temperature, from breathing
-  and skin together, in \code{evapunits}}
-  \item{Emax}{most the animal can evaporate, panting at its fastest and, if it
-  sweats, with its skin fully wet, in \code{evapunits}}
+  \item{Mmax}{the highest metabolic rate the animal can sustain (W)}
+  \item{Lreq}{heat that must be lost by evaporation to hold body temperature,
+  in \code{evapunits}}
+  \item{Lmax}{the most the animal can evaporate, in \code{evapunits}}
   \item{Tskin}{skin temperature (degrees C)}
   \item{Tsurf}{coat surface temperature (degrees C)}
   \item{Te}{operative temperature (degrees C)}
-  \item{PET}{physiologically equivalent temperature (degrees C)}
 }
 }
 \description{
 Calculates what a bird or mammal must do to hold its core at body
-temperature at a single time step, and the physiologically equivalent
-temperature of its surroundings.
+temperature at a single time step: the metabolic heat it must produce when it
+is cold, or the heat it must lose by evaporation when it is hot.
 }
 \details{
-The animal is a core held at body temperature, losing heat through
-three resistances in series: tissue between core and skin, the coat, and the
-surroundings (boundary layer and radiation in parallel). The animal regulates
-the first through blood flow to the skin. Some heat is also lost by breathing,
-as inhaled air leaves saturated at body temperature; the air breathed rises
-with metabolic rate, 20 percent of the oxygen in it being used (as in
-NicheMapR). If heat lost with blood flow at its lowest still exceeds what basal
-metabolism can supply, the animal is cold and must raise its metabolic rate. If
-heat lost with blood flow at its highest is less than basal metabolism, it is
-hot and must evaporate the rest. Between the two it is thermoneutral. Panting
-raises the rate of breathing up to \code{pantmax} times; an animal that sweats
-can wet its whole skin, and vapour then passes through the coat and boundary
-layer, which are taken to resist vapour as they resist heat.
+The animal is a core held at body temperature. Heat passes through
+the tissue between core and skin, which the animal regulates through blood flow
+to the skin, and then by two routes side by side: over most of the body through
+the coat to the surroundings (boundary layer and radiation in parallel), and
+where the body touches the ground through the layer between skin and ground to
+the ground surface. If heat lost with blood flow at its lowest still exceeds
+basal metabolism, the animal is cold and must raise its metabolic rate. If heat
+lost with blood flow at its highest is less than basal metabolism, it is hot
+and must lose the rest by evaporation. Between the two it is thermoneutral.
 
-The physiologically equivalent temperature is the air temperature of a
-reference setting (shade, surroundings at air temperature, wind \code{uref}) in
-which the animal would have the same core and skin temperature, and so the same
-heat flux from the skin, as in the actual conditions. Evaporation is the same in
-both settings, so humidity does not enter it.
+The highest metabolic rate is \code{metmax} times basal. The most the animal
+can evaporate is from panting at its fastest (\code{pantmax} times the resting
+rate of breathing) and from its skin, fully wet if it sweats; it depends on air
+humidity. A warning is given when the animal would need more than either, as it
+then cannot hold its body temperature.
+}
+\seealso{
+[EndothermPET()] for how hot or cold the surroundings feel to the
+animal
 }

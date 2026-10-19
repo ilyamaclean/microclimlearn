@@ -9,8 +9,9 @@ animalRabs(params, solp, microcdata)
 \arguments{
 \item{params}{a list of animal parameters containing \code{height},
 \code{width}, \code{len} (cm), \code{adir}, \code{atilt} (degrees),
-\code{position} (see [silhouette()]), \code{refl} (shortwave reflectance) and
-\code{em} (longwave emissivity)}
+\code{position} (see [silhouette()]), \code{refl} (shortwave reflectance),
+\code{em} (longwave emissivity) and \code{confrac} (share of the body surface
+in contact with the ground)}
 
 \item{solp}{a list with the solar zenith (\code{zen}) and azimuth (\code{azi})
 angles (degrees), as returned by [sunposition()]}
@@ -29,6 +30,7 @@ body surface by an animal treated as an ellipsoid.
 }
 \details{
 The direct beam falls on the silhouette the body presents to the sun.
-Half the body faces upward and half downward, so it receives half the diffuse
-and longwave radiation from the sky and half that reflected or emitted from below.
+Half the body faces upward and receives diffuse and longwave radiation from the
+sky. Half faces downward and receives radiation reflected or emitted by the
+ground, except where it touches the ground, which receives none.
 }
