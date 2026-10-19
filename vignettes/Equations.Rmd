@@ -759,7 +759,7 @@ For endotherms, a broadly similar approach can be used, but one must consider th
 
 ## Note 5: Soil heat storage {#soil-heat-storage}
 
-In the soil, heat storage is significant, and from Bittelli *et al.* (2015) an equation that describes the rate of change in soil temperature $\small T$ with time $\small t$ and depth $\small z$ is
+Heat flow in the soil is usually described by the one-dimensional heat conduction equation, which gives the rate of change in soil temperature $\small T$ with time $\small t$ and depth $\small z$ as (Campbell & Norman 2012)
 
 $$\rho_sc_s\frac{\partial T}{\partial t}=\frac{\partial}{\partial z}\left(k\frac{\partial T}{\partial z}\right)$$
 
@@ -771,32 +771,39 @@ then from Campbell & Norman (2012) and de Vries (1963) the temperature at any de
 
 $$T(z,t)=\overline T+A\exp\left(-z/D\right)\sin\left[\omega\left(t-t_0\right)-z/D\right]$$
 
-where $\small \overline T$ is the mean temperature of the cycle, $\small A$ the amplitude of the cycle and $\small t_0$ is the time at which the temperature cycle first attains $\small \overline T$. Here $\small \omega$ is the angular frequency given by $\small 2\pi/(24\times3600\,\mathrm{s})$ for diurnal cycles and $\small 2\pi/(365\times24\times3600\,\mathrm{s})$ for annual cycles and $\small D=\sqrt{2k/(\omega\rho_sc_s)}$ is the damping depth -- the amount by which temperature variation is attenuated with depth and by how much the temperature cycle is shifted in time. The rate of heat storage at the soil surface $\small G_{0,t}$ is then determined by differentiation as
+where $\small \overline T$ is the mean temperature of the cycle, $\small A$ the amplitude of the cycle and $\small t_0$ is the time at which the temperature cycle first attains $\small \overline T$. Here $\small \omega$ is the angular frequency given by $\small 2\pi/(24\times3600\,\mathrm{s})$ for diurnal cycles and $\small 2\pi/(365\times24\times3600\,\mathrm{s})$ for annual cycles and $\small D=\sqrt{2k/(\omega\rho_sc_s)}$ is the damping depth, the depth at which the amplitude of the cycle falls to $\small 1/e$ of its surface value and the cycle lags that at the surface by one radian (about 3.8 hours for the diurnal cycle; Campbell & Norman 2012). The rate of heat storage at the soil surface $\small G_{0,t}$ is then determined by differentiation as
 
 $$G_{0,t}=\frac{\sqrt2Ak\sin\left[\omega(t-t_0)+\pi/4\right]}{D}$$
 
-$\small G_{0,t}$ thus scales with $\small k$, $\small \rho_s$ and $\small c_s$, which can be inferred from soil physical properties. The volumetric specific heat $\small \rho_sc_s$ is the sum of all soil constituents, namely quartz, minerals, organic matter, water and air, with water replacing air as soils become wet. Thus
+$\small G_{0,t}$ thus scales with $\small \sqrt{k\rho_sc_s}$, which can be inferred from soil physical properties. The volumetric heat capacity $\small \rho_sc_s$ can be described as the sum of the heat capacities of the soil constituents, namely quartz, other minerals, organic matter, water and air, each weighted by its volume fraction, with water replacing air as soils become wet (de Vries 1963; Campbell & Norman 2012):
 
 $$\rho_sc_s=\rho_wc_w\theta+\rho_ac_a\phi_a+\rho_qc_q\phi_q+\rho_mc_m\phi_m+\rho_oc_o\phi_o$$
 
-where $\small \rho$ and $\small c_s$ represent the density ($\small kg\cdot m^{-3}$) and specific heat capacity ($\small J\cdot kg^{-1}\cdot K^{-1}$) of each constituent denoted by the subscripts $\small w$, $\small a$, $\small q$, $\small m$ and $\small o$ representing water, air, quartz, mineral other than quartz and organic matter respectively, $\small \phi$ represents the volume fraction of each constituent and $\small \theta$ is the volumetric soil water fraction. Values for density and specific heat of each constituent are shown in Table S2 and the typical volume fractions of each constituent for different soil types shown in Table S3.
+where $\small \rho$ and $\small c$ represent the density ($\small kg\cdot m^{-3}$) and specific heat capacity ($\small J\cdot kg^{-1}\cdot K^{-1}$) of each constituent denoted by the subscripts $\small w$, $\small a$, $\small q$, $\small m$ and $\small o$ representing water, air, quartz, mineral other than quartz and organic matter respectively, $\small \phi$ represents the volume fraction of each constituent and $\small \theta$ is the volumetric soil water fraction. Typical values of the density and specific heat of each constituent are given in Table S2, and typical volume fractions for different soil types in Table S3.
 
-From de Vries (1963) and Campbell (1985) thermal conductivity is given by
+Thermal conductivity can be derived from the composition of the soil following de Vries (1963), who treated soil as particles of solid, water and air dispersed in a continuous fluid. Each constituent $\small j$ contributes in proportion to its volume fraction $\small x_j$ and to a weighting factor $\small w_j$ that describes how it distorts the flow of heat (Campbell *et al.* 1994; Bittelli *et al.* 2015):
 
-$$k=p_1+p_2\theta-(p_1-p_4)\exp\left(-(p_3\theta)^4\right)$$
+$$k=\frac{\sum_j w_jk_jx_j}{\sum_j w_jx_j},\qquad w_j=\frac{1}{3}\left[\frac{2}{1+\left(k_j/k_f-1\right)g_a}+\frac{1}{1+\left(k_j/k_f-1\right)g_c}\right]$$
 
-where $\small p_1 \ldots p_4$ are coefficients given by
+where the sums are over water ($\small x=\theta$), air ($\small x=\phi_a$) and solids ($\small x=\phi_s$), $\small k_j$ is the conductivity of each and $\small k_f$ that of the continuous fluid. The shape factors of the particles are $\small g_a$ and $\small g_c=1-2g_a$, with $\small g_a$ typically taken as about 0.09 for mineral particles and 0.5 for organic matter. The conductivity of the solids can be estimated as the geometric mean of those of quartz, other minerals and organic matter (Table S2), weighted by their shares of the solid volume,
 
-$\small p_1=\left(0.57+1.73\phi_q+0.93\phi_m\right)/\left(1-0.74\phi_q-0.49\phi_m\right)-2.8\phi_s\left(1-\phi_s\right)$<br>
-$\small p_2=2.8\phi_s,\space p_3=1+0.26m_c^{-1/2},\space p_4=0.03+0.7{\phi_s}^2$<br>
+$$k_s=k_q^{\phi_q/\phi_s}\,k_m^{\phi_m/\phi_s}\,k_o^{\phi_o/\phi_s}$$
 
-where $\small \phi_s=\phi_q+\phi_m$ is the volume fraction of solids and $\small m_c$ is the mass fraction of minerals that are clay (Table S3).
+where $\small \phi_s=\phi_q+\phi_m+\phi_o$ is the volume fraction of solids. The continuous fluid changes from air to water as the soil wets,
 
-A more general numerical solution can also be derived that does not assume uniform soil properties. Here the soil is divided into $\small n$ layers each separated by a node $\small i$ with volumetric heat capacity $\small \rho_i c_i$ and temperature $\small T_i$ and with a thermal conductance $\small K_i=k_i/(z_{i+1}-z_i)$ determined from conductivity $\small k$ between nodes $\small i+1$ and $\small i$ at depths $\small z_{i+1}$ and $\small z_i$. From Campbell (1985) and Bittelli *et al.* (2015)
+$$k_f=k_a+\left(k_w-k_a\right)\left(\theta/\phi_p\right)^2$$
+
+where $\small \phi_p=1-\phi_s$ is the porosity. Air in the pores carries heat both by conduction and by the diffusion of water vapour, which evaporates on the warm side of a pore and condenses on the cool side, so that its effective conductivity is
+
+$$k_a=k_{a,0}+f_w\frac{\lambda\hat{\rho}D_v\Delta}{p_a-e_{sat}(T)},\qquad f_w=\frac{1}{1+\left(\theta/\theta_0\right)^{-q}}$$
+
+where $\small k_{a,0}$ is the conductivity of dry air, $\small D_v$ the diffusivity of water vapour in air, $\small \lambda$, $\small \hat{\rho}$, $\small \Delta$ and $\small e_{sat}$ are as in Note 1, and $\small f_w$ is the extent to which the pores are connected by water films that sustain the vapour flux. Campbell *et al.* (1994) relate its parameters to clay content as $\small \theta_0=0.33m_c+0.078$ and $\small q=7.25m_c+2.52$, where $\small m_c$ is the mass fraction of minerals that are clay (Table S3). As vapour pressure rises steeply with temperature, so does the conductivity of moist soil (Campbell *et al.* 1994). A simpler empirical alternative, which depends on water content and composition only, is given by Campbell (1985).
+
+Where soil properties are not uniform, a numerical solution is typically used, in which the soil is divided into $\small n$ layers each separated by a node $\small i$ with volumetric heat capacity $\small \rho_i c_i$ and temperature $\small T_i$ and with a thermal conductance $\small K_i=k_i/(z_{i+1}-z_i)$ determined from conductivity $\small k$ between nodes $\small i+1$ and $\small i$ at depths $\small z_{i+1}$ and $\small z_i$. From Campbell (1985) and Bittelli *et al.* (2015)
 
 $$K_i\left(\overline T_{i+1}-\overline T_i\right)-K_{i-1}\left(\overline T_i-\overline T_{i-1}\right)=\rho_i c_i\left(T_i^{j+1}-T_i^j\right)\left(z_{i+1}-z_{i-1}\right)/2\Delta t$$
 
-where $\small \Delta t$ is the time increment and the superscript $\small j$ indicates the time at which temperature is determined. The overbars above $\small T$ on the left-hand side indicate that the flux is computed from an appropriate mean temperature such that $\small \overline T=nT^{j+1}+(1-n)T^j$ where $\small 0<n<1$ is a forward or backward weighting factor usually taken as 0.6 to ensure a stable solution (Crank & Nicolson 1947). Writing the equations for each node in matrix form (here for four nodes) gives
+where $\small \Delta t$ is the time increment and the superscript $\small j$ indicates the time at which temperature is determined. The overbars above $\small T$ on the left-hand side indicate that the flux is computed from an appropriate mean temperature such that $\small \overline T=\eta T^{j+1}+(1-\eta)T^j$ where $\small 0<\eta<1$ is a forward or backward weighting factor often taken as 0.6 to ensure a stable solution (Crank & Nicolson 1947). Writing the equations for each node in matrix form (here for four nodes) gives
 
 $$
 {\small
@@ -823,78 +830,79 @@ $$
 
 where
 
-$$B_i=n\left(K_i+K_{i-1}\right)+\rho_i c_i\left(z_{i+1}-z_{i-1}\right)/2\Delta t$$
+$$B_i=\eta\left(K_i+K_{i-1}\right)+\rho_i c_i\left(z_{i+1}-z_{i-1}\right)/2\Delta t$$
 
-$$A_{i+1}=C_i=-nK_i$$
+$$A_{i+1}=C_i=-\eta K_i$$
 
-$$D_i=(1-n)K_{i-1}T_{i-1}+\left[\rho_i c_i\frac{z_{i+1}-z_{i-1}}{2\Delta t}-(1-n)\left(K_i+K_{i-1}\right)\right]T_i+(1-n)K_iT_i$$
+$$D_i=(1-\eta)K_{i-1}T_{i-1}+\left[\rho_i c_i\frac{z_{i+1}-z_{i-1}}{2\Delta t}-(1-\eta)\left(K_i+K_{i-1}\right)\right]T_i+(1-\eta)K_iT_{i+1}$$
 
-Here $\small T'$ represents the new temperature at time $t^{j+1}$ and $\small T$ represents the old temperature at time $T^j$. The coefficient matrix is symmetric and tridiagonal. The set of equations is solved very efficiently by Gaussian elimination using the Thomas algorithm (Thomas 1949) as implemented in function `Soilheat`, provided boundary conditions are specified. The boundary condition at the bottom of the soil column ($\small T'_{n+1}$) is usually specified as remaining at some constant temperature, often taken as equivalent to mean annual air temperature and
+Here $\small T'$ represents the new temperature at time $t^{j+1}$ and $\small T$ represents the old temperature at time $\small t^j$. The coefficient matrix is symmetric and tridiagonal. The set of equations can be solved efficiently by Gaussian elimination using the Thomas algorithm (Thomas 1949), provided boundary conditions are specified. The temperature at the bottom of the soil column ($\small T'_{n+1}$) is commonly held constant, often at the mean annual air temperature (Campbell 1985), in which case
 
-$$D_n=D'_n+nK_n+T'_{n+1}$$
+$$D_n=D'_n+\eta K_nT'_{n+1}$$
 
-where $\small D'_n$ is the value obtained using the equation for $\small D_{i=n}$ above. The boundary condition at the soil surface at ($\small i=1$) is derived from air temperature at reference height ($\small T_0$), and is given by
+where $\small D'_n$ is the value obtained using the equation for $\small D_{i=n}$ above. The boundary condition at the soil surface ($\small i=1$) can be derived from the air temperature at reference height ($\small T_0$) as (Campbell 1985; Bittelli *et al.* 2015)
 
-$$D_1=D'_1+nK_0T_0-R_{net}+L$$
+$$D_1=D'_1+\eta K_0T'_0+R_{net}-L$$
 
-where $\small R_{net}=R_{abs}-R_{em}$ is net radiation, $\small L$ is the latent heat flux, $\small K_0$ the boundary layer conductance and $\small D'_1$ is the value obtained using the equation for $\small D_{i=1}$ above.
+where $\small R_{net}=R_{abs}-R_{em}$ is net radiation, $\small L$ is the latent heat flux, $\small K_0=\hat{\rho}c_p/r_{Ha}$ the boundary layer conductance (Notes 1 and 3) and $\small D'_1$ is the value obtained using the equation for $\small D_{i=1}$ above.
 
-The rate of heat storage at the soil surface $\small G_{0,t}$ is then given by
+The rate of heat storage at the soil surface $\small G_{0,t}$ is then given by (Campbell 1985)
 
-$$G_{0,t}=K_0\left[(1-n)\left(T_0-T_1\right)+n\left(T'_0-T'_1\right)\right]$$
+$$G_{0,t}=K_0\left[(1-\eta)\left(T_0-T_1\right)+\eta\left(T'_0-T'_1\right)\right]+R_{net}-L$$
 
-**Table S2.** Physical properties of materials used in soil thermal modelling.
+**Table S2.** Physical properties of materials used in soil thermal modelling (Campbell & Norman 2012).
 
 | Material         | Density (kg/m³) | Specific heat (J/kg/K) | Thermal conductivity (W/m·K) |
 |------------------|------------------|--------------------------|-------------------------------|
 | Quartz           | 2660             | 800                      | 8.80                          |
-| Minerals         | 2650             | 900                      | 2.92                          |
+| Minerals         | 2650             | 870                      | 2.5                           |
 | Organic matter   | 1300             | 1920                     | 0.25                          |
 | Water            | 1000             | 4180                     | 0.57                          |
-| Ice              | 920              | 1001                     | 2.18                          |
+| Ice              | 920              | 2100                     | 2.18                          |
 | Air              | 1.225            | 1005                     | 0.025                         |
 
-**Table S3.** Hydraulic and thermal properties of different soil types and the mass fraction of minerals that are clay. Values for quartz, minerals and organic material represent the volume fractions for dry soil and the clay mass fraction is the mass fraction of minerals that are clay.
+**Table S3.** Composition and van Genuchten hydraulic parameters of different soil types. Quartz, mineral and organic are the volume fractions of each constituent in dry soil, and the clay fraction is the mass fraction of minerals that are clay (Bittelli *et al.* 2015; Campbell & Norman 2012). The hydraulic parameters are the class averages of the Rosetta pedotransfer functions (Schaap *et al.* 2001), with $\alpha$ converted to kg J$^{-1}$, so that it applies to matric potential in J kg$^{-1}$. The conductivity function uses the fitted $L$ with a matching-point conductivity $K_o$ in place of $k_s$ (Schaap & Leij 2000).
 
-| Soil Type         | Quartz | Mineral | Organic | Clay Mass Fraction | θᵣ   | θₛ   | α | n    | Kₛ (kg m⁻² day⁻¹) |
-|-------------------|--------|---------|---------|--------------------|------|------|---------|------|--------------------|
-| Sand              | 0.30   | 0.3000  | 0.0010  | 0.0100             | 0.045| 0.43 | 14.5    | 2.68 | 501.1200           |
-| Loamy sand        | 0.24   | 0.3550  | 0.0030  | 0.0350             | 0.057| 0.41 | 12.4    | 2.28 | 146.8800           |
-| Sandy loam        | 0.18   | 0.4100  | 0.0070  | 0.0600             | 0.065| 0.41 | 7.5     | 1.89 | 62.2080            |
-| Loam              | 0.12   | 0.4400  | 0.0180  | 0.0844             | 0.078| 0.43 | 3.6     | 1.56 | 31.9680            |
-| Silt loam         | 0.00   | 0.4700  | 0.0830  | 0.1240             | 0.067| 0.45 | 2.7     | 1.41 | 16.4160            |
-| Sandy clay loam   | 0.14   | 0.4640  | 0.0080  | 0.3648             | 0.100| 0.39 | 4.9     | 1.48 | 10.3680            |
-| Clay loam         | 0.06   | 0.5090  | 0.0120  | 0.5422             | 0.095| 0.41 | 1.9     | 1.31 | 5.5296             |
-| Silty clay loam   | 0.04   | 0.5080  | 0.0110  | 0.3948             | 0.089| 0.43 | 1.7     | 1.37 | 3.6288             |
-| Sandy clay        | 0.15   | 0.4655  | 0.0035  | 0.5050             | 0.100| 0.38 | 2.7     | 1.23 | 2.8512             |
-| Silty clay        | 0.00   | 0.6240  | 0.0080  | 0.5500             | 0.070| 0.36 | 1.6     | 1.25 | 2.1600             |
-| Clay              | 0.00   | 0.6000  | 0.0060  | 1.0000             | 0.068| 0.38 | 1.1     | 1.09 | 1.4688             |
+| Soil type | Quartz | Mineral | Organic | Clay fraction | $\theta_r$ | $\theta_s$ | $\alpha$ (kg J$^{-1}$) | $n$ | $K_o$ (kg s m$^{-3}$) | $L$ |
+|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Sand | 0.3145 | 0.3145 | 0.0010 | 0.03 | 0.053 | 0.375 | 0.359 | 3.177 | 2.89×10⁻⁴ | -0.930 |
+| Loamy sand | 0.2488 | 0.3681 | 0.0031 | 0.07 | 0.049 | 0.390 | 0.354 | 1.746 | 2.87×10⁻⁴ | -0.874 |
+| Sandy loam | 0.1779 | 0.4052 | 0.0069 | 0.10 | 0.039 | 0.387 | 0.272 | 1.449 | 1.83×10⁻⁴ | -0.861 |
+| Loam | 0.1183 | 0.4339 | 0.0178 | 0.18 | 0.061 | 0.399 | 0.113 | 1.472 | 4.36×10⁻⁵ | -0.371 |
+| Silt loam | 0.0000 | 0.4844 | 0.0856 | 0.15 | 0.065 | 0.439 | 0.052 | 1.663 | 2.06×10⁻⁵ | 0.365 |
+| Sandy clay loam | 0.1350 | 0.4473 | 0.0077 | 0.27 | 0.063 | 0.384 | 0.215 | 1.330 | 8.18×10⁻⁵ | -1.280 |
+| Clay loam | 0.0568 | 0.4818 | 0.0114 | 0.34 | 0.079 | 0.442 | 0.161 | 1.416 | 5.90×10⁻⁵ | -0.763 |
+| Silty clay loam | 0.0386 | 0.4907 | 0.0107 | 0.33 | 0.090 | 0.482 | 0.086 | 1.521 | 2.64×10⁻⁵ | -0.156 |
+| Sandy clay | 0.1357 | 0.4211 | 0.0032 | 0.40 | 0.117 | 0.385 | 0.341 | 1.208 | 5.11×10⁻⁵ | -3.665 |
+| Silty clay | 0.0000 | 0.4838 | 0.0062 | 0.45 | 0.111 | 0.481 | 0.165 | 1.321 | 3.74×10⁻⁵ | -1.287 |
+| Clay | 0.0000 | 0.4950 | 0.0050 | 0.60 | 0.098 | 0.459 | 0.153 | 1.253 | 3.50×10⁻⁵ | -1.561 |
+| Silt | 0.0729 | 0.4778 | 0.0093 | 0.07 | 0.050 | 0.489 | 0.067 | 1.679 | 3.94×10⁻⁵ | 0.624 |
 
 ## Note 6: Soil hydrology {#soil-hydrology}
 
-To calculate the volumetric soil water content $\small \theta$ one must consider the balance of evapotranspiration and rainfall. Water is drawn out of soil by plants, evaporates from bare soil surfaces, and enters the soil layer as precipitation. There are no general mathematical solutions to calculate the change in $\small \theta$ with depth and time, and one must therefore resort to numerical modelling in which the soil is divided into a number of layers and flow between layers is computed in discrete timesteps. The effective relative humidity of soil exhibits a highly non-linear relationship with $\small \theta$ and at the soil surface there is a significant gradient in the water content profile. The top layers therefore need to be very thin to capture these processes accurately.
+The volumetric soil water content $\small \theta$ is determined by the balance of evapotranspiration and rainfall. Water is drawn out of soil by plants, evaporates from bare soil surfaces, and enters the soil layer as precipitation. There are no general analytical solutions for the change in $\small \theta$ with depth and time, so it is usually computed numerically, by dividing the soil into layers and computing the flow between them over discrete time steps. The effective relative humidity of soil is highly non-linear in $\small \theta$, and water content often changes steeply with depth near the surface, so the top layers usually need to be thin to capture these processes accurately.
 
-One-dimensional water flow in the soil (i.e. downward and upward) is described by Darcy's law such that
+One-dimensional water flow in the soil (i.e. downward and upward) is usually described by Darcy's law, such that
 
 $$J_w=-k\frac{d\psi_m}{dz}-gk$$
 
-where $\small k$ is hydraulic conductivity and $\small J_w$ is the water flux density ($\small kg\cdot m^{-2}\cdot s^{-1}$), $\small d\psi_m/dz$ is the change in matric potential with depth and $\small g=9.81$ is the gravitational constant. $\small k$ is computed from $\small k_s$ using the van Genuchten (1980) method as
+where $\small k$ is hydraulic conductivity and $\small J_w$ is the water flux density ($\small kg\cdot m^{-2}\cdot s^{-1}$), $\small d\psi_m/dz$ is the gradient in matric potential $\small \psi_m$ (J kg$^{-1}$) with height $\small z$ (positive upwards, so that $\small J_w$ is positive upwards) and $\small g=9.81$ m s$^{-2}$ is gravitational acceleration (Bittelli *et al.* 2015). $\small k$ can be computed from the saturated hydraulic conductivity $\small k_s$ following van Genuchten (1980) as
 
-$$k=k_s\sqrt{S_e}\left[1-\left(1-{S_e}^{1/m}\right)^m\right]^2$$
+$$k=k_s{S_e}^{L}\left[1-\left(1-{S_e}^{1/m}\right)^m\right]^2$$
 
-and carries the same units as $\small k_s$ where $\small S_e$ is the effective saturation defined as
+and carries the same units as $\small k_s$. Here $\small L$ is a pore-connectivity parameter, taken as 0.5 by Mualem (1976) but fitted for different soil types by Schaap & Leij (2000), and $\small S_e$ is the effective saturation defined as
 
-$$S_e=\frac{\theta(\psi)-\theta_r}{\theta_s-\theta_r}$$
+$$S_e=\frac{\theta(\psi_m)-\theta_r}{\theta_s-\theta_r}$$
 
-where $\small \theta(\psi)$ is the water retention curve derived from the van Genuchten equation as
+where $\small \theta(\psi_m)$ is the water retention curve, described by van Genuchten (1980) as
 
-$$\theta(\psi)=\theta_r+\frac{\theta_s-\theta_r}{\left[1+\left(\alpha|\psi_m|\right)^n\right]^m}$$
+$$\theta(\psi_m)=\theta_r+\frac{\theta_s-\theta_r}{\left[1+\left(\alpha|\psi_m|\right)^n\right]^m}$$
 
-where $\small \theta_s$ and $\small \theta_r$ are the saturated and residual volumetric soil moisture fractions, and $\small m=1-1/n$ where $\small n$ and $\small \alpha$ are soil-dependent shape parameters (Table S3). From Campbell (1985) the set up for the numerical solution to the water flow problem is very similar to the heat flow problem. Thus
+where $\small \theta_s$ and $\small \theta_r$ are the saturated and residual volumetric soil moisture fractions, and $\small m=1-1/n$ where $\small n$ and $\small \alpha$ are soil-dependent shape parameters (Table S3). A numerical solution can be set up in much the same way as for heat flow (Campbell 1985), so that
 
 $$\frac{\rho_w\overline c_w\left(\psi_i^{j+1}-\psi_i^j\right)\left(z_{i+0.5}-z_{i-0.5}\right)}{\Delta t}=\frac{\overline k_i\left(\overline\psi_{i+1}-\overline\psi_i\right)}{z_{i+1}-z_i}-\frac{\overline k_{i-1}\left(\overline\psi_i-\overline\psi_{i-1}\right)}{z_i-z_{i-1}}+U_i$$
 
-where $\small \rho_w$ is the density of water, $\small c_w$ is water capacitance, and $\small \Delta t$ is the timestep. The overbars indicate a mean over the time steps $\small j$ or element length between nodes $\small i$. Here $\small \psi$ is the water potential. The potentials are defined as for heat flow $\small \overline\psi_i=n(\psi_i^{j+1})+(1-n)(\psi_i^j)$ though the nonlinearity of the water flow problem makes $\small n=1$ the best choice almost always. Ideally, $\small c_w$ and $\small K_i$ are appropriate mean values of the capacity and conductivity over a time step. The correct values, however, are not easily obtained since each depends partially on the unknown potential at the end of the time step. The solution is either to run the model in very short time increments or to make two or more computations, the first based on values at time $\small j$, with subsequent estimates made using the average of the known potential at the beginning of the time step and the estimated potential at the end of the time step. The source term $\small U_i$ combines all of the inputs and losses of water from the node that are not explicit in the above equation and might include water extraction by roots, gravitational flux, and condensation or evaporation.
+where $\small \rho_w$ is the density of water, $\small c_w=d\theta/d\psi_m$ is the water capacity, and $\small \Delta t$ is the timestep. The overbars indicate a mean over the time steps $\small j$ or element length between nodes $\small i$. Here $\small \psi$ is the matric potential $\small \psi_m$, written without its subscript for brevity. The potentials are defined as for heat flow, $\small \overline\psi_i=\eta\psi_i^{j+1}+(1-\eta)\psi_i^j$, though the nonlinearity of the water flow problem means that $\small \eta=1$ is usually preferred. Ideally, $\small c_w$ and $\small K_i$ are appropriate mean values of the capacity and conductivity over a time step. These are not easily obtained, since each depends partly on the unknown potential at the end of the time step. This is usually addressed either by using very short time steps or by making two or more computations, the first based on values at time $\small j$, with subsequent estimates made using the average of the known potential at the beginning of the time step and the estimated potential at the end of the time step. The source term $\small U_i$ combines all of the inputs and losses of water from the node that are not explicit in the above equation and might include water extraction by roots, gravitational flux, and condensation or evaporation.
 
 Writing the equations for each node in matrix form (here for four nodes) gives
 
@@ -923,35 +931,36 @@ $$
 
 where
 
-$$C_i=A_{i+1}=-nK_i$$
+$$C_i=A_{i+1}=-\eta K_i$$
 
-$$B_i=n\left(K_i+K_{i-1}\right)+S_i$$
+$$B_i=\eta\left(K_i+K_{i-1}\right)+S_i$$
 
-$$D_i=(1-n)K_{i-1}\psi_{i-1}+\left[S_i-(1-n)(K_{i-1}+K_i)\right]\psi_i+(1-n)K_i\psi_{i+1}+U_i$$
+$$D_i=(1-\eta)K_{i-1}\psi_{i-1}+\left[S_i-(1-\eta)(K_{i-1}+K_i)\right]\psi_i+(1-\eta)K_i\psi_{i+1}+U_i$$
 
-Here $\small \psi'$ represents the new potential at time $\small t^{j+1}$ and $\small \psi$ represents the old potential at time $\small t^j$, and $\small K$ is the conductance computed as $\small K_i=\overline k_i/(z_{i+1}-z_i)$ and the storage term $\small S_i=\rho_wc_i\left(z_{i+1}-z_{i-1}\right)/2\Delta t$.
+Here $\small \psi'$ represents the new potential at time $\small t^{j+1}$ and $\small \psi$ represents the old potential at time $\small t^j$, and $\small K$ is the conductance computed as $\small K_i=\overline k_i/(z_{i+1}-z_i)$ and the storage term $\small S_i=\rho_w\overline c_{w,i}\left(z_{i+1}-z_{i-1}\right)/2\Delta t$.
 
-To solve the set of equations, the lower boundary condition is that water potential is held at some fixed value, often an entirely saturated soil layer, and the upper boundary condition is normally the water entering or exiting the soil layer. A numeric implementation with explicit calculation of $\small U_i$ is implemented by function `soilwatermodel`. Further details, including methods used to derive elements of $\small U_i$, are provided in Campbell (1985) and Bittelli *et al.* (2015). In implementing this model, a Newton--Raphson procedure is used to solve the set of numerical equations. This necessitates that a simpler set of relationships are used to relate the volumetric soil water fraction, the water potential and hydraulic conductivity. Using this Campbell method
+To solve the set of equations, the lower boundary condition is commonly a fixed water potential, often that of saturated soil, and the upper boundary condition the flux of water entering or leaving the soil surface. Further details, including methods used to derive elements of $\small U_i$, are provided in Campbell (1985) and Bittelli *et al.* (2015). Where the equations are solved by Newton--Raphson iteration, simpler relationships between water content, water potential and hydraulic conductivity are often used, such as those of Campbell (1985):
 
 $$k=k_s\left(\frac{\psi_e}{\psi_m}\right)^{2+3/b}=k_s\left(\frac{\theta}{\theta_s}\right)^{2b+3},\space \psi_m=\psi_e\left(\frac{\theta}{\theta_s}\right)^{-b}$$
 
-where $\small \psi_e$ is the air entry potential and $\small b$ is a pore size distribution parameter, with values for different soil types shown below.
+where $\small \psi_e$ is the air entry potential and $\small b$ is a pore size distribution parameter. Typical values for different soil types are given in Table S4.
 
-**Table S4.** Alternative hydraulic properties of different soil types using the Campbell equations.
+**Table S4.** Parameters of the Campbell (1985) hydraulic functions for different soil types, from Rawls *et al.* (1982) as given by Campbell & Norman (2012, Table 9.1) and Bittelli *et al.* (2015).
 
-| Soil Type         | -ψₑ (J/kg) | b    | Kₛ (kg s⁻¹ m⁻³) |
-|-------------------|-------------|------|------------------|
-| Sand              | 0.7         | 1.7  | 0.000580         |
-| Loamy sand        | 0.9         | 2.1  | 0.001700         |
-| Sandy loam        | 1.5         | 3.1  | 0.000720         |
-| Loam              | 1.1         | 4.5  | 0.000370         |
-| Silt loam         | 2.1         | 4.7  | 0.000190         |
-| Sandy clay loam   | 2.8         | 4.0  | 0.000120         |
-| Clay loam         | 2.6         | 5.2  | 0.000064         |
-| Silty clay loam   | 3.3         | 6.6  | 0.000042         |
-| Sandy clay        | 2.9         | 6.0  | 0.000033         |
-| Silty clay        | 3.4         | 7.9  | 0.004025         |
-| Clay              | 3.7         | 7.6  | 0.000017         |
+| Soil type | $\theta_s$ | $-\psi_e$ (J kg$^{-1}$) | $b$ | $k_s$ (kg s m$^{-3}$) |
+|:--|--:|--:|--:|--:|
+| Sand | 0.37 | 0.73 | 1.69 | 5.80×10⁻³ |
+| Loamy sand | 0.38 | 0.87 | 2.11 | 1.70×10⁻³ |
+| Sandy loam | 0.41 | 1.47 | 3.11 | 7.20×10⁻⁴ |
+| Loam | 0.43 | 1.12 | 4.55 | 3.70×10⁻⁴ |
+| Silt loam | 0.43 | 2.08 | 4.74 | 1.90×10⁻⁴ |
+| Sandy clay loam | 0.41 | 2.81 | 4.00 | 1.20×10⁻⁴ |
+| Clay loam | 0.45 | 2.59 | 5.15 | 6.40×10⁻⁵ |
+| Silty clay loam | 0.46 | 3.26 | 6.62 | 4.20×10⁻⁵ |
+| Sandy clay | 0.44 | 2.92 | 5.95 | 3.30×10⁻⁵ |
+| Silty clay | 0.51 | 3.42 | 7.87 | 2.50×10⁻⁵ |
+| Clay | 0.50 | 3.73 | 7.63 | 1.70×10⁻⁵ |
+| Silt | 0.44 | 2.60 | 4.23 | 6.60×10⁻⁵ |
 
 ## Snow
 
@@ -1324,6 +1333,90 @@ for \(T_s\ge 0\), where \(T_s\) is snow temperature (\(^\circ\)C). The volumetri
 | $z$ | Height | m |
 | $z_R$ | Reference height | m |
 
+### Note 5: Soil heat storage {#symbols-soil-heat}
+
+| Symbol | Definition | Units |
+|:--|:--|:--|
+| $\Delta t$ | Time step | s |
+| $\Delta$ | Slope of the saturated vapour pressure curve | kPa K$^{-1}$ |
+| $\eta$ | Forward or backward weighting factor | – |
+| $\theta$ | Volumetric water content | m$^3$ m$^{-3}$ |
+| $\theta_0$, $q$ | Parameters of $f_w$ | m$^3$ m$^{-3}$; – |
+| $\lambda$ | Latent heat of vaporisation | J mol$^{-1}$ |
+| $\hat{\rho}$ | Molar density of air | mol m$^{-3}$ |
+| $\rho$, $c$ | Density and specific heat capacity of a constituent (Table S2) | kg m$^{-3}$; J kg$^{-1}$ K$^{-1}$ |
+| $\rho_ic_i$ | Volumetric heat capacity at node $i$ | J m$^{-3}$ K$^{-1}$ |
+| $\rho_sc_s$ | Volumetric heat capacity of the soil | J m$^{-3}$ K$^{-1}$ |
+| $\phi_a$, $\phi_q$, $\phi_m$, $\phi_o$ | Volume fractions of air, quartz, other minerals and organic matter | m$^3$ m$^{-3}$ |
+| $\phi_p$ | Porosity | m$^3$ m$^{-3}$ |
+| $\phi_s$ | Volume fraction of solids | m$^3$ m$^{-3}$ |
+| $\omega$ | Angular frequency of the cycle | s$^{-1}$ |
+| $A$ | Amplitude of the temperature cycle | K |
+| $A_i$, $B_i$, $C_i$, $D_i$ | Coefficients of the tridiagonal matrix | – |
+| $c_p$ | Molar specific heat of air | J mol$^{-1}$ K$^{-1}$ |
+| $D$ | Damping depth | m |
+| $D_v$ | Diffusivity of water vapour in air | m$^2$ s$^{-1}$ |
+| $e_{sat}(T)$ | Saturated vapour pressure at temperature $T$ | kPa |
+| $f_w$ | Extent to which the pores are connected by water films | – |
+| $g_a$, $g_c$ | Shape factors of the soil particles | – |
+| $G_{0,t}$ | Rate of heat storage at the soil surface | W m$^{-2}$ |
+| $k$ | Thermal conductivity of the soil | W m$^{-1}$ K$^{-1}$ |
+| $k_a$ | Effective thermal conductivity of air in the pores | W m$^{-1}$ K$^{-1}$ |
+| $k_f$ | Thermal conductivity of the continuous fluid | W m$^{-1}$ K$^{-1}$ |
+| $k_j$ | Thermal conductivity of constituent $j$ | W m$^{-1}$ K$^{-1}$ |
+| $k_q$, $k_m$, $k_o$ | Thermal conductivities of quartz, other minerals and organic matter | W m$^{-1}$ K$^{-1}$ |
+| $k_s$ | Thermal conductivity of the solids | W m$^{-1}$ K$^{-1}$ |
+| $k_w$ | Thermal conductivity of water | W m$^{-1}$ K$^{-1}$ |
+| $k_{a,0}$ | Thermal conductivity of dry air | W m$^{-1}$ K$^{-1}$ |
+| $K_0$ | Boundary layer conductance between the soil surface and reference height | W m$^{-2}$ K$^{-1}$ |
+| $K_i$ | Thermal conductance between nodes $i$ and $i+1$ | W m$^{-2}$ K$^{-1}$ |
+| $L$ | Latent heat flux | W m$^{-2}$ |
+| $m_c$ | Mass fraction of minerals that are clay | – |
+| $n$ | Number of soil layers | – |
+| $\overline T$ | Mean temperature of the cycle | K |
+| $p_a$ | Atmospheric pressure | kPa |
+| $r_{Ha}$ | Resistance to heat transfer | s m$^{-1}$ |
+| $R_{net}$ | Net radiation, $R_{abs}-R_{em}$ | W m$^{-2}$ |
+| $t$ | Time | s |
+| $t_0$ | Time at which the cycle first attains $\overline T$ | s |
+| $T$ | Soil temperature | K |
+| $T_0$ | Air temperature at reference height | K |
+| $T_i$, $T'_i$ | Temperature of node $i$ at the start and end of a time step | K |
+| $w_j$ | Weighting factor of constituent $j$ | – |
+| $x_j$ | Volume fraction of constituent $j$ | m$^3$ m$^{-3}$ |
+| $z$ | Depth | m |
+| $z_i$ | Depth of node $i$ | m |
+
+### Note 6: Soil hydrology {#symbols-soil-water}
+
+| Symbol | Definition | Units |
+|:--|:--|:--|
+| $\alpha$ | van Genuchten shape parameter | kg J$^{-1}$ |
+| $\Delta t$ | Time step | s |
+| $\eta$ | Forward or backward weighting factor | – |
+| $\theta$ | Volumetric water content | m$^3$ m$^{-3}$ |
+| $\theta_r$, $\theta_s$ | Residual and saturated volumetric water content | m$^3$ m$^{-3}$ |
+| $\rho_w$ | Density of water | kg m$^{-3}$ |
+| $\psi_e$ | Air-entry potential | J kg$^{-1}$ |
+| $\psi_i$, $\psi'_i$ | Matric potential of node $i$ at the start and end of a time step | J kg$^{-1}$ |
+| $\psi_m$ | Matric potential (written $\psi$ in the numerical scheme) | J kg$^{-1}$ |
+| $A_i$, $B_i$, $C_i$, $D_i$ | Coefficients of the tridiagonal matrix | – |
+| $b$ | Campbell pore size distribution parameter | – |
+| $c_w$ | Water capacity, $d\theta/d\psi_m$ | kg J$^{-1}$ |
+| $g$ | Gravitational acceleration (9.81) | m s$^{-2}$ |
+| $J_w$ | Water flux density, positive upwards | kg m$^{-2}$ s$^{-1}$ |
+| $k$ | Hydraulic conductivity | kg s m$^{-3}$ |
+| $k_s$ | Saturated hydraulic conductivity | kg s m$^{-3}$ |
+| $K_i$ | Hydraulic conductance between nodes $i$ and $i+1$ | kg s m$^{-4}$ |
+| $K_o$ | Matching-point hydraulic conductivity | kg s m$^{-3}$ |
+| $L$ | Pore-connectivity parameter | – |
+| $n$, $m$ | van Genuchten shape parameters, $m=1-1/n$ | – |
+| $S_e$ | Effective saturation | – |
+| $S_i$ | Storage term of node $i$ | kg s m$^{-4}$ |
+| $U_i$ | Source term of node $i$ | kg m$^{-2}$ s$^{-1}$ |
+| $z$ | Height, positive upwards | m |
+| $z_i$ | Position of node $i$ | m |
+
 ## References
 
 Allen R.G., Pereira L.S., Raes D. & Smith M. (1998) *Crop evapotranspiration: Guidelines for computing crop water requirements*. FAO Irrigation and Drainage Paper 56. Food and Agriculture Organization of the United Nations, Rome.
@@ -1345,6 +1438,8 @@ Campbell G.S. (1985) *Soil Physics with BASIC: Transport Models for Soil-Plant S
 Campbell G.S. (1986) Extinction coefficients for radiation in plant canopies calculated using an ellipsoidal inclination angle distribution. *Agricultural and Forest Meteorology* 36: 317–321.
 
 Campbell G.S. & Norman J.M. (2012) *An Introduction to Environmental Biophysics* (2nd ed.). Springer.
+
+Campbell G.S., Jungbauer J.D. Jr., Bidlake W.R. & Hungerford R.D. (1994) Predicting the effect of temperature on soil thermal conductivity. *Soil Science* 158: 307–313.
 
 Chown S.L., Sørensen J.G. & Terblanche J.S. (2011) Water loss in insects: an environmental change perspective. *Journal of Insect Physiology* 57: 1070–1084.
 
@@ -1396,6 +1491,8 @@ Monteith J.L. (1965) Evaporation and environment. *Symposia of the Society for E
 
 Monteith J.L. & Unsworth M.H. (2013) *Principles of Environmental Physics* (4th ed.). Academic Press.
 
+Mualem Y. (1976) A new model for predicting the hydraulic conductivity of unsaturated porous media. *Water Resources Research* 12: 513–522.
+
 Ogée J., Brunet Y., Loustau D., Berbigier P. & Delzon S. (2003) MuSICA, a CO₂, water and energy multilayer, multileaf pine forest model: evaluation from hourly to yearly time scales and sensitivity analysis. *Global Change Biology* 9: 697–717.
 
 Paulson C.A. (1970) The mathematical representation of wind speed and temperature profiles in the unstable atmospheric surface layer. *Journal of Applied Meteorology* 9: 857–861.
@@ -1416,11 +1513,17 @@ Raupach M.R. & Finnigan J.J. (1988) ‘Single-layer models of evaporation from p
 
 Raupach M.R., Finnigan J.J. & Brunet Y. (1996) Coherent eddies and turbulence in vegetation canopies: the mixing-layer analogy. *Boundary-Layer Meteorology* 78: 351–382.
 
+Rawls W.J., Brakensiek D.L. & Saxton K.E. (1982) Estimation of soil water properties. *Transactions of the ASAE* 25: 1316–1320.
+
 Ross J. (1981) *The Radiation Regime and Architecture of Plant Stands*. Dr W. Junk Publishers.
 
 Salisbury J.W. & D’Aria D.M. (1992) Emissivity of terrestrial materials in the 8–14 μm atmospheric window. *Remote Sensing of Environment* 42: 83–106.
 
 Savage V.M., Bentley L.P., Enquist B.J., Sperry J.S., Smith D.D., Reich P.B., von Allmen E.I. & Hibberd J.M. (2010) Hydraulic trade-offs and space filling enable better predictions of vascular structure and function in plants. *Proceedings of the National Academy of Sciences USA* 107: 22722–22727.
+
+Schaap M.G. & Leij F.J. (2000) Improved prediction of unsaturated hydraulic conductivity with the Mualem–van Genuchten model. *Soil Science Society of America Journal* 64: 843–851.
+
+Schaap M.G., Leij F.J. & van Genuchten M.Th. (2001) Rosetta: a computer program for estimating soil hydraulic parameters with hierarchical pedotransfer functions. *Journal of Hydrology* 251: 163–176.
 
 Sellers P.J. (1985) Canopy reflectance, photosynthesis and transpiration. *International Journal of Remote Sensing* 6: 1335–1372.
 
