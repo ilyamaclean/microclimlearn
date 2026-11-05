@@ -534,10 +534,13 @@ principles.</p>
 <h3>A very simple microclimate model</h3>
 <p>The main function used in this example is SolveEnergyBalance, which
 forms the core of the simple microclimate model. We apply it to the
-built-in climate dataset provided with the package, but first we need to
-calculate several input variables. The most important of these is Rabs,
-the flux density of radiation absorbed by the canopy. This represents
-the sum of absorbed shortwave and longwave radiation.</p>
+built-in climate dataset provided with the package
+(<code>climdata</code>): hourly weather for 2017 at Caerthillean Cove on
+the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a
+nearby weather station. First, however, we need to calculate several
+input variables. The most important of these is Rabs, the flux density
+of radiation absorbed by the canopy. This represents the sum of absorbed
+shortwave and longwave radiation.</p>
 <p>To calculate absorbed shortwave radiation, we must specify an albedo
 — the fraction of incoming solar radiation that is reflected by the
 surface and therefore not absorbed. In the example below, albedo is held
@@ -801,8 +804,9 @@ coefficient: more vertically oriented leaves reduce attenuation when the
 sun is near its zenith but greatly increase it when the sun is low (high
 zenith angles). The <code>albedo</code> function calls <code>cank</code>
 so there is no need to compute the extinction coefficient separately. It
-requires several inputs as detailed in the comments below. Here typical
-values are chosen. The <code>scattermethod</code> input just determines
+requires several inputs as detailed in the comments below. Here we use
+values typical of open deciduous woodland in summer, on a 30°
+south-facing slope. The <code>scattermethod</code> input just determines
 which method to use to calculate the radiation scattering directionality
 factor (see <code>?scattercoef</code>). The Sellers method specified by
 default is marginally less accurate than the computationally more
@@ -1342,7 +1346,8 @@ are intentionally broad and are best treated as starting points for more
 detailed, site- or species-specific parameterisation. For example, a
 nominal vegetation height is provided, but users will often have better
 information for their target vegetation. Many of the remaining traits
-correspond to those available in the TRY database.</p>
+correspond to those available in the TRY plant trait database (Kattge et
+al. 2020).</p>
 <p>In the example below, we first extract vegetation parameters for C3
 grass and then run the key function stomatalcond_calc. This returns
 stomatal conductance (the inverse of resistance), calculated at the leaf
@@ -1738,7 +1743,9 @@ underlying ground surface.</p>
 we first create the necessary vegetation inputs, including a profile of
 plant area index values at multiple heights in the canopy. We use
 inbuilt datasets and functions in the <code>micropoint</code> package to
-do this:</p>
+do this. The parameters in <code>forestparams</code> are illustrative
+values for a generic temperate forest rather than measurements from a
+particular site:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a><span class="co"># Use inbuilt vegetation parameter dataset from micropoint package</span></span>
 <span id="cb24-2"><a href="#cb24-2" tabindex="-1"></a>vegp <span class="ot">&lt;-</span> micropoint<span class="sc">::</span>forestparams</span>
 <span id="cb24-3"><a href="#cb24-3" tabindex="-1"></a></span>
@@ -4934,6 +4941,9 @@ snow interception in the boreal forest. <em>Hydrological Processes</em>
 <p>Höppe P (1999) The physiological equivalent temperature – a universal
 index for the biometeorological assessment of the thermal environment.
 <em>International Journal of Biometeorology</em> 43: 71–75.</p>
+<p>Kattge J, Bönisch G, Díaz S, et al. (2020) TRY plant trait database –
+enhanced coverage and open access. <em>Global Change Biology</em> 26:
+119–188.</p>
 <p>Kearney MR &amp; Porter WP (2017) NicheMapR – an R package for
 biophysical modelling: the microclimate model. <em>Methods in Ecology
 and Evolution</em> 8: 664–674.</p>

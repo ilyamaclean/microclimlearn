@@ -1,13 +1,18 @@
+## ----include = FALSE----------------------------------------------------------
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(devtools) # Install from CRAN if not already installed
 # devtools::install_github("ilyamaclean/microclimlearn")
 # devtools::install_github("ilyamaclean/micropoint")
 # library(microclimlearn)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Calculate absorbed radiation
 # alb <- 0.23 # albedo
 # em <- 0.97  # emissivity
@@ -21,6 +26,8 @@ knitr::opts_chunk$set(
 #      xlab = "Month",
 #      ylab = expression("Absorbed radiation (W " * m^-2 * ")"))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Calculate resistance to heat loss
 # zref <- 2        # height above ground of weather data (m)
 # veghgt <- 0.12   # vegetation height (m)
@@ -35,6 +42,8 @@ knitr::opts_chunk$set(
 # rHa <- (log((zref - d) / zm) * log((zref - d) / zh)) /
 #        (ka^2 * u2)  # resistance to heat loss
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Calculate bulk surface stomatal resistance (rS)
 # gsmax <- 0.33 # maximum stomatal conductance of leaves (mol/m^2/s)
 # rho <- 43 # approximate molar density of air (mol / m^3)
@@ -43,11 +52,15 @@ knitr::opts_chunk$set(
 # # The surface conducts about three times as much as its leaves (Kelliher et al. 1995)
 # rS <- rho * (rPAR + 300) /  (gsmax * 3 * rPAR) # s/m
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # sb <- 5.67e-8 # Stefan–Boltzmann constant W/m^2/K^4
 # Rem <- em * sb * (climdata$temp + 273.15) ^ 4 # Emitted radiation (approx) W/m^2
 # Rnet <- Rabs - Rem # Net radiation (W/m^2)
 # G <- ifelse(Rnet > 0, 0.1 * Rnet, 0.5 * Rnet) # Rate of ground heat storage (W / m^2)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Find surface temperature using uniroot method
 # Ts1 <- SolveEnergyBalance(climdata$temp, climdata$pres, climdata$relhum,
 #                           Rabs, rHa, rS, G, em = 0.97,
@@ -77,6 +90,8 @@ knitr::opts_chunk$set(
 #      xlim = c(-10, 80), ylim = c(-10, 80),
 #      xlab = "", ylab = "")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Calculate wind friction velocity
 # uf <- (ka * u2) / log((zref - d) / zm)
 # 
@@ -100,12 +115,16 @@ knitr::opts_chunk$set(
 # plot(z ~ Tz, type = "l", lwd = 2,
 #      xlab = "Temperature", ylab = "Height")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # tme <- as.POSIXlt(climdata$obs_time, tz = "UTC")
 # solp <- sunposition(tme, lat = 49.96807, long = -5.215668)
 # 
 # plot(solp$zen ~ as.POSIXct(tme), type = "l",
 #      xlab = "Month", ylab = "Zenith angle")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Select daylight hours on June 21
 # sel <- which(tme$mon + 1 == 6 & tme$mday == 21 & solp$zen < 90)
 # solp2 <- lapply(solp, `[`, sel)
@@ -134,6 +153,8 @@ knitr::opts_chunk$set(
 # legend("topleft", legend = c("x = 1", "x = 0.1", "x = 10"),
 #        col = c("black", "steelblue", "firebrick"), pch = 15, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # pai <- 3      # plant area index (m^2 m^-2)
 # lref <- 0.4   # leaf reflectance
 # ltra <- 0.2   # leaf transmittance
@@ -146,6 +167,8 @@ knitr::opts_chunk$set(
 # albvars <- albedo(pai, lref, ltra, x, gref, slope, aspect, solp,
 #                   scattermethod = "Sellers", leafh = FALSE)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Direct radiation on a surface facing the sun, from that on flat ground
 # Rb0 <- (climdata$swdown - climdata$difrad) / cos(solp$zen * pi / 180)
 # 
@@ -164,6 +187,8 @@ knitr::opts_chunk$set(
 # plot(alb ~ as.POSIXct(tme), type = "l", ylim = c(0, 1),
 #      xlab = "Month", ylab = "Albedo")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Create list of vegetation parameters
 # vegvars <- list(h = 0.12,    # vegetation height (m)
 #                 pai = 1,     # plant area index
@@ -187,6 +212,8 @@ knitr::opts_chunk$set(
 #      xlab = "Month",
 #      ylab = expression("Absorbed radiation (W " * m^-2 * ")"))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Plot wind profiles for three canopy heights
 # uref <- 3            # wind speed at reference height (m s-1)
 # zref <- 2            # reference height (m)
@@ -219,6 +246,8 @@ knitr::opts_chunk$set(
 #        legend = c("h = 0.05 m", "h = 0.1 m", "h = 0.5 m"),
 #        col = cols, lwd = 2, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Plot temperature profiles for three canopy heights
 # tref <- 15        # air temperature at reference height (°C)
 # pk <- 101.3       # pressure (kPa)
@@ -257,6 +286,8 @@ knitr::opts_chunk$set(
 #        legend = paste("h =", h, "m"),
 #        col = cols, lwd = 2, lty = 1, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------------------------------------------- #
 # # ************  Heated surface example ************************* #
 # # -------------------------------------------------------------- #
@@ -303,6 +334,8 @@ knitr::opts_chunk$set(
 # rHa <- canopyresistance(z, uf, h = 0.12, pai = 1, LL) # resistance at each height
 # tz2 <- th - (rHa / phcp) * H # temperature profile with stability corrections
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------------------------------------------- #
 # # ************  Cooled surface example ************************* #
 # # -------------------------------------------------------------- #
@@ -349,6 +382,8 @@ knitr::opts_chunk$set(
 # rHa <- canopyresistance(z, uf, h = 0.12, pai = 1, LL) # resistance at each height
 # tz4 <- th - (rHa / phcp) * H # temperature profile with stability corrections
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------------------------------------------- #
 # # ************  Plot both sets of profiles  ******************** #
 # # -------------------------------------------------------------- #
@@ -407,6 +442,8 @@ knitr::opts_chunk$set(
 # legend("topleft", legend = c("Neutral", "Diabatic"),
 #        col = c("black", "steelblue"), lwd = 2, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Canopy temperature of a strongly heated surface at a given wind speed
 # canopytemp <- function(uref, convection) {
 #   phcp <- rhoair(15, 101.3) * cpair(15) # volumetric heat capacity of air
@@ -448,6 +485,8 @@ knitr::opts_chunk$set(
 # legend("topright", legend = c("Measured wind", "Effective wind"),
 #        col = c("black", "firebrick"), lwd = 2, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Wind profile above a forest canopy with and without a roughness sublayer
 # uref <- 3   # wind speed at reference height (m/s)
 # zref <- 20  # reference height (m)
@@ -477,6 +516,8 @@ knitr::opts_chunk$set(
 # legend("topleft", legend = c("Standard", "Roughness sublayer"),
 #        col = c("black", "firebrick"), lwd = 2, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Create list of vegetation parameters
 # vegparams <- createplant_inputs("C3")
 # 
@@ -557,6 +598,8 @@ knitr::opts_chunk$set(
 #      ylab = "Stomatal conductance",
 #      ylim = c(0, 1))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Check soil parameter table
 # ?micropoint::soilparams
 # 
@@ -580,6 +623,8 @@ knitr::opts_chunk$set(
 #      ylab = "Stomatal conductance",
 #      ylim = c(0, 0.5))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ===================================================================== #
 # # ~~~~~~~~~~ Compute leaf stomatal conductance for C3 grass ~~~~~~~~~~~ #
 # # ===================================================================== #
@@ -650,6 +695,8 @@ knitr::opts_chunk$set(
 # 
 # abline(h = 1, lty = 2, col = "firebrick")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------- Create data inputs ------------------------------- #
 # weather <- climdata
 # 
@@ -746,6 +793,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Use inbuilt vegetation parameter dataset from micropoint package
 # vegp <- micropoint::forestparams
 # 
@@ -762,6 +811,8 @@ knitr::opts_chunk$set(
 #      ylab = "Height (m)",
 #      main = paste0("Total PAI: ", round(sum(paii), 2)))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Extract data for a sunny hour
 # weather <- climdata
 # 
@@ -772,6 +823,8 @@ knitr::opts_chunk$set(
 # tme <- as.POSIXlt(weather$obs_time[4094], tz = "UTC")
 # solp <- sunposition(tme, lat = 49.96807, long = -5.215668)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Run two-stream model and plot radiation fluxes
 # groundp <- micropoint::groundparams
 # 
@@ -807,6 +860,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Create PAI profile using micropoint::PAIgeometry
 # paii <- micropoint::PAIgeometry(PAI = 4,
 #                                 skew = 7,
@@ -848,6 +903,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # paii_skew <- micropoint::PAIgeometry(PAI = 4,
 #                                      skew = 3,
 #                                      spread = 70,
@@ -902,6 +959,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # uref <- 3  # wind speed at reference height (m s^-1)
 # zref <- 20 # reference height (m)
 # h <- 7     # vegetation height (m)
@@ -933,6 +992,8 @@ knitr::opts_chunk$set(
 #        col = c("forestgreen", "darkorange", "black"),
 #        lty = c(1, 1, 2), lwd = 2, bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------- Derive model inputs -------------------------- #
 # groundp <- micropoint::groundparams
 # vegp <- createplant_inputs("BDT") # deciduous broadleaf trees
@@ -1032,6 +1093,8 @@ knitr::opts_chunk$set(
 #      ylab = "Height (m)",
 #      xlim = c(24, 28))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ------------------------- Foliage profile ------------------------------- #
 # paii <- wythampai$paii # plant area index of each layer
 # z <- wythampai$z       # height of the middle of each layer (m)
@@ -1072,6 +1135,8 @@ knitr::opts_chunk$set(
 #      xlab = expression("Far-field temperature (" * degree * "C)"),
 #      ylab = "Height (m)")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------- Near-field temperature -------------------------- #
 # tnear <- nearfield(Hz, hgt, pai, uf,
 #                    tair = ttop, # sets the density and heat capacity of air
@@ -1094,6 +1159,8 @@ knitr::opts_chunk$set(
 #        col = c("black", "firebrick"),
 #        lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------- Derive model inputs -------------------------- #
 # weather <- climdata
 # groundp <- micropoint::groundparams
@@ -1269,6 +1336,8 @@ knitr::opts_chunk$set(
 #      xlab = "Relative humidity (%)",
 #      ylab = "Height (m)")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Composition of a typical clay loam
 # Vq <- 0.0568 # volumetric quartz fraction
 # Vm <- 0.4818 # volumetric fraction of other minerals
@@ -1297,6 +1366,8 @@ knitr::opts_chunk$set(
 #      xlab = expression("Volumetric water fraction (m"^3 * " m"^-3 * ")"),
 #      ylab = expression("Volumetric heat capacity (MJ m"^-3 * " K"^-1 * ")"))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------------- Model inputs ------------------------------ #
 # weather <- climdata
 # tme <- as.POSIXlt(weather$obs_time, tz = "UTC")
@@ -1380,6 +1451,8 @@ knitr::opts_chunk$set(
 # # ---------------------- Plot final converged temperature ----------------- #
 # lines(Ts ~ tt, col = "steelblue", lwd = 2)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Assumes code above already run
 # Tav <- mean(Ts) # average temperature (°C)
 # 
@@ -1415,6 +1488,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------- Generate list of soil model parameters --------------- #
 # soilp <- createsoilplist(soiltype = "Clay loam",
 #                          nlayers = 15, # number of soil layers
@@ -1424,11 +1499,15 @@ knitr::opts_chunk$set(
 #                          surface_organicmu = 3, # surface organic matter depth
 #                          FreeDrain = TRUE) # free drainage lower boundary
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Initial soil temperature sequence: surface to lower boundary layer
 # Te <- seq(18, 11, length.out = 16)
 # theta <- rep(0.3, 16) # volumetric soil water fraction
 # soilheat <- InitSoilheatmod(soilp, Te, theta)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ---------------- Create driving data from inbuilt datasets -------------- #
 # weather <- climdata
 # groundp <- micropoint::groundparams
@@ -1553,6 +1632,8 @@ knitr::opts_chunk$set(
 # plotdailycycle(Tsurface, rgb(0.7, 0.13, 0.13, 0.5))
 # plotdailycycle(Gflux, rgb(0.27, 0.51, 0.71, 0.5))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ------------ Comparison of Campbell and Van Genuchten --------------------- #
 # Campbell_params <- Campbellparams("Clay loam")
 # VG_params <- VGparams("Clay loam")
@@ -1600,6 +1681,8 @@ knitr::opts_chunk$set(
 #        bty = "n",
 #        cex = 1.1)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # VG_params1 <- VGparams("Clay")
 # VG_params2 <- VGparams("Sand")
 # 
@@ -1643,6 +1726,8 @@ knitr::opts_chunk$set(
 #        bty = "n",
 #        cex = 1.1)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # Campbell_params <- Campbellparams("Clay loam")
 # VG_params <- VGparams("Clay loam")
 # 
@@ -1681,6 +1766,8 @@ knitr::opts_chunk$set(
 #        bty = "n",
 #        cex = 1.1)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ---------------- Load example forcing and parameter datasets ------------ #
 # weather <- climdata # meteorological forcing data
 # groundp <- micropoint::groundparams # ground surface parameters
@@ -1836,6 +1923,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # snowage <- seq(0, 60 * 24, length.out = 500) # age of the snow (hours)
 # alb <- SnowAlbedo(snowage)
 # par(mfrow = c(1, 1))
@@ -1846,6 +1935,8 @@ knitr::opts_chunk$set(
 #      xlab = "Snow age (days)",
 #      ylab = "Albedo")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ---------------- Load example forcing data ------------------------------ #
 # weather <- climdata # meteorological forcing data
 # 
@@ -2010,6 +2101,8 @@ knitr::opts_chunk$set(
 #        lwd = 2,
 #        bty = "n")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Vary canopy plant area index
 # pai_seq <- seq(0.1, 6, length.out = 100) # plant area index
 # 
@@ -2033,6 +2126,8 @@ knitr::opts_chunk$set(
 #      xlab = "Plant area index (PAI)",
 #      ylab = "Interception fraction")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Calculate solar zenith and azimuth as function of time of day
 # tme <- as.POSIXlt((0:1439) * 60,
 #                   origin = "2025-06-21 00:00",
@@ -2071,6 +2166,8 @@ knitr::opts_chunk$set(
 #      xlab = "Hour",
 #      ylab = "Fraction of direct beam radiation intercepted")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # Animal geometry (cm)
 # height <- 12 # height (cm)
 # width <- 8 # width (cm)
@@ -2112,6 +2209,8 @@ knitr::opts_chunk$set(
 #      xlab = "Orientation relative to wind direction (degrees)",
 #      ylab = expression("Boundary layer resistance (s m"^-1 * ")"))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(micropoint) # ensure micropoint package is installed
 # # Animal geometry (cm)
 # height <- 12 # height (cm)
@@ -2149,6 +2248,8 @@ knitr::opts_chunk$set(
 #      xlab = expression("Body temperature (" * degree * "C)"),
 #      ylab = expression("Metabolic rate (W)"))
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------- Create June weather dataset ------------------------- #
 # # Reload the weather dataset: the name climdata is reused for model driving variables
 # climdata <- microclimlearn::climdata
@@ -2393,6 +2494,8 @@ knitr::opts_chunk$set(
 #   bty = "n"
 # )
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------- Create endotherm parameters ----------------------- #
 # lion <- create_endop(height = 55,    # body height (cm)
 #                      width = 40,     # body width (cm)
@@ -2405,6 +2508,8 @@ knitr::opts_chunk$set(
 # lion$Tb <- 38.5 # core temperature of a lion (°C)
 # lion$Tcmax <- lion$Tb + 5 # highest core temperature it can survive (°C)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------------- Select June weather ---------------------------- #
 # # Reload the weather dataset: the name climdata is reused for model driving variables
 # climdata <- microclimlearn::climdata
@@ -2470,6 +2575,8 @@ knitr::opts_chunk$set(
 # # Calculate diffuse shortwave radiation
 # weather_new$difrad <- diffrac * weather_new$swdown
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # -------------------- Ground and soil ---------------------------------------- #
 # vegp <- createplant_inputs("C3")
 # vegp$h <- 0     # bare ground
@@ -2546,6 +2653,8 @@ knitr::opts_chunk$set(
 #   Tz_all[hr] <- Tz
 # }
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------- Lion in sun and in shade -------------------------- #
 # E_sun <- E_shade <- Emax <- numeric(720)
 # for (hr in 1:720) {
@@ -2567,6 +2676,8 @@ knitr::opts_chunk$set(
 # legend("topleft", legend = c("Required, sun", "Required, shade", "Maximum"),
 #        col = c("firebrick", "steelblue", "black"), lty = c(1, 1, 2), bty = "n", cex = 0.8)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # # ----------------------- Lion in sun and in shade -------------------------- #
 # PET_sun <- PET_shade <- Tc_sun <- Tc_shade <- numeric(720)
 # for (hr in 1:720) {
@@ -2594,27 +2705,42 @@ knitr::opts_chunk$set(
 # lines(Tc_shade ~ tmec, col = "steelblue")
 # abline(h = c(lion$Tcmin, lion$Tcmax), lty = 2) # survivable limits
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(devtools) # Install from CRAN if not already installed
 # devtools::install_github("ilyamaclean/micropoint")
 # library(micropoint)
 # vignette("new_model_tutorial", package = "micropoint")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(devtools) # Install from CRAN if not already installed
 # devtools::install_github("ilyamaclean/microclimf", ref = "dev")
 # library(microclimf)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # vignette("running-microclimf", package = "microclimf")
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(devtools) # Install from CRAN if not already installed
 # devtools::install_github("ilyamaclean/mesoclim")
 # library(mesoclim)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # remotes::install_github(“dklinges9/mcera5”
 # library(mcera5)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # require(devtools) # Install from CRAN if not already installed
 # devtools::install_github("ilyamaclean/microclimdata")
 # library(microclimdata)
 
+
+## ----eval=FALSE---------------------------------------------------------------
 # install.packages("TrenchR")
 # library(TrenchR)
+

@@ -554,8 +554,8 @@ in kPa,</p>
 <span class="math inline">\(\small \Delta\approx
 \left[e_{sat}(T_c+0.5)-e_{sat}(T_c-0.5)\right]\)</span> evaluated at
 <span class="math inline">\(\small T_a\)</span></p>
-<p>For vegetation it is generally assumed that $h_r =1 $ (Campbell &amp;
-Norman 2012).</p>
+<p>For vegetation it is generally assumed that <span class="math inline">\(\small h_r =1\)</span> (Campbell &amp; Norman
+2012). For soil, its derivation is described in Note 6.</p>
 <p>Substituting the linearised expressions into the equation for energy
 balance and solving for surface temperature gives</p>
 <p><span class="math display">\[T_s=T_a+\frac{R_{abs}-\varepsilon\sigma{T_a}^4-\frac{\lambda\hat{\rho}}{p_a
@@ -1251,6 +1251,30 @@ kPa). The evaporation over a time step <span class="math inline">\(\small \Delta
 by</p>
 <p><span class="math display">\[E(t)=\frac{M_w}{RT}\frac{e_s-e_a}{r_v}\Delta
 t\]</span></p>
+<p>Where the surface is saturated, <span class="math inline">\(\small
+e_s=e_{sat}(T_s)\)</span> and the term <span class="math inline">\(\small e_s-e_a\)</span> is often described as a
+surface-to-air vapour pressure deficit. The vapour pressure deficit of
+the air itself, <span class="math inline">\(\small \delta
+e=e_{sat}(T)-e_a\)</span>, is the amount by which its vapour pressure
+falls short of saturation at air temperature, and measures its drying
+power. The humidity of the air can be expressed in several equivalent
+ways. Relative humidity is the ratio of the actual to the saturated
+vapour pressure,</p>
+<p><span class="math display">\[h_a=\frac{e_a}{e_{sat}(T)}\]</span></p>
+<p>often expressed as a percentage, so that <span class="math inline">\(\small \delta e=(1-h_a)e_{sat}(T)\)</span>.
+Specific humidity (<span class="math inline">\(\small
+kg\,kg^{-1}\)</span>), the mass of water vapour per unit mass of moist
+air, and absolute humidity (<span class="math inline">\(\small
+kg\,m^{-3}\)</span>), the mass of water vapour per unit volume of air,
+are</p>
+<p><span class="math display">\[q=\frac{0.622e_a}{p_a-0.378e_a}\approx0.622\frac{e_a}{p_a},\qquad
+\rho_v=\frac{M_we_a}{RT}\]</span></p>
+<p>where 0.622 is the ratio of the molar masses of water and dry air
+(Monteith &amp; Unsworth 2013). The ratio <span class="math inline">\(\small e_a/p_a\)</span> is the mole fraction of
+water vapour (<span class="math inline">\(\small
+mol\,mol^{-1}\)</span>), the form used in the molar expression for <span class="math inline">\(\small L\)</span> above, and the term <span class="math inline">\(\small M_we/(RT)\)</span> in the mass-based
+expressions is the absolute humidity corresponding to vapour pressure
+<span class="math inline">\(\small e\)</span>.</p>
 </div>
 <div id="latent-above-note" class="section level3">
 <h3>Note 4.2: Latent heat exchange above canopy</h3>
@@ -1771,9 +1795,10 @@ soil thermal modelling (Campbell &amp; Norman 2012).</p>
 <thead>
 <tr class="header">
 <th>Material</th>
-<th>Density (kg/m³)</th>
-<th>Specific heat (J/kg/K)</th>
-<th>Thermal conductivity (W/m·K)</th>
+<th>Density (kg m<span class="math inline">\(^{-3}\)</span>)</th>
+<th>Specific heat (J kg<span class="math inline">\(^{-1}\)</span> K<span class="math inline">\(^{-1}\)</span>)</th>
+<th>Thermal conductivity (W m<span class="math inline">\(^{-1}\)</span>
+K<span class="math inline">\(^{-1}\)</span>)</th>
 </tr>
 </thead>
 <tbody>
@@ -3356,24 +3381,34 @@ point</td>
 <td align="left">s</td>
 </tr>
 <tr class="odd">
+<td align="left"><span class="math inline">\(\delta e\)</span></td>
+<td align="left">Vapour pressure deficit of the air</td>
+<td align="left">Pa</td>
+</tr>
+<tr class="even">
 <td align="left"><span class="math inline">\(\lambda\)</span></td>
 <td align="left">Latent heat of vaporisation</td>
 <td align="left">J mol<span class="math inline">\(^{-1}\)</span> (molar
 basis); J kg<span class="math inline">\(^{-1}\)</span> (mass basis)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(\xi\)</span></td>
 <td align="left">Cost of stomatal opening</td>
 <td align="left">mol m<span class="math inline">\(^{-2}\)</span> s<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(\hat{\rho}\)</span></td>
 <td align="left">Molar density of air</td>
 <td align="left">mol m<span class="math inline">\(^{-3}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(\rho\)</span></td>
 <td align="left">Density of water (997)</td>
+<td align="left">kg m<span class="math inline">\(^{-3}\)</span></td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(\rho_v\)</span></td>
+<td align="left">Absolute humidity</td>
 <td align="left">kg m<span class="math inline">\(^{-3}\)</span></td>
 </tr>
 <tr class="odd">
@@ -3537,88 +3572,98 @@ concentration</td>
 <td align="left">m</td>
 </tr>
 <tr class="even">
+<td align="left"><span class="math inline">\(h_a\)</span></td>
+<td align="left">Relative humidity of the air</td>
+<td align="left">–</td>
+</tr>
+<tr class="odd">
 <td align="left"><span class="math inline">\(h_r\)</span></td>
 <td align="left">Effective relative humidity of the ground surface</td>
 <td align="left">–</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(I_{PAR}\)</span></td>
 <td align="left">Incident photosynthetically active radiation</td>
 <td align="left">mol m<span class="math inline">\(^{-2}\)</span> s<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(I_{PAR}^{b0}\)</span>,
 <span class="math inline">\(I_{PAR}^{d0}\)</span></td>
 <td align="left">Direct and downward diffuse PAR at the top of the
 canopy</td>
 <td align="left">mol m<span class="math inline">\(^{-2}\)</span> s<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(\overline{I}_{PAR}^{d}\)</span></td>
 <td align="left">Mean flux density of diffuse PAR within the canopy</td>
 <td align="left">mol m<span class="math inline">\(^{-2}\)</span> s<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(J\)</span></td>
 <td align="left">Light-limited assimilation rate at saturating CO<span class="math inline">\(_2\)</span></td>
 <td align="left">mol m<span class="math inline">\(^{-2}\)</span> s<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(K\)</span></td>
 <td align="left">Normalised xylem hydraulic conductance</td>
 <td align="left">–</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(K_b\)</span></td>
 <td align="left">Beam extinction coefficient</td>
 <td align="left">–</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(K_c\)</span>, <span class="math inline">\(K_o\)</span></td>
 <td align="left">Michaelis–Menten constants of Rubisco for carboxylation
 and oxygenation</td>
 <td align="left">Pa</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(L\)</span></td>
 <td align="left">Latent heat flux</td>
 <td align="left">W m<span class="math inline">\(^{-2}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(L(z)\)</span></td>
 <td align="left">Latent heat flux at height <span class="math inline">\(z\)</span></td>
 <td align="left">W m<span class="math inline">\(^{-2}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(L_G\)</span></td>
 <td align="left">Latent heat flux from the ground</td>
 <td align="left">W m<span class="math inline">\(^{-2}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(L_{AI}\)</span></td>
 <td align="left">Total one-sided leaf area index</td>
 <td align="left">m<span class="math inline">\(^2\)</span> m<span class="math inline">\(^{-2}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(L_{AI}^{sun}\)</span>,
 <span class="math inline">\(L_{AI}^{shade}\)</span></td>
 <td align="left">Leaf area index of sunlit and shaded leaves</td>
 <td align="left">m<span class="math inline">\(^2\)</span> m<span class="math inline">\(^{-2}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(M_w\)</span></td>
 <td align="left">Molar mass of water (<span class="math inline">\(0.018015\)</span>)</td>
 <td align="left">kg mol<span class="math inline">\(^{-1}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><span class="math inline">\(O_a\)</span></td>
 <td align="left">Partial pressure of oxygen</td>
 <td align="left">Pa</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><span class="math inline">\(p_a\)</span></td>
 <td align="left">Atmospheric pressure</td>
 <td align="left">Pa</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(q\)</span></td>
+<td align="left">Specific humidity</td>
+<td align="left">kg kg<span class="math inline">\(^{-1}\)</span></td>
 </tr>
 <tr class="even">
 <td align="left"><span class="math inline">\(r(z)\)</span></td>

@@ -127,7 +127,7 @@ In reality, vegetation is seldom homogeneous. Leaf area, canopy height, and opti
 In the next section we illustrate how the energy balance can be solved by creating our own very simple microclimate model from first principles.
 
 ### A very simple microclimate model
-The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package, but first we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation.
+The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package (`climdata`): hourly weather for 2017 at Caerthillean Cove on the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a nearby weather station. First, however, we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation.
 
 To calculate absorbed shortwave radiation, we must specify an albedo — the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
 
@@ -302,7 +302,7 @@ legend("topleft", legend = c("x = 1", "x = 0.1", "x = 10"),
 ```
 ![](images/img5.png)
 
-You can see here how leaf inclination affects the extinction coefficient: more vertically oriented leaves reduce attenuation when the sun is near its zenith but greatly increase it when the sun is low (high zenith angles). The `albedo` function calls `cank` so there is no need to compute the extinction coefficient separately. It requires several inputs as detailed in the comments below. Here typical values are chosen. The `scattermethod` input just determines which method to use to calculate the radiation scattering directionality factor (see `?scattercoef`). The Sellers method specified by default is marginally less accurate than the computationally more complex Pinty method. The `leafh` input is logical, indicating whether the plant area index is per unit horizontal ground area (`TRUE`) or per unit inclined ground area (`FALSE`). 
+You can see here how leaf inclination affects the extinction coefficient: more vertically oriented leaves reduce attenuation when the sun is near its zenith but greatly increase it when the sun is low (high zenith angles). The `albedo` function calls `cank` so there is no need to compute the extinction coefficient separately. It requires several inputs as detailed in the comments below. Here we use values typical of open deciduous woodland in summer, on a 30° south-facing slope. The `scattermethod` input just determines which method to use to calculate the radiation scattering directionality factor (see `?scattercoef`). The Sellers method specified by default is marginally less accurate than the computationally more complex Pinty method. The `leafh` input is logical, indicating whether the plant area index is per unit horizontal ground area (`TRUE`) or per unit inclined ground area (`FALSE`). 
 
 ```{r eval=FALSE}
 pai <- 3      # plant area index (m^2 m^-2)
@@ -719,7 +719,7 @@ Within the roughness sublayer the more effective mixing means that wind speed ch
 ### Latent heat and stomatal conductance
 In our simple microclimate example, bulk surface stomatal resistance to vapour loss is calculated using a basic approach in which stomata respond only to photosynthetically active radiation. In reality, transpiration is a dynamic, regulated process: stomata respond to light, humidity, temperature, and soil moisture, balancing carbon uptake against the risk of excessive water loss. Capturing this behaviour requires a more detailed representation of stomatal resistance. The model presented below is an analytical stomatal-optimisation scheme developed as part of the xylem-hydraulics component of the Joint UK Land Environment Simulator (JULES) land-surface model (Eller et al. 2020).
 
-This model is relatively parameter-rich, so a table of values for major plant functional types is included with the tutorial package. The helper function createplant_inputs() extracts the relevant values and returns a ready-to-use list of vegetation parameters for a chosen plant functional type. The available plant functional types (see ?PFTtable) are intentionally broad and are best treated as starting points for more detailed, site- or species-specific parameterisation. For example, a nominal vegetation height is provided, but users will often have better information for their target vegetation. Many of the remaining traits correspond to those available in the TRY database.
+This model is relatively parameter-rich, so a table of values for major plant functional types is included with the tutorial package. The helper function createplant_inputs() extracts the relevant values and returns a ready-to-use list of vegetation parameters for a chosen plant functional type. The available plant functional types (see ?PFTtable) are intentionally broad and are best treated as starting points for more detailed, site- or species-specific parameterisation. For example, a nominal vegetation height is provided, but users will often have better information for their target vegetation. Many of the remaining traits correspond to those available in the TRY plant trait database (Kattge et al. 2020).
 
 In the example below, we first extract vegetation parameters for C3 grass and then run the key function stomatalcond_calc. This returns stomatal conductance (the inverse of resistance), calculated at the leaf scale. Although the model is intended for individual leaves, it is useful to first explore how conductance responds to environmental drivers, so we illustrate this here.
 
@@ -1030,7 +1030,7 @@ A two-stream radiation model extends the concepts introduced for albedo by expli
 
 The `twostream` function implements these processes by combining vegetation properties (leaf area, reflectance, and transmittance) with ground surface characteristics (reflectance, slope, and aspect), together with information on solar position and the total and diffuse downward fluxes at the top of the canopy. The function returns the downward and upward diffuse fluxes, the downward direct flux, as well as the shortwave radiation absorbed by leaves and the underlying ground surface.
 
-To illustrate the application of the `twostream` function, we first create the necessary vegetation inputs, including a profile of plant area index values at multiple heights in the canopy. We use inbuilt datasets and functions in the `micropoint` package to do this:
+To illustrate the application of the `twostream` function, we first create the necessary vegetation inputs, including a profile of plant area index values at multiple heights in the canopy. We use inbuilt datasets and functions in the `micropoint` package to do this. The parameters in `forestparams` are illustrative values for a generic temperate forest rather than measurements from a particular site:
 
 ```{r eval=FALSE}
 # Use inbuilt vegetation parameter dataset from micropoint package
@@ -3407,6 +3407,8 @@ Freeman MT, Czenze ZJ, Schoeman K & McKechnie AE (2020) Extreme hyperthermia tol
 Hedstrom NR & Pomeroy JW (1998) Measurements and modelling of snow interception in the boreal forest. *Hydrological Processes* 12: 1611–1625.
 
 Höppe P (1999) The physiological equivalent temperature – a universal index for the biometeorological assessment of the thermal environment. *International Journal of Biometeorology* 43: 71–75.
+
+Kattge J, Bönisch G, Díaz S, et al. (2020) TRY plant trait database – enhanced coverage and open access. *Global Change Biology* 26: 119–188.
 
 Kearney MR & Porter WP (2017) NicheMapR – an R package for biophysical modelling: the microclimate model. *Methods in Ecology and Evolution* 8: 664–674.
 

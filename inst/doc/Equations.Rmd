@@ -193,7 +193,7 @@ $$e_{sat} =\begin{cases}
 
 where $\small T_c=T-273.15$ and $\small \Delta\approx \left[e_{sat}(T_c+0.5)-e_{sat}(T_c-0.5)\right]$ evaluated at $\small T_a$
 
-For vegetation it is generally assumed that $\small h_r =1 $ (Campbell & Norman 2012). 
+For vegetation it is generally assumed that $\small h_r =1$ (Campbell & Norman 2012). For soil, its derivation is described in Note 6.  
 
 Substituting the linearised expressions into the equation for energy balance and solving for surface temperature gives
 
@@ -645,6 +645,16 @@ where $\small E_m$ is the evaporation rate ($\small kg\cdot m^{-2}\cdot s^{-1}$,
 
 $$E(t)=\frac{M_w}{RT}\frac{e_s-e_a}{r_v}\Delta t$$
 
+Where the surface is saturated, $\small e_s=e_{sat}(T_s)$ and the term $\small e_s-e_a$ is often described as a surface-to-air vapour pressure deficit. The vapour pressure deficit of the air itself, $\small \delta e=e_{sat}(T)-e_a$, is the amount by which its vapour pressure falls short of saturation at air temperature, and measures its drying power. The humidity of the air can be expressed in several equivalent ways. Relative humidity is the ratio of the actual to the saturated vapour pressure,
+
+$$h_a=\frac{e_a}{e_{sat}(T)}$$
+
+often expressed as a percentage, so that $\small \delta e=(1-h_a)e_{sat}(T)$. Specific humidity ($\small kg\,kg^{-1}$), the mass of water vapour per unit mass of moist air, and absolute humidity ($\small kg\,m^{-3}$), the mass of water vapour per unit volume of air, are
+
+$$q=\frac{0.622e_a}{p_a-0.378e_a}\approx0.622\frac{e_a}{p_a},\qquad \rho_v=\frac{M_we_a}{RT}$$
+
+where 0.622 is the ratio of the molar masses of water and dry air (Monteith & Unsworth 2013). The ratio $\small e_a/p_a$ is the mole fraction of water vapour ($\small mol\,mol^{-1}$), the form used in the molar expression for $\small L$ above, and the term $\small M_we/(RT)$ in the mass-based expressions is the absolute humidity corresponding to vapour pressure $\small e$.
+
 ### Note 4.2: Latent heat exchange above canopy {#latent-above-note}
 
 To derive the latent heat flux above canopy, it is first necessary to derive the bulk surface resistance to vapour loss from the canopy ($\small r_v$). From Monteith & Unsworth (2013), the bulk surface resistance to vapour loss is the sum of the bulk surface stomatal ($\small r_S$) and aerodynamic resistances ($\small r_{Ha}$), the latter computed as for sensible heat (Notes 3.2–3.3). Thus
@@ -897,7 +907,7 @@ $$G_{0,t}=K_0\left[(1-\eta)\left(T_0-T_1\right)+\eta\left(T'_0-T'_1\right)\right
 
 **Table S2.** Physical properties of materials used in soil thermal modelling (Campbell & Norman 2012).
 
-| Material         | Density (kg/m³) | Specific heat (J/kg/K) | Thermal conductivity (W/m·K) |
+| Material         | Density (kg m$^{-3}$) | Specific heat (J kg$^{-1}$ K$^{-1}$) | Thermal conductivity (W m$^{-1}$ K$^{-1}$) |
 |------------------|------------------|--------------------------|-------------------------------|
 | Quartz           | 2660             | 800                      | 8.80                          |
 | Minerals         | 2650             | 870                      | 2.5                           |
@@ -1313,10 +1323,12 @@ where $\small U$ is the unloading rate coefficient and $\small t$ is time since 
 | $\beta_1$, $\beta_2$ | Co-limitation factors | – |
 | $\Gamma$ | CO$_2$ compensation point | Pa |
 | $\Delta t$ | Duration of a time interval | s |
+| $\delta e$ | Vapour pressure deficit of the air | Pa |
 | $\lambda$ | Latent heat of vaporisation | J mol$^{-1}$ (molar basis); J kg$^{-1}$ (mass basis) |
 | $\xi$ | Cost of stomatal opening | mol m$^{-2}$ s$^{-1}$ |
 | $\hat{\rho}$ | Molar density of air | mol m$^{-3}$ |
 | $\rho$ | Density of water (997) | kg m$^{-3}$ |
+| $\rho_v$ | Absolute humidity | kg m$^{-3}$ |
 | $\psi$ | Leaf water potential | MPa |
 | $\psi_m$ | Matric potential of the soil surface | J kg$^{-1}$ |
 | $\psi_r$ | Mean soil water potential in the root zone | MPa |
@@ -1348,6 +1360,7 @@ where $\small U$ is the unloading rate coefficient and $\small t$ is time since 
 | $g_s^{sun}$, $g_s^{shade}$ | Stomatal conductance to CO$_2$ of sunlit and shaded leaves | mol m$^{-2}$ s$^{-1}$ |
 | $g_v$ | Conductance to water vapour | mol m$^{-2}$ s$^{-1}$ |
 | $h$ | Canopy height | m |
+| $h_a$ | Relative humidity of the air | – |
 | $h_r$ | Effective relative humidity of the ground surface | – |
 | $I_{PAR}$ | Incident photosynthetically active radiation | mol m$^{-2}$ s$^{-1}$ |
 | $I_{PAR}^{b0}$, $I_{PAR}^{d0}$ | Direct and downward diffuse PAR at the top of the canopy | mol m$^{-2}$ s$^{-1}$ |
@@ -1364,6 +1377,7 @@ where $\small U$ is the unloading rate coefficient and $\small t$ is time since 
 | $M_w$ | Molar mass of water ($0.018015$) | kg mol$^{-1}$ |
 | $O_a$ | Partial pressure of oxygen | Pa |
 | $p_a$ | Atmospheric pressure | Pa |
+| $q$ | Specific humidity | kg kg$^{-1}$ |
 | $r(z)$ | Resistance to heat loss by canopy elements | s m$^{-1}$ |
 | $r_G$ | Resistance to heat transfer from the ground to height $z$ | s m$^{-1}$ |
 | $r_S$ | Bulk surface stomatal resistance to water vapour | s m$^{-1}$ |
