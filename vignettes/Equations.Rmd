@@ -907,7 +907,7 @@ $$G_{0,t}=K_0\left[(1-\eta)\left(T_0-T_1\right)+\eta\left(T'_0-T'_1\right)\right
 
 **Table S2.** Physical properties of materials used in soil thermal modelling (Campbell & Norman 2012).
 
-| Material         | Density (kg/m³) | Specific heat (J/kg/K) | Thermal conductivity (W/m·K) |
+| Material         | Density (kg m$^{-3}$) | Specific heat (J kg$^{-1}$ K$^{-1}$) | Thermal conductivity (W m$^{-1}$ K$^{-1}$) |
 |------------------|------------------|--------------------------|-------------------------------|
 | Quartz           | 2660             | 800                      | 8.80                          |
 | Minerals         | 2650             | 870                      | 2.5                           |
