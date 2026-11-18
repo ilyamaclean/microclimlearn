@@ -459,9 +459,10 @@ functions for calculating different components of microclimate, each of
 which is described in turn. At times, it may be useful to inspect the R
 code inside these functions, which can be done simply by typing the
 function name into the console. The functions are also extensively
-commented in the source code so you may wish also to inspect the
-functions on GitHub (e.g. by browsing the repository or cloning it
-locally), as comments are not shown when printing functions in R.</p>
+commented in the source code, including descriptions of inputs and
+outputs, so you may wish also to inspect the functions on GitHub
+(e.g. by browsing the repository or cloning it locally), as comments are
+not shown when printing functions in R.</p>
 <p>Some components of microclimate are tightly coupled. For example,
 surface temperature depends on the sensible heat flux, while the
 sensible heat flux itself depends on surface temperature. Resolving
@@ -537,12 +538,16 @@ forms the core of the simple microclimate model. We apply it to the
 built-in climate dataset provided with the package
 (<code>climdata</code>): hourly weather for 2017 at Caerthillean Cove on
 the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a
-nearby weather station. First, however, we need to calculate several
+nearby weather station. When applying the model to other locations, the
+climate dataframe can be obtained from ERA5 data using functions
+<code>era5_download</code> and <code>era5_process</code> from the
+microclimdata package. First, however, we need to calculate several
 input variables. The most important of these is Rabs, the flux density
 of radiation absorbed by the canopy. This represents the sum of absorbed
-shortwave and longwave radiation.</p>
-<p>To calculate absorbed shortwave radiation, we must specify an albedo
-— the fraction of incoming solar radiation that is reflected by the
+shortwave and longwave radiation per unit area (W/m2).</p>
+<p>To calculate absorbed radiation, we must provide incoming shortwave
+and longwave radiation and specify an albedo and an emissivity. Albedo
+is the fraction of incoming solar radiation that is reflected by the
 surface and therefore not absorbed. In the example below, albedo is held
 constant at 0.23. For longwave radiation, we specify an emissivity,
 which in this context can be interpreted as an absorption coefficient;
@@ -554,8 +559,8 @@ ideal black body. We return to this later.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Calculate absorbed radiation</span></span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>alb <span class="ot">&lt;-</span> <span class="fl">0.23</span> <span class="co"># albedo</span></span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>em <span class="ot">&lt;-</span> <span class="fl">0.97</span>  <span class="co"># emissivity</span></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>Rabs_sw <span class="ot">&lt;-</span> (<span class="dv">1</span> <span class="sc">-</span> alb) <span class="sc">*</span> climdata<span class="sc">$</span>swdown</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>Rabs_lw <span class="ot">&lt;-</span> em <span class="sc">*</span> climdata<span class="sc">$</span>lwdown</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>Rabs_sw <span class="ot">&lt;-</span> (<span class="dv">1</span> <span class="sc">-</span> alb) <span class="sc">*</span> climdata<span class="sc">$</span>swdown <span class="co"># absorbed shortwave radiation</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>Rabs_lw <span class="ot">&lt;-</span> em <span class="sc">*</span> climdata<span class="sc">$</span>lwdown <span class="co"># absorbed longwave radiation</span></span>
 <span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>Rabs <span class="ot">&lt;-</span> Rabs_sw <span class="sc">+</span> Rabs_lw</span>
 <span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a></span>
 <span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co"># Plot through time</span></span>
@@ -568,15 +573,16 @@ ideal black body. We return to this later.</p>
 resistance to heat loss, a coefficient that determines how readily heat
 is transferred from the surface to the air. It decreases with increasing
 wind speed but also depends on the shape of the vertical wind-speed
-profile. To describe this profile, we must first calculate two key
-parameters: the zero-plane displacement height (the height above the
-ground at which wind flow effectively interacts with a vegetation
-canopy) and the roughness length for momentum, a surface property that
-controls how wind velocity changes with height. In addition, we
-calculate the roughness length for heat, which is related to the
-momentum roughness but specifically governs heat transfer. These terms
-are explained in more detail in the Sensible Heat section below; in
-essence, the first two describe the wind profile’s shape, while the
+profile. To describe this profile, we must provide the height above
+ground of weather data, vegetation height, and windspeed. We then
+calculate two key parameters: the zero-plane displacement height (the
+height above the ground at which wind flow effectively interacts with a
+vegetation canopy) and the roughness length for momentum, a surface
+property that controls how wind velocity changes with height. In
+addition, we calculate the roughness length for heat, which is related
+to the momentum roughness but specifically governs heat transfer. These
+terms are explained in more detail in the Sensible Heat section below;
+in essence, the first two describe the wind profile’s shape, while the
 third determines how efficiently heat is lost from the surface. All
 three tend to show a very consistent relationship with vegetation
 height. Below we use a simplified approach. A more comprehensive
@@ -635,7 +641,8 @@ arbitrary.</p>
 <span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co"># About half of shortwave radiation is PAR, and a joule of PAR is 4.6 umol of photons</span></span>
 <span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>rPAR <span class="ot">&lt;-</span> climdata<span class="sc">$</span>swdown <span class="sc">*</span> <span class="fl">0.5</span> <span class="sc">*</span> <span class="fl">4.6</span>  <span class="co"># Flux density of PAR (umol/m^2/s)</span></span>
 <span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="co"># The surface conducts about three times as much as its leaves (Kelliher et al. 1995)</span></span>
-<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>rS <span class="ot">&lt;-</span> rho <span class="sc">*</span> (rPAR <span class="sc">+</span> <span class="dv">300</span>) <span class="sc">/</span>  (gsmax <span class="sc">*</span> <span class="dv">3</span> <span class="sc">*</span> rPAR) <span class="co"># s/m </span></span></code></pre></div>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co"># 300 represents the half-saturation constant, which is the PAR at which stomatal conductance reaches half its maximum value</span></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a>rS <span class="ot">&lt;-</span> rho <span class="sc">*</span> (rPAR <span class="sc">+</span> <span class="dv">300</span>) <span class="sc">/</span>  (gsmax <span class="sc">*</span> <span class="dv">3</span> <span class="sc">*</span> rPAR) <span class="co"># s/m </span></span></code></pre></div>
 <p>Finally, we need to calculate the rate of heat storage by the ground.
 In practice, this is one of the most difficult components of the energy
 balance to estimate accurately, so we use the simplified approach
@@ -694,29 +701,31 @@ radiative, sensible, and latent heat fluxes balance. While not directly
 measurable, this quantity provides a useful physical reference and can
 be used to estimate near-surface air temperatures above vegetation, as
 shown below. Before doing that, we need to calculate a term called the
-wind friction velocity. We expand on this concept later.</p>
+wind friction velocity, which describes the amount of turbulent mixing
+near the surface. We expand on this concept later.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Calculate wind friction velocity</span></span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>uf <span class="ot">&lt;-</span> (ka <span class="sc">*</span> u2) <span class="sc">/</span> <span class="fu">log</span>((zref <span class="sc">-</span> d) <span class="sc">/</span> zm)</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># Select hottest hour</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>hr <span class="ot">&lt;-</span> <span class="fu">which.max</span>(Ts1)</span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>Ts <span class="ot">&lt;-</span> Ts1[hr]              <span class="co"># surface temperature</span></span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>Ta <span class="ot">&lt;-</span> climdata<span class="sc">$</span>temp[hr]    <span class="co"># air temperature</span></span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a></span>
-<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co"># Calculate sensible heat flux</span></span>
-<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>pk <span class="ot">&lt;-</span> climdata<span class="sc">$</span>pres[hr]</span>
-<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>cp <span class="ot">&lt;-</span> <span class="fu">cpair</span>(Ta)         <span class="co"># specific heat of air</span></span>
-<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>ph <span class="ot">&lt;-</span> <span class="fu">rhoair</span>(Ta, pk)   <span class="co"># molar density of air</span></span>
-<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a></span>
-<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>H <span class="ot">&lt;-</span> ((ph <span class="sc">*</span> cp) <span class="sc">/</span> rHa[hr]) <span class="sc">*</span> (Ts <span class="sc">-</span> Ta)</span>
-<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a></span>
-<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a><span class="co"># Calculate temperature profile above canopy</span></span>
-<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>z <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="fl">0.12</span>, <span class="dv">2</span>, <span class="at">length.out =</span> <span class="dv">100</span>)</span>
-<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>Tz <span class="ot">&lt;-</span> Ts <span class="sc">-</span> (H <span class="sc">/</span> (ka <span class="sc">*</span> ph <span class="sc">*</span> cp <span class="sc">*</span> uf[hr])) <span class="sc">*</span> <span class="fu">log</span>((z <span class="sc">-</span> d) <span class="sc">/</span> zh)</span>
-<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a></span>
-<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>))</span>
-<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a><span class="fu">plot</span>(z <span class="sc">~</span> Tz, <span class="at">type =</span> <span class="st">&quot;l&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>,</span>
-<span id="cb7-22"><a href="#cb7-22" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Temperature&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;Height&quot;</span>)</span></code></pre></div>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co"># variables defined above when calculating bulk surface aerodynamic resistance</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>uf <span class="ot">&lt;-</span> (ka <span class="sc">*</span> u2) <span class="sc">/</span> <span class="fu">log</span>((zref <span class="sc">-</span> d) <span class="sc">/</span> zm)</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co"># Select hottest hour</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>hr <span class="ot">&lt;-</span> <span class="fu">which.max</span>(Ts1)</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>Ts <span class="ot">&lt;-</span> Ts1[hr]              <span class="co"># surface temperature</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>Ta <span class="ot">&lt;-</span> climdata<span class="sc">$</span>temp[hr]    <span class="co"># air temperature</span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co"># Calculate sensible heat flux</span></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>pk <span class="ot">&lt;-</span> climdata<span class="sc">$</span>pres[hr] <span class="co"># pressure</span></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a>cp <span class="ot">&lt;-</span> <span class="fu">cpair</span>(Ta)         <span class="co"># specific heat of air</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>ph <span class="ot">&lt;-</span> <span class="fu">rhoair</span>(Ta, pk)   <span class="co"># molar density of air</span></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>H <span class="ot">&lt;-</span> ((ph <span class="sc">*</span> cp) <span class="sc">/</span> rHa[hr]) <span class="sc">*</span> (Ts <span class="sc">-</span> Ta) <span class="co"># sensible heat flux (W/m2)</span></span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a><span class="co"># Calculate temperature profile above canopy</span></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>z <span class="ot">&lt;-</span> <span class="fu">seq</span>(<span class="fl">0.12</span>, <span class="dv">2</span>, <span class="at">length.out =</span> <span class="dv">100</span>) <span class="co"># height above ground (m)</span></span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a>Tz <span class="ot">&lt;-</span> Ts <span class="sc">-</span> (H <span class="sc">/</span> (ka <span class="sc">*</span> ph <span class="sc">*</span> cp <span class="sc">*</span> uf[hr])) <span class="sc">*</span> <span class="fu">log</span>((z <span class="sc">-</span> d) <span class="sc">/</span> zh) <span class="co"># air temperature</span></span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>))</span>
+<span id="cb7-22"><a href="#cb7-22" tabindex="-1"></a><span class="fu">plot</span>(z <span class="sc">~</span> Tz, <span class="at">type =</span> <span class="st">&quot;l&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Temperature&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;Height&quot;</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,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" /></p>
 <p>We now describe the radiation, sensible and latent heat components of
 the energy budget in more detail, beginning with the simpler case of
@@ -779,25 +788,26 @@ the canopy attenuates direct beam radiation per unit plant area index
 <span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>si <span class="ot">&lt;-</span> <span class="fu">solarindex</span>(<span class="at">slope =</span> <span class="dv">0</span>, <span class="at">aspect =</span> <span class="dv">180</span>, solp2)</span>
 <span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a></span>
 <span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="co"># Compute extinction coefficient</span></span>
-<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>k1 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="dv">1</span>, si)</span>
-<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>k2 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="fl">0.1</span>, si)</span>
-<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>k3 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="dv">10</span>, si)</span>
-<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a></span>
-<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co"># Plot extinction coefficient</span></span>
-<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="fu">plot</span>(k1 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;black&quot;</span>,</span>
-<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
-<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Zenith angle&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;Extinction coefficient&quot;</span>)</span>
-<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a><span class="fu">par</span>(<span class="at">new =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="fu">plot</span>(k2 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;steelblue&quot;</span>,</span>
-<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
-<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;&quot;</span>)</span>
-<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a><span class="fu">par</span>(<span class="at">new =</span> <span class="cn">TRUE</span>)</span>
-<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a><span class="fu">plot</span>(k3 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>,</span>
-<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
-<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;&quot;</span>)</span>
-<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a></span>
-<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">&quot;topleft&quot;</span>, <span class="at">legend =</span> <span class="fu">c</span>(<span class="st">&quot;x = 1&quot;</span>, <span class="st">&quot;x = 0.1&quot;</span>, <span class="st">&quot;x = 10&quot;</span>),</span>
-<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a>       <span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;black&quot;</span>, <span class="st">&quot;steelblue&quot;</span>, <span class="st">&quot;firebrick&quot;</span>), <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">bty =</span> <span class="st">&quot;n&quot;</span>)</span></code></pre></div>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co"># x = ratio of horizontal to vertical leaf projections</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>k1 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="dv">1</span>, si) <span class="co"># random orientation of leaves</span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>k2 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="fl">0.1</span>, si) <span class="co"># vertical leaves</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>k3 <span class="ot">&lt;-</span> <span class="fu">cank</span>(solp2, <span class="at">x =</span> <span class="dv">10</span>, si) <span class="co"># horizontal leaves</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co"># Plot extinction coefficient</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="fu">plot</span>(k1 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;black&quot;</span>,</span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Zenith angle&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;Extinction coefficient&quot;</span>)</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="fu">par</span>(<span class="at">new =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a><span class="fu">plot</span>(k2 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;steelblue&quot;</span>,</span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;&quot;</span>)</span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a><span class="fu">par</span>(<span class="at">new =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a><span class="fu">plot</span>(k3 <span class="sc">~</span> solp2<span class="sc">$</span>zen, <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a>     <span class="at">xlim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">90</span>), <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>),</span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;&quot;</span>, <span class="at">ylab =</span> <span class="st">&quot;&quot;</span>)</span>
+<span id="cb9-26"><a href="#cb9-26" tabindex="-1"></a></span>
+<span id="cb9-27"><a href="#cb9-27" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">&quot;topleft&quot;</span>, <span class="at">legend =</span> <span class="fu">c</span>(<span class="st">&quot;x = 1&quot;</span>, <span class="st">&quot;x = 0.1&quot;</span>, <span class="st">&quot;x = 10&quot;</span>),</span>
+<span id="cb9-28"><a href="#cb9-28" tabindex="-1"></a>       <span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;black&quot;</span>, <span class="st">&quot;steelblue&quot;</span>, <span class="st">&quot;firebrick&quot;</span>), <span class="at">pch =</span> <span class="dv">15</span>, <span class="at">bty =</span> <span class="st">&quot;n&quot;</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,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" /></p>
 <p>You can see here how leaf inclination affects the extinction
 coefficient: more vertically oriented leaves reduce attenuation when the
@@ -858,7 +868,16 @@ surface, including both shortwave and longwave components.</p>
 <p>Because <code>calcRabs</code> and related functions require multiple
 vegetation and ground parameters, these are grouped into single lists,
 as shown below. Parameter names follow the same convention as in the
-micropoint package.</p>
+micropoint package. When running microclimate models using microclimf or
+micropoint packages, vegetation parameters can be estimated from habitat
+type using <code>microclimf::vegpfromhab</code> or plant functional type
+using <code>micropoint::createvegp</code>. However, it is recommended to
+provide, at a minimum, vegetation height and PAI, as these two
+parameters have the largest impact on radiation. For soil parameters,
+ground reflectance can be approximated from soil type using
+<code>micropoint::createsoilc</code>, while slope and aspect can be
+calculated from a digital elevation model using <code>terrain</code>
+from the terra package.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Create list of vegetation parameters</span></span>
 <span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>vegvars <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">h =</span> <span class="fl">0.12</span>,    <span class="co"># vegetation height (m)</span></span>
 <span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>                <span class="at">pai =</span> <span class="dv">1</span>,     <span class="co"># plant area index</span></span>
@@ -904,7 +923,7 @@ momentum, which reflects how rough the canopy surface is to the wind,
 and the zero-plane displacement height, which controls the height above
 the ground surface at which the wind profile extrapolates to zero.
 Together, these describe how vegetation slows and redirects airflow,
-shaping the wind profile near the surface. In the simple example above
+shaping the wind profile near the surface. In the simple example above,
 these parameters were calculated from vegetation height, but in reality
 they have an additional dependence on the plant area index. The
 <code>windfric</code> function calculates them automatically, but thus
@@ -924,10 +943,10 @@ canopy height.</p>
 <span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>uf <span class="ot">&lt;-</span> <span class="fu">windfric</span>(uref, zref, h, pai)  <span class="co"># friction velocity</span></span>
 <span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a></span>
 <span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a><span class="co"># Build height grids and wind profiles</span></span>
-<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>z_list <span class="ot">&lt;-</span> <span class="fu">lapply</span>(h, <span class="cf">function</span>(hi) <span class="fu">seq</span>(hi, zref, <span class="at">length.out =</span> <span class="dv">100</span>))</span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a>z_list <span class="ot">&lt;-</span> <span class="fu">lapply</span>(h, <span class="cf">function</span>(hi) <span class="fu">seq</span>(hi, zref, <span class="at">length.out =</span> <span class="dv">100</span>)) <span class="co"># vectors of heights from vegetation height to reference height</span></span>
 <span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a>uz_list <span class="ot">&lt;-</span> <span class="fu">Map</span>(<span class="cf">function</span>(z, ufi, hi)</span>
 <span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a>                 <span class="fu">windprofile_above</span>(z, ufi, hi, pai),</span>
-<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>               z_list, <span class="fu">as.list</span>(uf), <span class="fu">as.list</span>(h))</span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a>               z_list, <span class="fu">as.list</span>(uf), <span class="fu">as.list</span>(h)) <span class="co"># wind profile above the canopy</span></span>
 <span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a></span>
 <span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a><span class="co"># Bind to matrices for plotting</span></span>
 <span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>Z <span class="ot">&lt;-</span> <span class="fu">do.call</span>(cbind, z_list)</span>
@@ -1606,7 +1625,9 @@ are subset to June.</p>
 <p>We then define vectors for soil water content and ground heat storage
 and call <code>solve_wholecanopy</code> for each hour. Finally, we show
 how the outputs can be used to estimate air temperature at 0.2 m above
-ground.</p>
+ground. When running models using micropoint or microclimf, only
+weather, vegetation parameters, and soil parameters are required as
+input to calculate canopy temperature.</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="co"># ----------------------- Create data inputs ------------------------------- #</span></span>
 <span id="cb23-2"><a href="#cb23-2" tabindex="-1"></a>weather <span class="ot">&lt;-</span> climdata</span>
 <span id="cb23-3"><a href="#cb23-3" tabindex="-1"></a></span>
@@ -2233,8 +2254,8 @@ plant area index and friction velocity.</p>
 <span id="cb31-10"><a href="#cb31-10" tabindex="-1"></a></span>
 <span id="cb31-11"><a href="#cb31-11" tabindex="-1"></a><span class="co"># Fraction of that radiation passing the top and the bottom of each layer</span></span>
 <span id="cb31-12"><a href="#cb31-12" tabindex="-1"></a>pabove <span class="ot">&lt;-</span> <span class="fu">rev</span>(<span class="fu">cumsum</span>(<span class="fu">rev</span>(paii))) <span class="sc">-</span> paii <span class="co"># plant area above the top of each layer</span></span>
-<span id="cb31-13"><a href="#cb31-13" tabindex="-1"></a>trtop <span class="ot">&lt;-</span> <span class="fu">exp</span>(<span class="sc">-</span>k <span class="sc">*</span> pabove)</span>
-<span id="cb31-14"><a href="#cb31-14" tabindex="-1"></a>trbottom <span class="ot">&lt;-</span> <span class="fu">exp</span>(<span class="sc">-</span>k <span class="sc">*</span> (pabove <span class="sc">+</span> paii))</span>
+<span id="cb31-13"><a href="#cb31-13" tabindex="-1"></a>trtop <span class="ot">&lt;-</span> <span class="fu">exp</span>(<span class="sc">-</span>k <span class="sc">*</span> pabove) <span class="co"># fraction of transmitted radiation at the top of each layer</span></span>
+<span id="cb31-14"><a href="#cb31-14" tabindex="-1"></a>trbottom <span class="ot">&lt;-</span> <span class="fu">exp</span>(<span class="sc">-</span>k <span class="sc">*</span> (pabove <span class="sc">+</span> paii)) <span class="co"># fraction of transmitted radiation at the bottom of each layer</span></span>
 <span id="cb31-15"><a href="#cb31-15" tabindex="-1"></a></span>
 <span id="cb31-16"><a href="#cb31-16" tabindex="-1"></a><span class="co"># Half of the radiation absorbed by each layer is released as sensible heat</span></span>
 <span id="cb31-17"><a href="#cb31-17" tabindex="-1"></a>Hz <span class="ot">&lt;-</span> <span class="fl">0.5</span> <span class="sc">*</span> Rnet <span class="sc">*</span> (trtop <span class="sc">-</span> trbottom) <span class="co"># sensible heat flux (W m^-2 of ground)</span></span>
@@ -2717,35 +2738,36 @@ modelled surface temperature and its sinusoidal approximation.</p>
 <span id="cb36-3"><a href="#cb36-3" tabindex="-1"></a></span>
 <span id="cb36-4"><a href="#cb36-4" tabindex="-1"></a><span class="co"># ---------------- Temperatures at 5 cm depth ---------------------------- #</span></span>
 <span id="cb36-5"><a href="#cb36-5" tabindex="-1"></a>z <span class="ot">&lt;-</span> <span class="sc">-</span><span class="fl">0.05</span> <span class="co"># depth below surface (m)</span></span>
-<span id="cb36-6"><a href="#cb36-6" tabindex="-1"></a>Tz5 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">exp</span>(z <span class="sc">/</span> DampDepth) <span class="sc">*</span></span>
-<span id="cb36-7"><a href="#cb36-7" tabindex="-1"></a>       <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span> <span class="sc">+</span> z <span class="sc">/</span> DampDepth)</span>
-<span id="cb36-8"><a href="#cb36-8" tabindex="-1"></a></span>
-<span id="cb36-9"><a href="#cb36-9" tabindex="-1"></a><span class="co"># ---------------- Temperatures at 20 cm depth --------------------------- #</span></span>
-<span id="cb36-10"><a href="#cb36-10" tabindex="-1"></a>z <span class="ot">&lt;-</span> <span class="sc">-</span><span class="fl">0.2</span> <span class="co"># depth below surface (m)</span></span>
-<span id="cb36-11"><a href="#cb36-11" tabindex="-1"></a>Tz20 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">exp</span>(z <span class="sc">/</span> DampDepth) <span class="sc">*</span></span>
-<span id="cb36-12"><a href="#cb36-12" tabindex="-1"></a>        <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span> <span class="sc">+</span> z <span class="sc">/</span> DampDepth)</span>
-<span id="cb36-13"><a href="#cb36-13" tabindex="-1"></a></span>
-<span id="cb36-14"><a href="#cb36-14" tabindex="-1"></a><span class="co"># Assumed sinusoidal cycle at the surface</span></span>
-<span id="cb36-15"><a href="#cb36-15" tabindex="-1"></a>Tz0 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span>)</span>
-<span id="cb36-16"><a href="#cb36-16" tabindex="-1"></a></span>
-<span id="cb36-17"><a href="#cb36-17" tabindex="-1"></a><span class="co"># ----------------------------- Plot results ----------------------------- #</span></span>
-<span id="cb36-18"><a href="#cb36-18" tabindex="-1"></a><span class="fu">plot</span>(Ts <span class="sc">~</span> tt, <span class="at">type =</span> <span class="st">&quot;l&quot;</span>, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>,</span>
-<span id="cb36-19"><a href="#cb36-19" tabindex="-1"></a>     <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">40</span>),</span>
-<span id="cb36-20"><a href="#cb36-20" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Hour&quot;</span>,</span>
-<span id="cb36-21"><a href="#cb36-21" tabindex="-1"></a>     <span class="at">ylab =</span> <span class="fu">expression</span>(<span class="st">&quot;Temperature (&quot;</span> <span class="sc">*</span> degree <span class="sc">*</span> <span class="st">&quot;C)&quot;</span>),</span>
-<span id="cb36-22"><a href="#cb36-22" tabindex="-1"></a>     <span class="at">lwd =</span> <span class="dv">2</span>)</span>
-<span id="cb36-23"><a href="#cb36-23" tabindex="-1"></a><span class="fu">lines</span>(Tz0 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>, <span class="at">lty =</span> <span class="dv">2</span>)</span>
-<span id="cb36-24"><a href="#cb36-24" tabindex="-1"></a><span class="fu">lines</span>(Tz5 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;black&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>)</span>
-<span id="cb36-25"><a href="#cb36-25" tabindex="-1"></a><span class="fu">lines</span>(Tz20 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;steelblue&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>)</span>
-<span id="cb36-26"><a href="#cb36-26" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">&quot;topleft&quot;</span>,</span>
-<span id="cb36-27"><a href="#cb36-27" tabindex="-1"></a>       <span class="at">legend =</span> <span class="fu">c</span>(<span class="st">&quot;Surface temperature&quot;</span>,</span>
-<span id="cb36-28"><a href="#cb36-28" tabindex="-1"></a>                  <span class="st">&quot;Sinusoidal approximation&quot;</span>,</span>
-<span id="cb36-29"><a href="#cb36-29" tabindex="-1"></a>                  <span class="st">&quot;5 cm depth&quot;</span>,</span>
-<span id="cb36-30"><a href="#cb36-30" tabindex="-1"></a>                  <span class="st">&quot;20 cm depth&quot;</span>),</span>
-<span id="cb36-31"><a href="#cb36-31" tabindex="-1"></a>       <span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;firebrick&quot;</span>, <span class="st">&quot;firebrick&quot;</span>, <span class="st">&quot;black&quot;</span>, <span class="st">&quot;steelblue&quot;</span>),</span>
-<span id="cb36-32"><a href="#cb36-32" tabindex="-1"></a>       <span class="at">lty =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">1</span>),</span>
-<span id="cb36-33"><a href="#cb36-33" tabindex="-1"></a>       <span class="at">lwd =</span> <span class="dv">2</span>,</span>
-<span id="cb36-34"><a href="#cb36-34" tabindex="-1"></a>       <span class="at">bty =</span> <span class="st">&quot;n&quot;</span>)</span></code></pre></div>
+<span id="cb36-6"><a href="#cb36-6" tabindex="-1"></a></span>
+<span id="cb36-7"><a href="#cb36-7" tabindex="-1"></a>Tz5 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">exp</span>(z <span class="sc">/</span> DampDepth) <span class="sc">*</span></span>
+<span id="cb36-8"><a href="#cb36-8" tabindex="-1"></a>       <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span> <span class="sc">+</span> z <span class="sc">/</span> DampDepth)</span>
+<span id="cb36-9"><a href="#cb36-9" tabindex="-1"></a></span>
+<span id="cb36-10"><a href="#cb36-10" tabindex="-1"></a><span class="co"># ---------------- Temperatures at 20 cm depth --------------------------- #</span></span>
+<span id="cb36-11"><a href="#cb36-11" tabindex="-1"></a>z <span class="ot">&lt;-</span> <span class="sc">-</span><span class="fl">0.2</span> <span class="co"># depth below surface (m)</span></span>
+<span id="cb36-12"><a href="#cb36-12" tabindex="-1"></a>Tz20 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">exp</span>(z <span class="sc">/</span> DampDepth) <span class="sc">*</span></span>
+<span id="cb36-13"><a href="#cb36-13" tabindex="-1"></a>        <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span> <span class="sc">+</span> z <span class="sc">/</span> DampDepth)</span>
+<span id="cb36-14"><a href="#cb36-14" tabindex="-1"></a></span>
+<span id="cb36-15"><a href="#cb36-15" tabindex="-1"></a><span class="co"># Assumed sinusoidal cycle at the surface</span></span>
+<span id="cb36-16"><a href="#cb36-16" tabindex="-1"></a>Tz0 <span class="ot">&lt;-</span> Tav <span class="sc">+</span> A0 <span class="sc">*</span> <span class="fu">sin</span>(om <span class="sc">*</span> (tt <span class="sc">-</span> hrmx) <span class="sc">+</span> pi <span class="sc">/</span> <span class="dv">2</span>)</span>
+<span id="cb36-17"><a href="#cb36-17" tabindex="-1"></a></span>
+<span id="cb36-18"><a href="#cb36-18" tabindex="-1"></a><span class="co"># ----------------------------- Plot results ----------------------------- #</span></span>
+<span id="cb36-19"><a href="#cb36-19" tabindex="-1"></a><span class="fu">plot</span>(Ts <span class="sc">~</span> tt, <span class="at">type =</span> <span class="st">&quot;l&quot;</span>, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>,</span>
+<span id="cb36-20"><a href="#cb36-20" tabindex="-1"></a>     <span class="at">ylim =</span> <span class="fu">c</span>(<span class="dv">10</span>, <span class="dv">40</span>),</span>
+<span id="cb36-21"><a href="#cb36-21" tabindex="-1"></a>     <span class="at">xlab =</span> <span class="st">&quot;Hour&quot;</span>,</span>
+<span id="cb36-22"><a href="#cb36-22" tabindex="-1"></a>     <span class="at">ylab =</span> <span class="fu">expression</span>(<span class="st">&quot;Temperature (&quot;</span> <span class="sc">*</span> degree <span class="sc">*</span> <span class="st">&quot;C)&quot;</span>),</span>
+<span id="cb36-23"><a href="#cb36-23" tabindex="-1"></a>     <span class="at">lwd =</span> <span class="dv">2</span>)</span>
+<span id="cb36-24"><a href="#cb36-24" tabindex="-1"></a><span class="fu">lines</span>(Tz0 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;firebrick&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>, <span class="at">lty =</span> <span class="dv">2</span>)</span>
+<span id="cb36-25"><a href="#cb36-25" tabindex="-1"></a><span class="fu">lines</span>(Tz5 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;black&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>)</span>
+<span id="cb36-26"><a href="#cb36-26" tabindex="-1"></a><span class="fu">lines</span>(Tz20 <span class="sc">~</span> tt, <span class="at">col =</span> <span class="st">&quot;steelblue&quot;</span>, <span class="at">lwd =</span> <span class="dv">2</span>)</span>
+<span id="cb36-27"><a href="#cb36-27" tabindex="-1"></a><span class="fu">legend</span>(<span class="st">&quot;topleft&quot;</span>,</span>
+<span id="cb36-28"><a href="#cb36-28" tabindex="-1"></a>       <span class="at">legend =</span> <span class="fu">c</span>(<span class="st">&quot;Surface temperature&quot;</span>,</span>
+<span id="cb36-29"><a href="#cb36-29" tabindex="-1"></a>                  <span class="st">&quot;Sinusoidal approximation&quot;</span>,</span>
+<span id="cb36-30"><a href="#cb36-30" tabindex="-1"></a>                  <span class="st">&quot;5 cm depth&quot;</span>,</span>
+<span id="cb36-31"><a href="#cb36-31" tabindex="-1"></a>                  <span class="st">&quot;20 cm depth&quot;</span>),</span>
+<span id="cb36-32"><a href="#cb36-32" tabindex="-1"></a>       <span class="at">col =</span> <span class="fu">c</span>(<span class="st">&quot;firebrick&quot;</span>, <span class="st">&quot;firebrick&quot;</span>, <span class="st">&quot;black&quot;</span>, <span class="st">&quot;steelblue&quot;</span>),</span>
+<span id="cb36-33"><a href="#cb36-33" tabindex="-1"></a>       <span class="at">lty =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">1</span>),</span>
+<span id="cb36-34"><a href="#cb36-34" tabindex="-1"></a>       <span class="at">lwd =</span> <span class="dv">2</span>,</span>
+<span id="cb36-35"><a href="#cb36-35" tabindex="-1"></a>       <span class="at">bty =</span> <span class="st">&quot;n&quot;</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,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" /></p>
 <p>This approach captures the main features of ground heat storage and
 the attenuation of temperature fluctuations with depth, but its
@@ -2951,7 +2973,10 @@ exchanges heat and water vapour with air that the foliage has warmed,
 cooled or moistened, and in turn alters that air and so the temperature
 of the leaves. The ground, the canopy and the air within it must
 therefore be solved together. This is what the <code>micropoint</code>
-package is designed to do.</p>
+package is designed to do. Using inputs from weather data, vegetation
+parameters, and soil parameters, which can be obtained using the
+<code>microclimdata</code> package, the model estimates radiation, air,
+leaf, and ground temperatures, relative humidity, and heat fluxes.</p>
 </div>
 <div id="soil-water-model" class="section level3">
 <h3>Soil water model</h3>
@@ -4764,7 +4789,7 @@ processing of, ERA5 climate data (from the ECMWF Copernicus Climate Data
 Store) for use in microclimate models. It can be installed as follows,
 and the package includes its own vignette explaining how to download and
 prepare the data.</p>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(“dklinges9<span class="sc">/</span>mcera5”</span>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(<span class="st">&quot;dklinges9/mcera5&quot;</span>)</span>
 <span id="cb60-2"><a href="#cb60-2" tabindex="-1"></a><span class="fu">library</span>(mcera5)</span></code></pre></div>
 <p>The <code>microclimdata</code> package extends the capabilities of
 <code>mcera5</code>, enabling the download and processing of a wider

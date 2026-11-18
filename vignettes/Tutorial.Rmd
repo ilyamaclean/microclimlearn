@@ -129,7 +129,7 @@ In the next section we illustrate how the energy balance can be solved by creati
 ### A very simple microclimate model
 The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package (`climdata`): hourly weather for 2017 at Caerthillean Cove on the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a nearby weather station. When applying the model to other locations, the climate dataframe can be obtained from ERA5 data using functions `era5_download` and `era5_process` from the microclimdata package. First, however, we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation per unit area (W/m2).
 
-To calculate absorbed shortwave radiation, we must provide incoming shortwave and longwave radiation and specify an albedo and an emissivity. Albedo is the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
+To calculate absorbed radiation, we must provide incoming shortwave and longwave radiation and specify an albedo and an emissivity. Albedo is the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
 
 ```{r eval=FALSE}
 # Calculate absorbed radiation
@@ -243,7 +243,7 @@ ph <- rhoair(Ta, pk)   # molar density of air
 H <- ((ph * cp) / rHa[hr]) * (Ts - Ta) # sensible heat flux (W/m2)
 
 # Calculate temperature profile above canopy
-z <- seq(0.12, 2, length.out = 100) # height above canopy surface (m)
+z <- seq(0.12, 2, length.out = 100) # height above ground (m)
 Tz <- Ts - (H / (ka * ph * cp * uf[hr])) * log((z - d) / zh) # air temperature
 
 par(mfrow = c(1, 1))
@@ -346,7 +346,7 @@ plot(alb ~ as.POSIXct(tme), type = "l", ylim = c(0, 1),
 
 Sun-facing slopes absorb more direct radiation than flat ground. The `calcRabs` function brings everything together to estimate the total radiation absorbed by the vegetation and the underlying ground surface, including both shortwave and longwave components.
 
-Because `calcRabs` and related functions require multiple vegetation and ground parameters, these are grouped into single lists, as shown below. Parameter names follow the same convention as in the micropoint package. When running microclimate models using microclimf or micropoint packages, vegetation paramteters can be estimated from habitat type using `microclimf::vegpfromhab` or plant functional type using `micropoint::createvegp`. However, it is recommended to provide, at a minimum, vegetation height and PAI, as these two parameters have the largest impact on radiation. For soil parameters, ground reflectance can be approximated from soil type using `micropoint::createsoilc`, while slope and aspect can be calculated from a digital elevation model using `terrain` from the terra package.
+Because `calcRabs` and related functions require multiple vegetation and ground parameters, these are grouped into single lists, as shown below. Parameter names follow the same convention as in the micropoint package. When running microclimate models using microclimf or micropoint packages, vegetation parameters can be estimated from habitat type using `microclimf::vegpfromhab` or plant functional type using `micropoint::createvegp`. However, it is recommended to provide, at a minimum, vegetation height and PAI, as these two parameters have the largest impact on radiation. For soil parameters, ground reflectance can be approximated from soil type using `micropoint::createsoilc`, while slope and aspect can be calculated from a digital elevation model using `terrain` from the terra package.
 
 
 ```{r eval=FALSE}
@@ -923,7 +923,7 @@ We now combine the concepts described previously to simulate canopy microclimate
 
 We first define input parameters, starting from defaults for a C3 grassland but reducing canopy height and plant area index, and setting the fraction of plant area that is living leaf. Atmospheric CO2 is estimated using functions from `micropoint`, and weather data are subset to June.
 
-We then define vectors for soil water content and ground heat storage and call `solve_wholecanopy` for each hour. Finally, we show how the outputs can be used to estimate air temperature at 0.2 m above ground. When running models using micropoint or microclimf, only weather, vegetation parameters, and soil paramters are required as input to calculate canopy temperature.
+We then define vectors for soil water content and ground heat storage and call `solve_wholecanopy` for each hour. Finally, we show how the outputs can be used to estimate air temperature at 0.2 m above ground. When running models using micropoint or microclimf, only weather, vegetation parameters, and soil parameters are required as input to calculate canopy temperature.
 
 ```{r eval=FALSE}
 # ----------------------- Create data inputs ------------------------------- #
@@ -3329,7 +3329,7 @@ Below is an example figure generated with the aid of the `mesoclim` package. It 
 One of the main practical challenges in microclimate modelling is obtaining and preparing the required climate forcing, as well as vegetation and terrain predictor variables. The `mcera5` package (Klinges et al. 2022) provides convenient access to, and processing of, ERA5 climate data (from the ECMWF Copernicus Climate Data Store) for use in microclimate models. It can be installed as follows, and the package includes its own vignette explaining how to download and prepare the data.
 
 ```{r eval=FALSE}
-remotes::install_github(“dklinges9/mcera5”)
+remotes::install_github("dklinges9/mcera5")
 library(mcera5)
 ```
 
