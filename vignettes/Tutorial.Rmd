@@ -99,7 +99,7 @@ knitr::opts_chunk$set(
 * [References](#references)
 
 ## Introduction
-This vignette provides an introduction to mechanistic (process-based) microclimate modelling, with the basic concepts covered in progressively greater detail as you work through it. The package includes a set of R functions for calculating different components of microclimate, each of which is described in turn. At times, it may be useful to inspect the R code inside these functions, which can be done simply by typing the function name into the console. The functions are also extensively commented in the source code so you may wish also to inspect the functions on GitHub (e.g. by browsing the repository or cloning it locally), as comments are not shown when printing functions in R.
+This vignette provides an introduction to mechanistic (process-based) microclimate modelling, with the basic concepts covered in progressively greater detail as you work through it. The package includes a set of R functions for calculating different components of microclimate, each of which is described in turn. At times, it may be useful to inspect the R code inside these functions, which can be done simply by typing the function name into the console. The functions are also extensively commented in the source code, including descriptions of inputs and outputs, so you may wish also to inspect the functions on GitHub (e.g. by browsing the repository or cloning it locally), as comments are not shown when printing functions in R.
 
 Some components of microclimate are tightly coupled. For example, surface temperature depends on the sensible heat flux, while the sensible heat flux itself depends on surface temperature. Resolving these feedbacks typically requires iteration, which can become slow when applied across long time series.
 
@@ -127,16 +127,16 @@ In reality, vegetation is seldom homogeneous. Leaf area, canopy height, and opti
 In the next section we illustrate how the energy balance can be solved by creating our own very simple microclimate model from first principles.
 
 ### A very simple microclimate model
-The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package (`climdata`): hourly weather for 2017 at Caerthillean Cove on the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a nearby weather station. First, however, we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation.
+The main function used in this example is SolveEnergyBalance, which forms the core of the simple microclimate model. We apply it to the built-in climate dataset provided with the package (`climdata`): hourly weather for 2017 at Caerthillean Cove on the Lizard peninsula, Cornwall, UK (49.97° N, 5.22° W), derived from a nearby weather station. When applying the model to other locations, the climate dataframe can be obtained from ERA5 data using functions `era5_download` and `era5_process` from the microclimdata package. First, however, we need to calculate several input variables. The most important of these is Rabs, the flux density of radiation absorbed by the canopy. This represents the sum of absorbed shortwave and longwave radiation per unit area (W/m2).
 
-To calculate absorbed shortwave radiation, we must specify an albedo — the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
+To calculate absorbed shortwave radiation, we must provide incoming shortwave and longwave radiation and specify an albedo and an emissivity. Albedo is the fraction of incoming solar radiation that is reflected by the surface and therefore not absorbed. In the example below, albedo is held constant at 0.23. For longwave radiation, we specify an emissivity, which in this context can be interpreted as an absorption coefficient; this term is defined more precisely later in the vignette. We specify a value of 0.97, which is typical of vegetation. Conventionally emissivity is specified rather than reflectance as for longwave radiation it is also a measure of how efficiently radiation is emitted relative to an ideal black body. We return to this later.  
 
 ```{r eval=FALSE}
 # Calculate absorbed radiation
 alb <- 0.23 # albedo
 em <- 0.97  # emissivity
-Rabs_sw <- (1 - alb) * climdata$swdown
-Rabs_lw <- em * climdata$lwdown
+Rabs_sw <- (1 - alb) * climdata$swdown # absorbed shortwave radiation
+Rabs_lw <- em * climdata$lwdown # absorbed longwave radiation
 Rabs <- Rabs_sw + Rabs_lw
 
 # Plot through time
@@ -147,7 +147,7 @@ plot(Rabs ~ tme, type = "l",
 ```
 ![](images/img1.png)
 
-The next input we need to calculate is the bulk surface aerodynamic resistance to heat loss, a coefficient that determines how readily heat is transferred from the surface to the air. It decreases with increasing wind speed but also depends on the shape of the vertical wind-speed profile. To describe this profile, we must first calculate two key parameters: the zero-plane displacement height (the height above the ground at which wind flow effectively interacts with a vegetation canopy) and the roughness length for momentum, a surface property that controls how wind velocity changes with height. In addition, we calculate the roughness length for heat, which is related to the momentum roughness but specifically governs heat transfer. These terms are explained in more detail in the Sensible Heat section below; in essence, the first two describe the wind profile’s shape, while the third determines how efficiently heat is lost from the surface. All three tend to show a very consistent relationship with vegetation height. Below we use a simplified approach. A more comprehensive treatment is detailed in the Sensible Heat section.
+The next input we need to calculate is the bulk surface aerodynamic resistance to heat loss, a coefficient that determines how readily heat is transferred from the surface to the air. It decreases with increasing wind speed but also depends on the shape of the vertical wind-speed profile. To describe this profile, we must provide the height above ground of weather data, vegetation height, and windspeed. We then calculate two key parameters: the zero-plane displacement height (the height above the ground at which wind flow effectively interacts with a vegetation canopy) and the roughness length for momentum, a surface property that controls how wind velocity changes with height. In addition, we calculate the roughness length for heat, which is related to the momentum roughness but specifically governs heat transfer. These terms are explained in more detail in the Sensible Heat section below; in essence, the first two describe the wind profile’s shape, while the third determines how efficiently heat is lost from the surface. All three tend to show a very consistent relationship with vegetation height. Below we use a simplified approach. A more comprehensive treatment is detailed in the Sensible Heat section.
 
 ```{r eval=FALSE}
 # Calculate resistance to heat loss
@@ -167,7 +167,7 @@ rHa <- (log((zref - d) / zm) * log((zref - d) / zh)) /
 
 One point to note is that the line of code that computes `rHa` makes the assumption that macroclimate data provided as an input is above canopy (it is not possible to compute the log of a negative value). Most weather stations are located 1-2m above ground so this assumption will be violated for forest vegetation. The issue is quite hard to deal with and involves making some assumptions about the nature of the surface in which a weather station is located and then computing the vertical profiles in temperature, humidity, pressure and wind to derive expected values at some desired height above canopy. For simplicity the tutorial package always assumes that macroclimate data used to drive the microclimate models are above canopy. The `micropoint` package, however, includes a specific function for dealing with this issue - see `micropoint::weatherhgt_adjust`. The function only requires that a data.frame of weather inputs is provided and the latitude and longitude and desired height are specified by the user, so it can be applied easily to other datasets.  
 
-This point aside, next, we calculate the bulk surface stomatal resistance, which is the inverse of the total stomatal conductance of all leaves in the canopy, scaled to the ground surface, and represents the overall restriction to vapour flux imposed by stomata, which control how plants transpire. Plant transpiration is a complex and adaptive phenomenon, governed by the interaction between physiological regulation and environmental drivers: stomata open and close in response to light, humidity, temperature, and soil moisture, balancing the need for carbon uptake with the risk of excessive water loss. As a result, canopy-scale transpiration reflects both the physical environment and the dynamic behaviour of plants in maintaining water balance. This is tackled in more detail in the Latent Heat section, but here we adopt a simplified approach, which assumes that our surface is not water-stressed and that the main control on stomatal resistance is the flux density of photosynthetically active radiation, which when low, is assumed to increase stomatal resistance thereby inhibiting water loss. The assumed relationship between the two, while not wholly implausible, is somewhat arbitrary. 
+This point aside, next, we calculate the bulk surface stomatal resistance, which is the inverse of the total stomatal conductance of all leaves in the canopy, scaled to the ground surface, and represents the overall restriction to vapour flux imposed by stomata, which control how plants transpire. Plant transpiration is a complex and adaptive phenomenon, governed by the interaction between physiological regulation and environmental drivers: stomata open and close in response to light, humidity, temperature, and soil moisture, balancing the need for carbon uptake with the risk of excessive water loss. As a result, canopy-scale transpiration reflects both the physical environment and the dynamic behaviour of plants in maintaining water balance. This is tackled in more detail in the Latent Heat section, but here we adopt a simplified approach, which assumes that our surface is not water-stressed and that the main control on stomatal resistance is the flux density of photosynthetically active radiation, which when low, is assumed to increase stomatal resistance thereby inhibiting water loss. The assumed relationship between the two, while not wholly implausible, is somewhat arbitrary.
 
 ```{r eval=FALSE}
 # Calculate bulk surface stomatal resistance (rS)
@@ -176,6 +176,7 @@ rho <- 43 # approximate molar density of air (mol / m^3)
 # About half of shortwave radiation is PAR, and a joule of PAR is 4.6 umol of photons
 rPAR <- climdata$swdown * 0.5 * 4.6  # Flux density of PAR (umol/m^2/s)
 # The surface conducts about three times as much as its leaves (Kelliher et al. 1995)
+# 300 represents the half-saturation constant, which is the PAR at which stomatal conductance reaches half its maximum value
 rS <- rho * (rPAR + 300) /  (gsmax * 3 * rPAR) # s/m 
 ```
 
@@ -222,10 +223,11 @@ plot(Ts1 ~ Ts2, pch = 15, cex = 0.5, col = "steelblue",
 ```
 ![](images/img2.png)
 
-The temperature of this notional surface is mainly a theoretical construct, since real surfaces are rarely vertically uniform or isothermal. It represents an effective temperature at which the combined radiative, sensible, and latent heat fluxes balance. While not directly measurable, this quantity provides a useful physical reference and can be used to estimate near-surface air temperatures above vegetation, as shown below. Before doing that, we need to calculate a term called the wind friction velocity. We expand on this concept later. 
+The temperature of this notional surface is mainly a theoretical construct, since real surfaces are rarely vertically uniform or isothermal. It represents an effective temperature at which the combined radiative, sensible, and latent heat fluxes balance. While not directly measurable, this quantity provides a useful physical reference and can be used to estimate near-surface air temperatures above vegetation, as shown below. Before doing that, we need to calculate a term called the wind friction velocity, which describes the amount of turbulent mixing near the surface. We expand on this concept later. 
 
 ```{r eval=FALSE}
 # Calculate wind friction velocity
+# variables defined above when calculating bulk surface aerodynamic resistance
 uf <- (ka * u2) / log((zref - d) / zm)
 
 # Select hottest hour
@@ -234,15 +236,15 @@ Ts <- Ts1[hr]              # surface temperature
 Ta <- climdata$temp[hr]    # air temperature
 
 # Calculate sensible heat flux
-pk <- climdata$pres[hr]
+pk <- climdata$pres[hr] # pressure
 cp <- cpair(Ta)         # specific heat of air
 ph <- rhoair(Ta, pk)   # molar density of air
 
-H <- ((ph * cp) / rHa[hr]) * (Ts - Ta)
+H <- ((ph * cp) / rHa[hr]) * (Ts - Ta) # sensible heat flux (W/m2)
 
 # Calculate temperature profile above canopy
-z <- seq(0.12, 2, length.out = 100)
-Tz <- Ts - (H / (ka * ph * cp * uf[hr])) * log((z - d) / zh)
+z <- seq(0.12, 2, length.out = 100) # height above canopy surface (m)
+Tz <- Ts - (H / (ka * ph * cp * uf[hr])) * log((z - d) / zh) # air temperature
 
 par(mfrow = c(1, 1))
 plot(z ~ Tz, type = "l", lwd = 2,
@@ -280,9 +282,10 @@ solp2 <- lapply(solp, `[`, sel)
 si <- solarindex(slope = 0, aspect = 180, solp2)
 
 # Compute extinction coefficient
-k1 <- cank(solp2, x = 1, si)
-k2 <- cank(solp2, x = 0.1, si)
-k3 <- cank(solp2, x = 10, si)
+# x = ratio of horizontal to vertical leaf projections
+k1 <- cank(solp2, x = 1, si) # random orientation of leaves
+k2 <- cank(solp2, x = 0.1, si) # vertical leaves
+k3 <- cank(solp2, x = 10, si) # horizontal leaves
 
 # Plot extinction coefficient
 plot(k1 ~ solp2$zen, pch = 15, col = "black",
@@ -343,7 +346,7 @@ plot(alb ~ as.POSIXct(tme), type = "l", ylim = c(0, 1),
 
 Sun-facing slopes absorb more direct radiation than flat ground. The `calcRabs` function brings everything together to estimate the total radiation absorbed by the vegetation and the underlying ground surface, including both shortwave and longwave components.
 
-Because `calcRabs` and related functions require multiple vegetation and ground parameters, these are grouped into single lists, as shown below. Parameter names follow the same convention as in the micropoint package.
+Because `calcRabs` and related functions require multiple vegetation and ground parameters, these are grouped into single lists, as shown below. Parameter names follow the same convention as in the micropoint package. When running microclimate models using microclimf or micropoint packages, vegetation paramteters can be estimated from habitat type using `microclimf::vegpfromhab` or plant functional type using `micropoint::createvegp`. However, it is recommended to provide, at a minimum, vegetation height and PAI, as these two parameters have the largest impact on radiation. For soil parameters, ground reflectance can be approximated from soil type using `micropoint::createsoilc`, while slope and aspect can be calculated from a digital elevation model using `terrain` from the terra package.
 
 
 ```{r eval=FALSE}
@@ -375,7 +378,7 @@ plot(Rabs ~ as.POSIXct(tme), type = "l",
 ### Sensible heat and wind
 The sensible heat flux from a vegetated surface depends on the temperature difference between the surface and the air at a reference height above the canopy, and on how easily moving air can carry that heat away (the convective conductivity, or the inverse of resistance to heat loss). Stronger winds reduce this resistance and allow more heat to be transferred. Because wind speed changes with height — slower near the surface and faster higher up — estimating this resistance requires describing how wind varies vertically. The key quantity that controls this wind-speed profile is the friction velocity, which is simply a measure of how strongly the wind interacts with and “drags” against the surface. In plain terms, it captures how vigorously the wind is stirring the air close to the ground: higher friction velocity means more turbulence and more efficient heat exchange.
 
-The relationship between wind speed at reference height and friction velocity is set by two additional parameters: the roughness length for momentum, which reflects how rough the canopy surface is to the wind, and the zero-plane displacement height, which controls the height above the ground surface at which the wind profile extrapolates to zero. Together, these describe how vegetation slows and redirects airflow, shaping the wind profile near the surface. In the simple example above these parameters were calculated from vegetation height, but in reality they have an additional dependence on the plant area index. The `windfric` function calculates them automatically, but thus requires `pai` to be passed as an input. 
+The relationship between wind speed at reference height and friction velocity is set by two additional parameters: the roughness length for momentum, which reflects how rough the canopy surface is to the wind, and the zero-plane displacement height, which controls the height above the ground surface at which the wind profile extrapolates to zero. Together, these describe how vegetation slows and redirects airflow, shaping the wind profile near the surface. In the simple example above, these parameters were calculated from vegetation height, but in reality they have an additional dependence on the plant area index. The `windfric` function calculates them automatically, but thus requires `pai` to be passed as an input. 
 
 In the code below, we first define the wind speed at the reference height, the three canopy heights, and plant area index. We then compute the friction velocity. Next, we create height vectors spanning from the top of each canopy to `zref`, apply the wind-profile function to each, and plot the resulting profiles, with dashed lines marking canopy height.
 
@@ -389,10 +392,10 @@ pai <- 1             # plant area index
 uf <- windfric(uref, zref, h, pai)  # friction velocity
 
 # Build height grids and wind profiles
-z_list <- lapply(h, function(hi) seq(hi, zref, length.out = 100))
+z_list <- lapply(h, function(hi) seq(hi, zref, length.out = 100)) # vectors of heights from vegetation height to reference height
 uz_list <- Map(function(z, ufi, hi)
                  windprofile_above(z, ufi, hi, pai),
-               z_list, as.list(uf), as.list(h))
+               z_list, as.list(uf), as.list(h)) # wind profile above the canopy
 
 # Bind to matrices for plotting
 Z <- do.call(cbind, z_list)
@@ -920,7 +923,7 @@ We now combine the concepts described previously to simulate canopy microclimate
 
 We first define input parameters, starting from defaults for a C3 grassland but reducing canopy height and plant area index, and setting the fraction of plant area that is living leaf. Atmospheric CO2 is estimated using functions from `micropoint`, and weather data are subset to June.
 
-We then define vectors for soil water content and ground heat storage and call `solve_wholecanopy` for each hour. Finally, we show how the outputs can be used to estimate air temperature at 0.2 m above ground.
+We then define vectors for soil water content and ground heat storage and call `solve_wholecanopy` for each hour. Finally, we show how the outputs can be used to estimate air temperature at 0.2 m above ground. When running models using micropoint or microclimf, only weather, vegetation parameters, and soil paramters are required as input to calculate canopy temperature.
 
 ```{r eval=FALSE}
 # ----------------------- Create data inputs ------------------------------- #
@@ -1401,8 +1404,8 @@ k <- 0.5    # extinction coefficient: how strongly foliage attenuates radiation
 
 # Fraction of that radiation passing the top and the bottom of each layer
 pabove <- rev(cumsum(rev(paii))) - paii # plant area above the top of each layer
-trtop <- exp(-k * pabove)
-trbottom <- exp(-k * (pabove + paii))
+trtop <- exp(-k * pabove) # fraction of transmitted radiation at the top of each layer
+trbottom <- exp(-k * (pabove + paii)) # fraction of transmitted radiation at the bottom of each layer
 
 # Half of the radiation absorbed by each layer is released as sensible heat
 Hz <- 0.5 * Rnet * (trtop - trbottom) # sensible heat flux (W m^-2 of ground)
@@ -1808,6 +1811,7 @@ Tav <- mean(Ts) # average temperature (°C)
 
 # ---------------- Temperatures at 5 cm depth ---------------------------- #
 z <- -0.05 # depth below surface (m)
+
 Tz5 <- Tav + A0 * exp(z / DampDepth) *
        sin(om * (tt - hrmx) + pi / 2 + z / DampDepth)
 
@@ -2005,7 +2009,7 @@ plotdailycycle(Gflux, rgb(0.27, 0.51, 0.71, 0.5))
 
 The plots show pronounced daily cycles in both surface temperature and ground heat flux, with variations between days reflecting changing weather conditions. The lower panels rescale each day's cycle to highlight their timing. Ground heat flux typically peaks in mid-morning, several hours before surface temperature, consistent with the simpler model above. Unlike that model, however, the timing and magnitude of heat exchange are now calculated directly from the evolving soil temperature profile rather than assuming a sinusoidal cycle.
 
-Bare ground is the simplest case. Beneath vegetation, the ground absorbs only the shortwave radiation that passes through the canopy, together with longwave radiation emitted by the canopy itself. It also exchanges heat and water vapour with air that the foliage has warmed, cooled or moistened, and in turn alters that air and so the temperature of the leaves. The ground, the canopy and the air within it must therefore be solved together. This is what the `micropoint` package is designed to do.
+Bare ground is the simplest case. Beneath vegetation, the ground absorbs only the shortwave radiation that passes through the canopy, together with longwave radiation emitted by the canopy itself. It also exchanges heat and water vapour with air that the foliage has warmed, cooled or moistened, and in turn alters that air and so the temperature of the leaves. The ground, the canopy and the air within it must therefore be solved together. This is what the `micropoint` package is designed to do. Using inputs from weather data, vegetation parameters, and soil parameters, which can be obtained using the `microclimdata` package, the model estimates radiation, air, leaf, and ground temperatures, relative humidity, and heat fluxes.
 
 ### Soil water model
 
@@ -3325,7 +3329,7 @@ Below is an example figure generated with the aid of the `mesoclim` package. It 
 One of the main practical challenges in microclimate modelling is obtaining and preparing the required climate forcing, as well as vegetation and terrain predictor variables. The `mcera5` package (Klinges et al. 2022) provides convenient access to, and processing of, ERA5 climate data (from the ECMWF Copernicus Climate Data Store) for use in microclimate models. It can be installed as follows, and the package includes its own vignette explaining how to download and prepare the data.
 
 ```{r eval=FALSE}
-remotes::install_github(“dklinges9/mcera5”
+remotes::install_github(“dklinges9/mcera5”)
 library(mcera5)
 ```
 
